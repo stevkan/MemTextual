@@ -46,6 +46,23 @@ export {
   type SourceRecordKind,
 } from "./domain/ingestion.js";
 export {
+  reviewPolicyModes,
+  type BulkReviewItemResult,
+  type BulkReviewResult,
+  type CandidateAutomationResult,
+  type CandidateEvidenceFact,
+  type CandidatePolicyDecision,
+  type CandidatePolicyFacts,
+  type PolicyAcceptanceAuthorization,
+  type PolicyEvaluationCheck,
+  type PolicyMutationContext,
+  type ReviewPolicy,
+  type ReviewPolicyConditions,
+  type ReviewPolicyMode,
+  type SetReviewPolicyInput,
+  type TrustedSourceIdentity,
+} from "./domain/review-policy.js";
+export {
   resolveMcpRuntimeConfig,
   type McpRuntimeConfig,
   type ResolveMcpConfigOptions,
@@ -59,13 +76,20 @@ export {
 } from "./mcp/server.js";
 export type { MemoryRepository } from "./repositories/memory-repository.js";
 export type { IngestionRepository } from "./repositories/ingestion-repository.js";
+export type { ReviewPolicyRepository } from "./repositories/review-policy-repository.js";
 export { SqliteIngestionRepository } from "./repositories/sqlite-ingestion-repository.js";
 export { SqliteMemoryRepository } from "./repositories/sqlite-memory-repository.js";
+export { SqliteReviewPolicyRepository } from "./repositories/sqlite-review-policy-repository.js";
 export {
   CandidateNotFoundError,
   ExplicitCandidateReviewRequiredError,
   IngestionService,
+  type CandidateAutomationProcessor,
 } from "./services/ingestion-service.js";
+export {
+  ExplicitPolicyConfigurationRequiredError,
+  ReviewAutomationService,
+} from "./services/review-automation-service.js";
 export {
   formatCandidateForReview,
   reviewPendingCandidates,

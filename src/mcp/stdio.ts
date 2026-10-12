@@ -6,8 +6,10 @@ import { dirname } from "node:path";
 import { openMemTextualDatabase } from "../database/sqlite-database.js";
 import { SqliteIngestionRepository } from "../repositories/sqlite-ingestion-repository.js";
 import { SqliteMemoryRepository } from "../repositories/sqlite-memory-repository.js";
+import { SqliteReviewPolicyRepository } from "../repositories/sqlite-review-policy-repository.js";
 import { IngestionService } from "../services/ingestion-service.js";
 import { MemoryService } from "../services/memory-service.js";
+import { ReviewAutomationService } from "../services/review-automation-service.js";
 import { resolveMcpRuntimeConfig } from "./config.js";
 import { createMemTextualMcpServer } from "./server.js";
 
@@ -21,8 +23,14 @@ function main(): void {
   });
   const repository = new SqliteMemoryRepository(database);
   const service = new MemoryService(repository);
+  const ingestionRepository = new SqliteIngestionRepository(database, repository);
+  const reviewAutomation = new ReviewAutomationService(
+    ingestionRepository,
+    new SqliteReviewPolicyRepository(database, ingestionRepository),
+  );
   const ingestionService = new IngestionService(
-    new SqliteIngestionRepository(database, repository),
+    ingestionRepository,
+    reviewAutomation,
   );
 
   serveStdio(

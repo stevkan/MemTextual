@@ -8,9 +8,11 @@ import { join, resolve } from "node:path";
 import test from "node:test";
 import {
   MemoryService,
+  ReviewAutomationService,
   IngestionService,
   SqliteIngestionRepository,
   SqliteMemoryRepository,
+  SqliteReviewPolicyRepository,
   createMemTextualMcpServer,
   mcpServerName,
   mcpServerVersion,
@@ -25,8 +27,17 @@ async function mcpFixture() {
   });
   const memoryRepository = new SqliteMemoryRepository(database);
   const service = new MemoryService(memoryRepository);
+  const ingestionRepository = new SqliteIngestionRepository(
+    database,
+    memoryRepository,
+  );
+  const reviewAutomation = new ReviewAutomationService(
+    ingestionRepository,
+    new SqliteReviewPolicyRepository(database, ingestionRepository),
+  );
   const ingestionService = new IngestionService(
-    new SqliteIngestionRepository(database, memoryRepository),
+    ingestionRepository,
+    reviewAutomation,
   );
   const server = createMemTextualMcpServer(service, ingestionService);
   const client = new Client({ name: "memtextual-test", version: "1.0.0" });
@@ -35,7 +46,7 @@ async function mcpFixture() {
   await server.connect(serverTransport);
   await client.connect(clientTransport);
 
-  return { client, database, server };
+  return { client, database, reviewAutomation, server };
 }
 
 function structuredResult<T>(result: { structuredContent?: unknown }): T {
@@ -126,8 +137,10 @@ test("server_info reports server identity, capabilities, and the discovered tool
 
     assert.ok(
       info.capabilities.some(
-        ({ name, status }) =>
-          name === "configurable_review_automation" && status === "planned",
+        ({ name, status, interface: capabilityInterface }) =>
+          name === "configurable_review_automation" &&
+          status === "implemented" &&
+          capabilityInterface === "cli",
       ),
     );
     assert.ok(
@@ -209,6 +222,74 @@ test("MCP tools import sources and propose reviewable candidates", async () => {
     const tools = await client.listTools();
     assert.equal(tools.tools.some(({ name }) => name === "candidate_accept"), false);
     assert.equal(tools.tools.some(({ name }) => name === "candidate_reject"), false);
+  } finally {
+    await client.close();
+    await server.close();
+    database.close();
+  }
+});
+
+test("MCP proposals use configured automation without exposing policy mutation tools", async () => {
+  const { client, database, reviewAutomation, server } = await mcpFixture();
+
+  try {
+    const scopeCall = await client.callTool({
+      name: "scope_create",
+      arguments: { kind: "project", name: "Automated MCP review" },
+    });
+    const scope = structuredResult<{ id: string }>(scopeCall);
+    const importCall = await client.callTool({
+      name: "source_import",
+      arguments: {
+        kind: "chat",
+        title: "Trusted MCP source",
+        externalId: "chat:mcp-trusted:1",
+        records: [
+          {
+            kind: "message",
+            authorRole: "user",
+            content: "The user prefers TypeScript.",
+          },
+        ],
+      },
+    });
+    const imported = structuredResult<{ records: Array<{ id: string }> }>(
+      importCall,
+    );
+    reviewAutomation.setPolicy(
+      {
+        name: "Trusted MCP user statements",
+        mode: "automatic_explicit",
+        scopeId: scope.id,
+        conditions: {
+          trustedSources: [
+            { kind: "chat", externalId: "chat:mcp-trusted:1" },
+          ],
+        },
+      },
+      { actor: "user", explicitUserAction: true },
+    );
+
+    const candidateCall = await client.callTool({
+      name: "candidate_propose",
+      arguments: {
+        assertion: "The user prefers TypeScript.",
+        type: "preference",
+        scopeId: scope.id,
+        evidence: [{ sourceRecordId: imported.records[0]!.id }],
+      },
+    });
+    const candidate = structuredResult<{ status: string; reviewedBy: string }>(
+      candidateCall,
+    );
+    assert.equal(candidate.status, "accepted");
+    assert.equal(candidate.reviewedBy, "system");
+
+    const tools = await client.listTools();
+    assert.equal(
+      tools.tools.some(({ name }) => name.startsWith("policy_")),
+      false,
+    );
   } finally {
     await client.close();
     await server.close();
@@ -377,7 +458,7 @@ test("stdio entry point completes an MCP handshake", async () => {
       arguments: {},
     });
     const info = structuredResult<{ version: string; tools: unknown[] }>(infoCall);
-    assert.equal(info.version, "0.6.0");
+    assert.equal(info.version, "0.7.0");
     assert.equal(info.tools.length, 19);
   } finally {
     await client.close();

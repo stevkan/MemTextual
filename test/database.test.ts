@@ -1,6 +1,13 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import {
+  copyFileSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
 import test from "node:test";
 import {
   openMemTextualDatabase,
@@ -29,7 +36,7 @@ test("migration and seed preserve schema integrity", () => {
     const violations = database.prepare("PRAGMA foreign_key_check").all();
 
     assert.equal(memoryCount.count, 10);
-    assert.equal(migrationCount.count, 2);
+    assert.equal(migrationCount.count, 3);
     assert.deepEqual(violations, []);
   } finally {
     database.close();
@@ -100,5 +107,73 @@ test("database rejects a current revision owned by another memory", () => {
     );
   } finally {
     database.close();
+  }
+});
+
+test("review automation migration upgrades an existing candidate database", () => {
+  const temporaryDirectory = mkdtempSync(join(tmpdir(), "memtextual-migrate-"));
+  const oldMigrations = join(temporaryDirectory, "old-migrations");
+  const databasePath = join(temporaryDirectory, "existing.db");
+  mkdirSync(oldMigrations);
+  copyFileSync(resolve("migrations", "001_initial.sql"), join(oldMigrations, "001_initial.sql"));
+  copyFileSync(
+    resolve("migrations", "002_ingestion_candidates.sql"),
+    join(oldMigrations, "002_ingestion_candidates.sql"),
+  );
+
+  try {
+    const oldDatabase = openMemTextualDatabase({
+      filename: databasePath,
+      migrationsDirectory: oldMigrations,
+    });
+    oldDatabase
+      .prepare(
+        `INSERT INTO scopes (id, scope_kind, name)
+         VALUES ('scope_upgrade', 'project', 'Upgrade test')`,
+      )
+      .run();
+    oldDatabase
+      .prepare(
+        `INSERT INTO memory_candidates (
+           id, memory_type, assertion, scope_id, proposed_by
+         ) VALUES (
+           'candidate_upgrade', 'fact', 'Preserve this candidate.',
+           'scope_upgrade', 'system'
+         )`,
+      )
+      .run();
+    oldDatabase.close();
+
+    const upgraded = openMemTextualDatabase({
+      filename: databasePath,
+      migrationsDirectory: resolve("migrations"),
+    });
+    try {
+      const candidate = upgraded
+        .prepare(
+          `SELECT assertion, proposer_id
+           FROM memory_candidates WHERE id = 'candidate_upgrade'`,
+        )
+        .get() as { assertion: string; proposer_id: string | null };
+      const policyTable = upgraded
+        .prepare(
+          `SELECT 1 AS present FROM sqlite_master
+           WHERE type = 'table' AND name = 'review_policies'`,
+        )
+        .get() as { present: 1 } | undefined;
+      const migration = upgraded
+        .prepare("SELECT name FROM schema_migrations WHERE version = 3")
+        .get() as { name: string };
+
+      assert.equal(candidate.assertion, "Preserve this candidate.");
+      assert.equal(candidate.proposer_id, null);
+      assert.deepEqual(policyTable, { present: 1 });
+      assert.equal(migration.name, "candidate_review_automation_v0.7");
+      assert.deepEqual(upgraded.prepare("PRAGMA foreign_key_check").all(), []);
+    } finally {
+      upgraded.close();
+    }
+  } finally {
+    rmSync(temporaryDirectory, { recursive: true, force: true });
   }
 });

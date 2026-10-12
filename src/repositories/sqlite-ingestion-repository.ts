@@ -20,6 +20,7 @@ import type {
   RetrievalPolicy,
   Sensitivity,
 } from "../domain/memory.js";
+import type { PolicyAcceptanceAuthorization } from "../domain/review-policy.js";
 import type { IngestionRepository } from "./ingestion-repository.js";
 import type { MemoryRepository } from "./memory-repository.js";
 
@@ -65,6 +66,7 @@ interface CandidateRow {
   is_protected: 0 | 1;
   scope_id: string;
   proposed_by: CandidateActor;
+  proposer_id: string | null;
   reviewed_by: CandidateActor | null;
   reviewed_at: string | null;
   review_note: string | null;
@@ -322,8 +324,9 @@ export class SqliteIngestionRepository implements IngestionRepository {
           `INSERT INTO memory_candidates (
              id, memory_type, assertion, normalized_assertion, explicitness,
              confidence, observed_at, retrieval_policy, sensitivity,
-             is_pinned, is_protected, scope_id, proposed_by, metadata_json
-           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+             is_pinned, is_protected, scope_id, proposed_by, proposer_id,
+             metadata_json
+           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         )
         .run(
           id,
@@ -339,6 +342,7 @@ export class SqliteIngestionRepository implements IngestionRepository {
           input.isProtected === true ? 1 : 0,
           input.scopeId,
           actor,
+          input.proposerId ?? null,
           JSON.stringify(input.metadata ?? {}),
         );
 
@@ -392,8 +396,9 @@ export class SqliteIngestionRepository implements IngestionRepository {
     id: string,
     actor: CandidateActor,
     note?: string,
+    policyAuthorization?: PolicyAcceptanceAuthorization,
   ): CandidateAcceptance {
-    this.requireUserActor(actor);
+    this.requireReviewActor(id, actor, policyAuthorization);
     let memoryId = "";
 
     const acceptTransaction = this.database.transaction(() => {
@@ -410,7 +415,7 @@ export class SqliteIngestionRepository implements IngestionRepository {
         ...(candidate.observedAt === null
           ? {}
           : { observedAt: candidate.observedAt }),
-        createdBy: "user",
+        createdBy: actor === "user" ? "user" : "system",
         retrievalPolicy: candidate.retrievalPolicy,
         sensitivity: candidate.sensitivity,
         isPinned: candidate.isPinned,
@@ -442,7 +447,17 @@ export class SqliteIngestionRepository implements IngestionRepository {
            WHERE id = ?`,
         )
         .run(actor, this.normalizeNote(note), memory.id, id);
-      this.writeCandidateEvent(id, "accepted", actor, { memoryId: memory.id });
+      this.writeCandidateEvent(id, "accepted", actor, {
+        memoryId: memory.id,
+        reviewMethod: actor === "user" ? "manual" : "automatic",
+        ...(policyAuthorization === undefined
+          ? {}
+          : {
+              policyId: policyAuthorization.policyId,
+              policyVersion: policyAuthorization.policyVersion,
+              evaluation: policyAuthorization.evaluation,
+            }),
+      });
     });
 
     acceptTransaction();
@@ -458,7 +473,7 @@ export class SqliteIngestionRepository implements IngestionRepository {
     actor: CandidateActor,
     note?: string,
   ): MemoryCandidate {
-    this.requireUserActor(actor);
+    this.requireReviewActor(id, actor);
     const rejectTransaction = this.database.transaction(() => {
       this.requirePendingCandidate(id);
       this.database
@@ -543,6 +558,7 @@ export class SqliteIngestionRepository implements IngestionRepository {
       isPinned: row.is_pinned === 1,
       isProtected: row.is_protected === 1,
       proposedBy: row.proposed_by,
+      proposerId: row.proposer_id,
       reviewedBy: row.reviewed_by,
       reviewedAt: row.reviewed_at,
       reviewNote: row.review_note,
@@ -571,9 +587,60 @@ export class SqliteIngestionRepository implements IngestionRepository {
     return candidate;
   }
 
-  private requireUserActor(actor: CandidateActor): void {
-    if (actor !== "user") {
-      throw new Error("Candidate review requires the user actor.");
+  private requireReviewActor(
+    candidateId: string,
+    actor: CandidateActor,
+    policyAuthorization?: PolicyAcceptanceAuthorization,
+  ): void {
+    if (actor === "user") {
+      return;
+    }
+    if (actor !== "system" || policyAuthorization === undefined) {
+      throw new Error(
+        "Candidate review requires the user actor or a policy-authorized system acceptance.",
+      );
+    }
+    if (policyAuthorization.evaluation.outcome !== "automatic_accept") {
+      throw new Error("The supplied policy evaluation does not authorize acceptance.");
+    }
+    if (
+      policyAuthorization.evaluation.candidateId !== candidateId ||
+      policyAuthorization.evaluation.policy?.id !== policyAuthorization.policyId ||
+      policyAuthorization.evaluation.policy.version !==
+        policyAuthorization.policyVersion
+    ) {
+      throw new Error("The policy authorization does not match this candidate.");
+    }
+    const policy = this.database
+      .prepare(
+        `WITH RECURSIVE candidate_scope(id, depth) AS (
+           SELECT scope_id, 0 FROM memory_candidates WHERE id = ?
+           UNION ALL
+           SELECT s.parent_scope_id, candidate_scope.depth + 1
+           FROM scopes s
+           JOIN candidate_scope ON s.id = candidate_scope.id
+           WHERE s.parent_scope_id IS NOT NULL
+         ), effective_policy AS (
+           SELECT p.id, p.version
+           FROM review_policies p
+           LEFT JOIN candidate_scope ON p.scope_id = candidate_scope.id
+           WHERE p.is_active = 1
+             AND (p.scope_id IS NULL OR candidate_scope.id IS NOT NULL)
+           ORDER BY
+             CASE WHEN p.scope_id IS NULL THEN 1 ELSE 0 END,
+             candidate_scope.depth ASC
+           LIMIT 1
+         )
+         SELECT id FROM effective_policy
+         WHERE id = ? AND version = ?`,
+      )
+      .get(
+        candidateId,
+        policyAuthorization.policyId,
+        policyAuthorization.policyVersion,
+      ) as { id: string } | undefined;
+    if (policy === undefined) {
+      throw new Error("The authorizing review policy is not active.");
     }
   }
 

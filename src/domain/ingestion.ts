@@ -105,6 +105,7 @@ export interface ProposeMemoryCandidateInput {
   isPinned?: boolean;
   isProtected?: boolean;
   proposedBy?: CandidateActor;
+  proposerId?: string;
   metadata?: Record<string, unknown>;
 }
 
@@ -124,6 +125,7 @@ export interface MemoryCandidate {
   isPinned: boolean;
   isProtected: boolean;
   proposedBy: CandidateActor;
+  proposerId: string | null;
   reviewedBy: CandidateActor | null;
   reviewedAt: string | null;
   reviewNote: string | null;
