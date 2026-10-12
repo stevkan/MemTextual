@@ -59,6 +59,14 @@ Manual review CLI v0.5 adds:
 - a `memtextual-review` package binary; and
 - a direct source-record lookup API and MCP tool.
 
+Server discoverability v0.6 adds:
+
+- a read-only `server_info` MCP tool;
+- server identity and version reporting;
+- a complete nineteen-tool catalog with descriptions and safety annotations;
+- implemented and planned capability status; and
+- no exposure of database contents, credentials, or local runtime paths.
+
 ## Repository layout
 
 ```text
@@ -115,6 +123,7 @@ behavior remains behind repository interfaces.
 ## Deliberately deferred
 
 Automatic extraction, a trusted candidate-review UI, configurable manual,
-bulk, automatic, and risk-based review policies, source versioning and purge
-semantics, streamable HTTP, REST API, admin UI, embedding provider,
-host-specific installers, and the broader packaging strategy remain open.
+bulk, automatic, and risk-based review policies, a legacy-memory migration
+workflow, source versioning and purge semantics, streamable HTTP, REST API,
+admin UI, embedding provider, host-specific installers, and the broader
+packaging strategy remain open.

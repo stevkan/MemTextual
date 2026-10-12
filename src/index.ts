@@ -52,8 +52,10 @@ export {
 } from "./mcp/config.js";
 export {
   createMemTextualMcpServer,
+  mcpCapabilityCatalog,
   mcpServerName,
   mcpServerVersion,
+  mcpToolCatalog,
 } from "./mcp/server.js";
 export type { MemoryRepository } from "./repositories/memory-repository.js";
 export type { IngestionRepository } from "./repositories/ingestion-repository.js";

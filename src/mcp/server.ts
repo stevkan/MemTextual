@@ -6,7 +6,7 @@ import type { IngestionService } from "../services/ingestion-service.js";
 import type { MemoryService } from "../services/memory-service.js";
 
 export const mcpServerName = "memtextual";
-export const mcpServerVersion = "0.5.0";
+export const mcpServerVersion = "0.6.0";
 
 const scopeKinds = ["global", "project", "conversation", "namespace"] as const;
 const sensitivities = ["normal", "sensitive", "restricted"] as const;
@@ -37,6 +37,163 @@ const destructiveAnnotations = {
   ...mutationAnnotations,
   destructiveHint: true,
 } as const;
+
+export const mcpCapabilityCatalog = [
+  { name: "scope_management", status: "implemented", interface: "mcp" },
+  { name: "memory_lifecycle", status: "implemented", interface: "mcp" },
+  { name: "memory_retrieval", status: "implemented", interface: "mcp" },
+  { name: "source_ingestion", status: "implemented", interface: "mcp" },
+  {
+    name: "candidate_proposal_and_inspection",
+    status: "implemented",
+    interface: "mcp",
+  },
+  { name: "candidate_review", status: "implemented", interface: "cli" },
+  {
+    name: "configurable_review_automation",
+    status: "planned",
+    interface: null,
+  },
+  { name: "legacy_memory_migration", status: "planned", interface: null },
+] as const;
+
+export const mcpToolCatalog = [
+  {
+    name: "server_info",
+    title: "Get MemTextual server information",
+    description:
+      "Get the server identity, capability status, and complete MCP tool catalog without exposing local paths or memory data.",
+    annotations: readOnlyAnnotations,
+  },
+  {
+    name: "scope_list",
+    title: "List memory scopes",
+    description: "List every configured MemTextual scope.",
+    annotations: readOnlyAnnotations,
+  },
+  {
+    name: "scope_create",
+    title: "Create a memory scope",
+    description:
+      "Create a global, project, conversation, or namespace scope for memories.",
+    annotations: mutationAnnotations,
+  },
+  {
+    name: "memory_create",
+    title: "Create a memory",
+    description: "Create a revisioned memory in one existing scope.",
+    annotations: mutationAnnotations,
+  },
+  {
+    name: "memory_get",
+    title: "Get a memory",
+    description:
+      "Get the current state of one memory by ID, including manual and excluded memories.",
+    annotations: readOnlyAnnotations,
+  },
+  {
+    name: "memory_history",
+    title: "Get memory history",
+    description: "Get all immutable revisions for one memory in chronological order.",
+    annotations: readOnlyAnnotations,
+  },
+  {
+    name: "memory_retrieve",
+    title: "Retrieve memories",
+    description:
+      "Search active, included memories within caller-authorized scopes and sensitivities.",
+    annotations: readOnlyAnnotations,
+  },
+  {
+    name: "memory_revise",
+    title: "Revise a memory",
+    description:
+      "Create a new revision of an unprotected active memory. Omitted metadata is inherited.",
+    annotations: mutationAnnotations,
+  },
+  {
+    name: "memory_archive",
+    title: "Archive a memory",
+    description: "Archive an unprotected active memory.",
+    annotations: destructiveAnnotations,
+  },
+  {
+    name: "memory_restore",
+    title: "Restore a memory",
+    description: "Restore an unprotected archived memory to active status.",
+    annotations: mutationAnnotations,
+  },
+  {
+    name: "memory_supersede",
+    title: "Supersede a memory",
+    description:
+      "Mark an unprotected active memory as superseded by another active memory.",
+    annotations: destructiveAnnotations,
+  },
+  {
+    name: "memory_contradict",
+    title: "Contradict a memory",
+    description:
+      "Mark an unprotected active memory as contradicted by another active memory.",
+    annotations: destructiveAnnotations,
+  },
+  {
+    name: "source_import",
+    title: "Import a source",
+    description:
+      "Atomically import an ordered source and its records. Repeated identical imports are idempotent.",
+    annotations: idempotentMutationAnnotations,
+  },
+  {
+    name: "source_list",
+    title: "List imported sources",
+    description: "List recent non-deleted sources and their record counts.",
+    annotations: readOnlyAnnotations,
+  },
+  {
+    name: "source_records",
+    title: "Get source records",
+    description: "Get the ordered records belonging to one imported source.",
+    annotations: readOnlyAnnotations,
+  },
+  {
+    name: "source_record_get",
+    title: "Get a source record",
+    description:
+      "Get one source record by ID so candidate evidence can be inspected in full.",
+    annotations: readOnlyAnnotations,
+  },
+  {
+    name: "candidate_propose",
+    title: "Propose a memory candidate",
+    description:
+      "Create a pending memory candidate linked to one or more source records. This does not approve or store a memory.",
+    annotations: mutationAnnotations,
+  },
+  {
+    name: "candidate_get",
+    title: "Get a memory candidate",
+    description: "Get one candidate with its evidence and review state.",
+    annotations: readOnlyAnnotations,
+  },
+  {
+    name: "candidate_list",
+    title: "List memory candidates",
+    description:
+      "List candidates, optionally filtered by review status. Approval is available only through an explicit user-authorized interface.",
+    annotations: readOnlyAnnotations,
+  },
+] as const;
+
+const ingestionToolNames = new Set<string>([
+  "source_import",
+  "source_list",
+  "source_records",
+  "source_record_get",
+  "candidate_propose",
+  "candidate_get",
+  "candidate_list",
+]);
 
 type WithoutUndefined<T extends Record<string, unknown>> = {
   [Key in keyof T as undefined extends T[Key] ? never : Key]: T[Key];
@@ -88,6 +245,10 @@ export function createMemTextualMcpServer(
   service: MemoryService,
   ingestionService?: IngestionService,
 ): McpServer {
+  const availableToolCatalog =
+    ingestionService === undefined
+      ? mcpToolCatalog.filter(({ name }) => !ingestionToolNames.has(name))
+      : mcpToolCatalog;
   const server = new McpServer(
     { name: mcpServerName, version: mcpServerVersion },
     {
@@ -95,6 +256,23 @@ export function createMemTextualMcpServer(
         "Store and retrieve local memories. Create or list scopes before creating memories. " +
         "Normal retrieval always requires caller-authorized scope IDs. MCP tools cannot modify protected memories or approve memory candidates.",
     },
+  );
+
+  server.registerTool(
+    "server_info",
+    {
+      title: "Get MemTextual server information",
+      description:
+        "Get the server identity, capability status, and complete MCP tool catalog without exposing local paths or memory data.",
+      annotations: readOnlyAnnotations,
+    },
+    async () =>
+      runTool(() => ({
+        name: mcpServerName,
+        version: mcpServerVersion,
+        capabilities: mcpCapabilityCatalog,
+        tools: availableToolCatalog,
+      })),
   );
 
   server.registerTool(

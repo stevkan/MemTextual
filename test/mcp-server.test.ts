@@ -12,6 +12,8 @@ import {
   SqliteIngestionRepository,
   SqliteMemoryRepository,
   createMemTextualMcpServer,
+  mcpServerName,
+  mcpServerVersion,
   openMemTextualDatabase,
   resolveMcpRuntimeConfig,
 } from "../src/index.js";
@@ -64,12 +66,80 @@ test("MCP server exposes the local memory tool surface", async () => {
         "memory_supersede",
         "scope_create",
         "scope_list",
+        "server_info",
         "source_import",
         "source_list",
         "source_record_get",
         "source_records",
       ],
     );
+  } finally {
+    await client.close();
+    await server.close();
+    database.close();
+  }
+});
+
+test("server_info reports server identity, capabilities, and the discovered tool catalog", async () => {
+  const { client, database, server } = await mcpFixture();
+
+  try {
+    const listed = await client.listTools();
+    const infoCall = await client.callTool({
+      name: "server_info",
+      arguments: {},
+    });
+    const info = structuredResult<{
+      name: string;
+      version: string;
+      capabilities: Array<{
+        name: string;
+        status: "implemented" | "planned";
+        interface: "mcp" | "cli" | null;
+      }>;
+      tools: Array<{
+        name: string;
+        description: string;
+        annotations: {
+          readOnlyHint: boolean;
+          idempotentHint: boolean;
+          openWorldHint: boolean;
+          destructiveHint?: boolean;
+        };
+      }>;
+    }>(infoCall);
+
+    assert.equal(info.name, mcpServerName);
+    assert.equal(info.version, mcpServerVersion);
+    assert.equal(info.tools.length, 19);
+    assert.deepEqual(
+      info.tools.map(({ name }) => name).sort(),
+      listed.tools.map(({ name }) => name).sort(),
+    );
+
+    for (const tool of info.tools) {
+      const discovered = listed.tools.find(({ name }) => name === tool.name);
+      assert.ok(discovered !== undefined);
+      assert.equal(tool.description, discovered.description);
+      assert.deepEqual(tool.annotations, discovered.annotations);
+    }
+
+    assert.ok(
+      info.capabilities.some(
+        ({ name, status }) =>
+          name === "configurable_review_automation" && status === "planned",
+      ),
+    );
+    assert.ok(
+      info.capabilities.some(
+        ({ name, status, interface: capabilityInterface }) =>
+          name === "candidate_review" &&
+          status === "implemented" &&
+          capabilityInterface === "cli",
+      ),
+    );
+    assert.equal(JSON.stringify(info).includes("databasePath"), false);
+    assert.equal(JSON.stringify(info).includes("migrationsDirectory"), false);
   } finally {
     await client.close();
     await server.close();
@@ -300,6 +370,15 @@ test("stdio entry point completes an MCP handshake", async () => {
     const tools = await client.listTools();
     assert.ok(tools.tools.some(({ name }) => name === "memory_retrieve"));
     assert.ok(tools.tools.some(({ name }) => name === "source_import"));
+    assert.ok(tools.tools.some(({ name }) => name === "server_info"));
+
+    const infoCall = await client.callTool({
+      name: "server_info",
+      arguments: {},
+    });
+    const info = structuredResult<{ version: string; tools: unknown[] }>(infoCall);
+    assert.equal(info.version, "0.6.0");
+    assert.equal(info.tools.length, 19);
   } finally {
     await client.close();
     rmSync(temporaryDirectory, { recursive: true, force: true });
