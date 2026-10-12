@@ -1,0 +1,599 @@
+import type Database from "better-sqlite3";
+import { createHash, randomUUID } from "node:crypto";
+import type {
+  CandidateAcceptance,
+  CandidateActor,
+  CandidateEvidence,
+  CandidateStatus,
+  ImportSourceInput,
+  MemoryCandidate,
+  ProposeMemoryCandidateInput,
+  Source,
+  SourceImportResult,
+  SourceKind,
+  SourceRecord,
+  SourceRecordKind,
+} from "../domain/ingestion.js";
+import type {
+  Explicitness,
+  MemoryType,
+  RetrievalPolicy,
+  Sensitivity,
+} from "../domain/memory.js";
+import type { IngestionRepository } from "./ingestion-repository.js";
+import type { MemoryRepository } from "./memory-repository.js";
+
+interface SourceRow {
+  id: string;
+  source_kind: SourceKind;
+  title: string;
+  origin_uri: string | null;
+  external_id: string | null;
+  content_hash: string;
+  captured_at: string | null;
+  metadata_json: string;
+  created_at: string;
+  record_count: number;
+}
+
+interface SourceRecordRow {
+  id: string;
+  source_id: string;
+  ordinal: number;
+  record_kind: SourceRecordKind;
+  author_role: string | null;
+  author_name: string | null;
+  content: string;
+  content_hash: string;
+  occurred_at: string | null;
+  metadata_json: string;
+  created_at: string;
+}
+
+interface CandidateRow {
+  id: string;
+  status: CandidateStatus;
+  memory_type: MemoryType;
+  assertion: string;
+  normalized_assertion: string | null;
+  explicitness: Explicitness;
+  confidence: number;
+  observed_at: string | null;
+  retrieval_policy: RetrievalPolicy;
+  sensitivity: Sensitivity;
+  is_pinned: 0 | 1;
+  is_protected: 0 | 1;
+  scope_id: string;
+  proposed_by: CandidateActor;
+  reviewed_by: CandidateActor | null;
+  reviewed_at: string | null;
+  review_note: string | null;
+  accepted_memory_id: string | null;
+  metadata_json: string;
+  created_at: string;
+  updated_at: string;
+}
+
+interface CandidateEvidenceRow {
+  source_record_id: string;
+  evidence_role: CandidateEvidence["role"];
+  excerpt: string | null;
+}
+
+function sha256(value: string): string {
+  return createHash("sha256").update(value, "utf8").digest("hex");
+}
+
+function canonicalize(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(canonicalize);
+  }
+  if (value !== null && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .filter(([, item]) => item !== undefined)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([key, item]) => [key, canonicalize(item)]),
+    );
+  }
+  return value;
+}
+
+function canonicalJson(value: unknown): string {
+  return JSON.stringify(canonicalize(value));
+}
+
+function validateText(value: string, label: string): string {
+  const trimmed = value.trim();
+  if (trimmed.length === 0) {
+    throw new Error(`${label} cannot be empty.`);
+  }
+  return trimmed;
+}
+
+function validateConfidence(value: number): number {
+  if (!Number.isFinite(value) || value < 0 || value > 1) {
+    throw new Error("Candidate confidence must be between 0 and 1.");
+  }
+  return value;
+}
+
+function mapSource(row: SourceRow): Source {
+  return {
+    id: row.id,
+    kind: row.source_kind,
+    title: row.title,
+    originUri: row.origin_uri,
+    externalId: row.external_id,
+    contentHash: row.content_hash,
+    capturedAt: row.captured_at,
+    metadata: JSON.parse(row.metadata_json) as Record<string, unknown>,
+    createdAt: row.created_at,
+    recordCount: row.record_count,
+  };
+}
+
+function mapSourceRecord(row: SourceRecordRow): SourceRecord {
+  return {
+    id: row.id,
+    sourceId: row.source_id,
+    ordinal: row.ordinal,
+    kind: row.record_kind,
+    authorRole: row.author_role,
+    authorName: row.author_name,
+    content: row.content,
+    contentHash: row.content_hash,
+    occurredAt: row.occurred_at,
+    metadata: JSON.parse(row.metadata_json) as Record<string, unknown>,
+    createdAt: row.created_at,
+  };
+}
+
+export class SqliteIngestionRepository implements IngestionRepository {
+  public constructor(
+    private readonly database: Database.Database,
+    private readonly memoryRepository: MemoryRepository,
+  ) {}
+
+  public importSource(input: ImportSourceInput): SourceImportResult {
+    const title = validateText(input.title, "A source title");
+    if (input.records.length === 0) {
+      throw new Error("A source import requires at least one record.");
+    }
+
+    for (const record of input.records) {
+      if (record.content.trim().length === 0) {
+        throw new Error("A source record cannot be empty.");
+      }
+    }
+
+    const externalId = input.externalId?.trim();
+    if (externalId !== undefined && externalId.length === 0) {
+      throw new Error("A source external ID cannot be empty.");
+    }
+
+    const canonicalRecords = input.records.map((record) => ({
+      kind: record.kind,
+      content: record.content,
+      authorRole: record.authorRole ?? null,
+      authorName: record.authorName ?? null,
+      occurredAt: record.occurredAt ?? null,
+      metadata: record.metadata ?? {},
+    }));
+    const contentHash = sha256(canonicalJson(canonicalRecords));
+
+    const existing =
+      externalId === undefined
+        ? this.findSourceByHash(input.kind, contentHash)
+        : this.findSourceByExternalId(input.kind, externalId);
+
+    if (existing !== null) {
+      if (existing.contentHash !== contentHash) {
+        throw new Error(
+          `Source ${input.kind}:${externalId} already exists with different content. Use a new external ID to preserve provenance.`,
+        );
+      }
+      return {
+        source: existing,
+        records: this.getSourceRecords(existing.id),
+        created: false,
+      };
+    }
+
+    const sourceId = randomUUID();
+    const importTransaction = this.database.transaction(() => {
+      this.database
+        .prepare(
+          `INSERT INTO sources (
+             id, source_kind, title, origin_uri, external_id, content_hash,
+             captured_at, metadata_json
+           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .run(
+          sourceId,
+          input.kind,
+          title,
+          input.originUri ?? null,
+          externalId ?? null,
+          contentHash,
+          input.capturedAt ?? null,
+          JSON.stringify(input.metadata ?? {}),
+        );
+
+      const insertRecord = this.database.prepare(
+        `INSERT INTO source_records (
+           id, source_id, ordinal, record_kind, author_role, author_name,
+           content, content_hash, occurred_at, metadata_json
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      );
+
+      for (const [ordinal, record] of input.records.entries()) {
+        insertRecord.run(
+          randomUUID(),
+          sourceId,
+          ordinal,
+          record.kind,
+          record.authorRole ?? null,
+          record.authorName ?? null,
+          record.content,
+          sha256(record.content),
+          record.occurredAt ?? null,
+          JSON.stringify(record.metadata ?? {}),
+        );
+      }
+    });
+
+    importTransaction();
+    return {
+      source: this.requireSource(sourceId),
+      records: this.getSourceRecords(sourceId),
+      created: true,
+    };
+  }
+
+  public listSources(limit = 100): Source[] {
+    const safeLimit = Math.max(1, Math.min(Math.trunc(limit), 100));
+    const rows = this.database
+      .prepare(
+        `SELECT
+           s.id, s.source_kind, s.title, s.origin_uri, s.external_id,
+           s.content_hash, s.captured_at, s.metadata_json, s.created_at,
+           count(r.id) AS record_count
+         FROM sources s
+         LEFT JOIN source_records r ON r.source_id = s.id AND r.deleted_at IS NULL
+         WHERE s.deleted_at IS NULL
+         GROUP BY s.id
+         ORDER BY s.created_at DESC, s.id
+         LIMIT ?`,
+      )
+      .all(safeLimit) as SourceRow[];
+    return rows.map(mapSource);
+  }
+
+  public getSourceRecord(id: string): SourceRecord | null {
+    const row = this.database
+      .prepare(
+        `SELECT
+           id, source_id, ordinal, record_kind, author_role, author_name,
+           content, content_hash, occurred_at, metadata_json, created_at
+         FROM source_records
+         WHERE id = ? AND deleted_at IS NULL`,
+      )
+      .get(id) as SourceRecordRow | undefined;
+    return row === undefined ? null : mapSourceRecord(row);
+  }
+
+  public getSourceRecords(sourceId: string): SourceRecord[] {
+    this.requireSource(sourceId);
+    const rows = this.database
+      .prepare(
+        `SELECT
+           id, source_id, ordinal, record_kind, author_role, author_name,
+           content, content_hash, occurred_at, metadata_json, created_at
+         FROM source_records
+         WHERE source_id = ? AND deleted_at IS NULL
+         ORDER BY ordinal ASC, id`,
+      )
+      .all(sourceId) as SourceRecordRow[];
+    return rows.map(mapSourceRecord);
+  }
+
+  public proposeCandidate(input: ProposeMemoryCandidateInput): MemoryCandidate {
+    const assertion = validateText(input.assertion, "A candidate assertion");
+    const confidence = validateConfidence(input.confidence ?? 1);
+    if (input.evidence.length === 0) {
+      throw new Error("A memory candidate requires at least one evidence record.");
+    }
+
+    const evidenceKeys = new Set<string>();
+    for (const evidence of input.evidence) {
+      const key = `${evidence.sourceRecordId}\u0000${evidence.role ?? "supports"}`;
+      if (evidenceKeys.has(key)) {
+        throw new Error("Candidate evidence entries must be unique by source record and role.");
+      }
+      evidenceKeys.add(key);
+    }
+
+    const id = randomUUID();
+    const actor = input.proposedBy ?? "system";
+    const proposeTransaction = this.database.transaction(() => {
+      this.database
+        .prepare(
+          `INSERT INTO memory_candidates (
+             id, memory_type, assertion, normalized_assertion, explicitness,
+             confidence, observed_at, retrieval_policy, sensitivity,
+             is_pinned, is_protected, scope_id, proposed_by, metadata_json
+           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .run(
+          id,
+          input.type,
+          assertion,
+          input.normalizedAssertion ?? null,
+          input.explicitness ?? "explicit",
+          confidence,
+          input.observedAt ?? null,
+          input.retrievalPolicy ?? "include",
+          input.sensitivity ?? "normal",
+          input.isPinned === true ? 1 : 0,
+          input.isProtected === true ? 1 : 0,
+          input.scopeId,
+          actor,
+          JSON.stringify(input.metadata ?? {}),
+        );
+
+      const insertEvidence = this.database.prepare(
+        `INSERT INTO candidate_evidence (
+           candidate_id, source_record_id, evidence_role, excerpt
+         ) VALUES (?, ?, ?, ?)`,
+      );
+      for (const evidence of input.evidence) {
+        insertEvidence.run(
+          id,
+          evidence.sourceRecordId,
+          evidence.role ?? "supports",
+          evidence.excerpt ?? null,
+        );
+      }
+      this.writeCandidateEvent(id, "proposed", actor);
+    });
+
+    proposeTransaction();
+    return this.requireCandidate(id);
+  }
+
+  public getCandidate(id: string): MemoryCandidate | null {
+    const row = this.database
+      .prepare("SELECT * FROM memory_candidates WHERE id = ?")
+      .get(id) as CandidateRow | undefined;
+    return row === undefined ? null : this.mapCandidate(row);
+  }
+
+  public listCandidates(
+    status?: CandidateStatus,
+    limit = 100,
+  ): MemoryCandidate[] {
+    const safeLimit = Math.max(1, Math.min(Math.trunc(limit), 100));
+    const rows = (
+      status === undefined
+        ? this.database.prepare(
+            `SELECT * FROM memory_candidates
+             ORDER BY created_at DESC, id LIMIT ?`,
+          ).all(safeLimit)
+        : this.database.prepare(
+            `SELECT * FROM memory_candidates WHERE status = ?
+             ORDER BY created_at ASC, id LIMIT ?`,
+          ).all(status, safeLimit)
+    ) as CandidateRow[];
+    return rows.map((row) => this.mapCandidate(row));
+  }
+
+  public acceptCandidate(
+    id: string,
+    actor: CandidateActor,
+    note?: string,
+  ): CandidateAcceptance {
+    this.requireUserActor(actor);
+    let memoryId = "";
+
+    const acceptTransaction = this.database.transaction(() => {
+      const candidate = this.requirePendingCandidate(id);
+      const memory = this.memoryRepository.create({
+        assertion: candidate.assertion,
+        type: candidate.type,
+        scopeId: candidate.scopeId,
+        ...(candidate.normalizedAssertion === null
+          ? {}
+          : { normalizedAssertion: candidate.normalizedAssertion }),
+        explicitness: candidate.explicitness,
+        confidence: candidate.confidence,
+        ...(candidate.observedAt === null
+          ? {}
+          : { observedAt: candidate.observedAt }),
+        createdBy: "user",
+        retrievalPolicy: candidate.retrievalPolicy,
+        sensitivity: candidate.sensitivity,
+        isPinned: candidate.isPinned,
+        isProtected: candidate.isProtected,
+      });
+      memoryId = memory.id;
+
+      const insertEvidence = this.database.prepare(
+        `INSERT INTO memory_evidence (
+           memory_revision_id, source_record_id, evidence_role, excerpt
+         ) VALUES (?, ?, ?, ?)`,
+      );
+      for (const evidence of candidate.evidence) {
+        insertEvidence.run(
+          memory.revisionId,
+          evidence.sourceRecordId,
+          evidence.role,
+          evidence.excerpt,
+        );
+      }
+
+      this.database
+        .prepare(
+          `UPDATE memory_candidates
+           SET status = 'accepted', reviewed_by = ?,
+               reviewed_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+               review_note = ?, accepted_memory_id = ?,
+               updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+           WHERE id = ?`,
+        )
+        .run(actor, this.normalizeNote(note), memory.id, id);
+      this.writeCandidateEvent(id, "accepted", actor, { memoryId: memory.id });
+    });
+
+    acceptTransaction();
+    const memory = this.memoryRepository.getById(memoryId);
+    if (memory === null) {
+      throw new Error("The candidate was accepted but its memory could not be read back.");
+    }
+    return { candidate: this.requireCandidate(id), memory };
+  }
+
+  public rejectCandidate(
+    id: string,
+    actor: CandidateActor,
+    note?: string,
+  ): MemoryCandidate {
+    this.requireUserActor(actor);
+    const rejectTransaction = this.database.transaction(() => {
+      this.requirePendingCandidate(id);
+      this.database
+        .prepare(
+          `UPDATE memory_candidates
+           SET status = 'rejected', reviewed_by = ?,
+               reviewed_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+               review_note = ?,
+               updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+           WHERE id = ?`,
+        )
+        .run(actor, this.normalizeNote(note), id);
+      this.writeCandidateEvent(id, "rejected", actor);
+    });
+    rejectTransaction();
+    return this.requireCandidate(id);
+  }
+
+  private sourceSelect(): string {
+    return `SELECT
+      s.id, s.source_kind, s.title, s.origin_uri, s.external_id,
+      s.content_hash, s.captured_at, s.metadata_json, s.created_at,
+      (SELECT count(*) FROM source_records r
+       WHERE r.source_id = s.id AND r.deleted_at IS NULL) AS record_count
+      FROM sources s`;
+  }
+
+  private findSourceByExternalId(kind: SourceKind, externalId: string): Source | null {
+    const row = this.database
+      .prepare(`${this.sourceSelect()} WHERE s.source_kind = ? AND s.external_id = ?`)
+      .get(kind, externalId) as SourceRow | undefined;
+    return row === undefined ? null : mapSource(row);
+  }
+
+  private findSourceByHash(kind: SourceKind, contentHash: string): Source | null {
+    const row = this.database
+      .prepare(
+        `${this.sourceSelect()}
+         WHERE s.source_kind = ? AND s.content_hash = ?
+           AND s.external_id IS NULL AND s.deleted_at IS NULL`,
+      )
+      .get(kind, contentHash) as SourceRow | undefined;
+    return row === undefined ? null : mapSource(row);
+  }
+
+  private requireSource(id: string): Source {
+    const row = this.database
+      .prepare(`${this.sourceSelect()} WHERE s.id = ?`)
+      .get(id) as SourceRow | undefined;
+    if (row === undefined) {
+      throw new Error(`Source not found: ${id}`);
+    }
+    return mapSource(row);
+  }
+
+  private mapCandidate(row: CandidateRow): MemoryCandidate {
+    const evidenceRows = this.database
+      .prepare(
+        `SELECT source_record_id, evidence_role, excerpt
+         FROM candidate_evidence
+         WHERE candidate_id = ?
+         ORDER BY created_at, source_record_id, evidence_role`,
+      )
+      .all(row.id) as CandidateEvidenceRow[];
+    return {
+      id: row.id,
+      status: row.status,
+      assertion: row.assertion,
+      type: row.memory_type,
+      scopeId: row.scope_id,
+      evidence: evidenceRows.map((evidence) => ({
+        sourceRecordId: evidence.source_record_id,
+        role: evidence.evidence_role,
+        excerpt: evidence.excerpt,
+      })),
+      normalizedAssertion: row.normalized_assertion,
+      explicitness: row.explicitness,
+      confidence: row.confidence,
+      observedAt: row.observed_at,
+      retrievalPolicy: row.retrieval_policy,
+      sensitivity: row.sensitivity,
+      isPinned: row.is_pinned === 1,
+      isProtected: row.is_protected === 1,
+      proposedBy: row.proposed_by,
+      reviewedBy: row.reviewed_by,
+      reviewedAt: row.reviewed_at,
+      reviewNote: row.review_note,
+      acceptedMemoryId: row.accepted_memory_id,
+      metadata: JSON.parse(row.metadata_json) as Record<string, unknown>,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    };
+  }
+
+  private requireCandidate(id: string): MemoryCandidate {
+    const candidate = this.getCandidate(id);
+    if (candidate === null) {
+      throw new Error(`Memory candidate not found: ${id}`);
+    }
+    return candidate;
+  }
+
+  private requirePendingCandidate(id: string): MemoryCandidate {
+    const candidate = this.requireCandidate(id);
+    if (candidate.status !== "pending") {
+      throw new Error(
+        `Cannot review candidate ${id} while its status is ${candidate.status}.`,
+      );
+    }
+    return candidate;
+  }
+
+  private requireUserActor(actor: CandidateActor): void {
+    if (actor !== "user") {
+      throw new Error("Candidate review requires the user actor.");
+    }
+  }
+
+  private normalizeNote(note?: string): string | null {
+    const normalized = note?.trim();
+    return normalized === undefined || normalized.length === 0 ? null : normalized;
+  }
+
+  private writeCandidateEvent(
+    candidateId: string,
+    eventType: "proposed" | "accepted" | "rejected",
+    actor: CandidateActor,
+    detail: Record<string, unknown> = {},
+  ): void {
+    this.database
+      .prepare(
+        `INSERT INTO candidate_events (
+           id, candidate_id, event_type, actor_type, detail_json
+         ) VALUES (?, ?, ?, ?, ?)`,
+      )
+      .run(randomUUID(), candidateId, eventType, actor, JSON.stringify(detail));
+  }
+}

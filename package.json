@@ -1,0 +1,37 @@
+{
+  "name": "memtextual",
+  "version": "0.5.0",
+  "description": "Local-first persistent memory for AI agents",
+  "main": "dist/src/index.js",
+  "bin": {
+    "memtextual-mcp": "dist/src/mcp/stdio.js",
+    "memtextual-review": "dist/src/cli/review.js"
+  },
+  "scripts": {
+    "test": "node --import tsx --test test/**/*.test.ts",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "mcp": "tsx src/mcp/stdio.ts",
+    "review": "tsx src/cli/review.ts",
+    "pretest": "node scripts/check-node.mjs",
+    "prebuild": "node scripts/check-node.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/server": "^2.3.1",
+    "better-sqlite3": "13.0.3",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/client": "^2.3.1",
+    "@types/better-sqlite3": "^9.6.0",
+    "@types/node": "^22.20.5",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
+  },
+  "type": "module",
+  "types": "dist/src/index.d.ts",
+  "engines": {
+    "node": ">=22.14.0"
+  },
+  "private": true
+}
