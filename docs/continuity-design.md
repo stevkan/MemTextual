@@ -80,8 +80,13 @@ restore. It now also displays match suggestions, supports explicit revise,
 reaffirm, contradict, supersede, and ignore outcomes against persona-validated
 targets, and creates immutable direct-correction revisions. It binds to one
 persona and IPv4 loopback for one process lifetime, with a fresh bearer token
-delivered through a URL fragment. Export, recoverable deletion, and confirmed
-purge remain later Phase 4 packages.
+delivered through a URL fragment. The console also includes a versioned
+persona-memory JSON export with complete revision histories, plus
+exact-ID-confirmed recoverable deletion and restoration. The export is
+intentionally described as a user-memory record rather than a database backup:
+it excludes source, candidate, audit, and backup data, and downloaded copies are
+not changed by later privacy actions. Graphical confirmed purge remains separate
+because it is irreversible.
 
 ## Everyday data durability and recovery
 

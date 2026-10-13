@@ -22,6 +22,7 @@ export const continuityConsoleHtml = `<!doctype html>
       </div>
       <button class="nav active" data-view="candidates">Review queue <span id="candidate-count">0</span></button>
       <button class="nav" data-view="memories">Memories <span id="memory-count">0</span></button>
+      <button id="export-button" class="utility" type="button">Export persona memories</button>
       <p class="boundary">This console is bound to one persona and this local session.</p>
     </aside>
     <section class="workspace">
@@ -64,6 +65,8 @@ aside { padding: 24px 16px; border-right: 1px solid var(--line); background: rgb
 .nav { width: 100%; display: flex; justify-content: space-between; margin: 6px 0; padding: 12px 14px; border: 0; border-radius: 9px; color: inherit; background: transparent; text-align: left; cursor: pointer; }
 .nav:hover, .nav.active { background: var(--panel-2); }
 .nav span { color: var(--muted); }
+.utility { width: 100%; margin-top: 18px; padding: 11px 14px; border: 1px solid var(--line); border-radius: 9px; color: inherit; background: var(--panel); text-align: left; cursor: pointer; }
+.utility:hover { border-color: var(--accent); }
 .boundary { margin: 24px 12px; font-size: 12px; line-height: 1.5; }
 .workspace { display: grid; grid-template-columns: minmax(300px, .85fr) minmax(360px, 1.15fr); gap: 20px; padding: 24px; align-content: start; }
 #notice { grid-column: 1 / -1; min-height: 20px; color: var(--accent); }
@@ -80,7 +83,7 @@ aside { padding: 24px 16px; border-right: 1px solid var(--line); background: rgb
 button.action { border: 1px solid var(--line); border-radius: 8px; padding: 9px 12px; background: #2a352a; color: inherit; cursor: pointer; }
 button.action:hover { border-color: var(--accent); }
 button.action.danger { color: var(--danger); }
-textarea, select { width: 100%; margin-top: 8px; padding: 10px; border: 1px solid var(--line); border-radius: 8px; color: inherit; background: #101410; }
+textarea, select, input { width: 100%; margin-top: 8px; padding: 10px; border: 1px solid var(--line); border-radius: 8px; color: inherit; background: #101410; }
 @media (max-width: 850px) {
   main { grid-template-columns: 1fr; }
   aside { border-right: 0; border-bottom: 1px solid var(--line); }
@@ -173,6 +176,28 @@ export const continuityConsoleJavaScript = `
     document.getElementById("memory-count").textContent = String(state.dashboard.memories.length);
     document.getElementById("connection").textContent = "Local session active";
     renderList();
+  }
+
+  async function downloadPersonaExport() {
+    const export_ = await api("/api/export");
+    const name = export_.personaContext.persona.name
+      .normalize("NFKD")
+      .replace(/[^a-zA-Z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .toLowerCase()
+      .slice(0, 80) || "persona";
+    const blob = new Blob([JSON.stringify(export_, null, 2) + "\\n"], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "memtextual-continuity-" + name + "-memories.json";
+    document.body.append(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 0);
+    setNotice("Persona-memory export downloaded.");
   }
 
   function actionButton(label, handler, danger) {
@@ -293,6 +318,7 @@ export const continuityConsoleJavaScript = `
       detailPanel.replaceChildren(node("h2", "Memory inspector"));
       detailPanel.append(node("h3", memory.assertion));
       detailPanel.append(node("p", detail.personaMemory.memoryClass + " · " + memory.status + " · revision " + memory.revisionNumber, "meta"));
+      detailPanel.append(node("p", "Memory ID: " + memory.id, "meta"));
       const historySection = node("div", undefined, "section");
       historySection.append(node("h3", "Revision history"));
       detail.history.slice().reverse().forEach((revision) => {
@@ -328,18 +354,20 @@ export const continuityConsoleJavaScript = `
         detailPanel.append(correctionSection);
       }
       const actions = node("div", undefined, "actions");
-      actions.append(actionButton(memory.isPinned ? "Unpin" : "Pin", async () => {
-        await api("/api/memories/" + encodeURIComponent(id) + "/pin", { method: "POST", body: JSON.stringify({ value: !memory.isPinned }) });
-        setNotice(memory.isPinned ? "Memory unpinned." : "Memory pinned.");
-        await refreshDashboard();
-        await showMemory(id);
-      }));
-      actions.append(actionButton(memory.isProtected ? "Unprotect" : "Protect", async () => {
-        await api("/api/memories/" + encodeURIComponent(id) + "/protect", { method: "POST", body: JSON.stringify({ value: !memory.isProtected }) });
-        setNotice(memory.isProtected ? "Memory unprotected." : "Memory protected.");
-        await refreshDashboard();
-        await showMemory(id);
-      }));
+      if (memory.status !== "deleted") {
+        actions.append(actionButton(memory.isPinned ? "Unpin" : "Pin", async () => {
+          await api("/api/memories/" + encodeURIComponent(id) + "/pin", { method: "POST", body: JSON.stringify({ value: !memory.isPinned }) });
+          setNotice(memory.isPinned ? "Memory unpinned." : "Memory pinned.");
+          await refreshDashboard();
+          await showMemory(id);
+        }));
+        actions.append(actionButton(memory.isProtected ? "Unprotect" : "Protect", async () => {
+          await api("/api/memories/" + encodeURIComponent(id) + "/protect", { method: "POST", body: JSON.stringify({ value: !memory.isProtected }) });
+          setNotice(memory.isProtected ? "Memory unprotected." : "Memory protected.");
+          await refreshDashboard();
+          await showMemory(id);
+        }));
+      }
       if (memory.status === "active") {
         actions.append(actionButton("Archive", async () => {
           await api("/api/memories/" + encodeURIComponent(id) + "/archive", { method: "POST", body: "{}" });
@@ -355,11 +383,65 @@ export const continuityConsoleJavaScript = `
           await showMemory(id);
         }));
       }
-      detailPanel.append(actions);
+      if (actions.childElementCount > 0) detailPanel.append(actions);
+
+      const deletionSection = node("div", undefined, "section");
+      if (memory.status === "deleted") {
+        deletionSection.append(node("h3", "Restore deleted memory"));
+        deletionSection.append(node("p", "Deletion reason: " + (memory.deletionReason || "Not recorded"), "meta"));
+        const restoreConfirmation = document.createElement("input");
+        restoreConfirmation.placeholder = "Type the exact memory ID to restore";
+        restoreConfirmation.autocomplete = "off";
+        deletionSection.append(restoreConfirmation);
+        const restoreActions = node("div", undefined, "actions");
+        restoreActions.append(actionButton("Restore deleted memory", async () => {
+          if (restoreConfirmation.value.trim() !== memory.id) {
+            throw new Error("Confirmation must exactly match the memory ID.");
+          }
+          await api("/api/memories/" + encodeURIComponent(id) + "/restore-deleted", {
+            method: "POST",
+            body: JSON.stringify({ confirmation: restoreConfirmation.value.trim() }),
+          });
+          setNotice("Deleted memory restored to its prior lifecycle state.");
+          await refreshDashboard();
+          await showMemory(id);
+        }));
+        deletionSection.append(restoreActions);
+      } else {
+        deletionSection.append(node("h3", "Recoverably delete this memory"));
+        deletionSection.append(node("p", "Deletion removes the memory from retrieval but retains a restorable tombstone. Use a short operational reason without repeating sensitive content.", "meta"));
+        const reason = document.createElement("textarea");
+        reason.placeholder = "Deletion reason";
+        reason.rows = 2;
+        deletionSection.append(reason);
+        const confirmation = document.createElement("input");
+        confirmation.placeholder = "Type the exact memory ID to delete";
+        confirmation.autocomplete = "off";
+        deletionSection.append(confirmation);
+        const deletionActions = node("div", undefined, "actions");
+        deletionActions.append(actionButton("Delete recoverably", async () => {
+          if (!reason.value.trim()) throw new Error("A deletion reason is required.");
+          if (confirmation.value.trim() !== memory.id) {
+            throw new Error("Confirmation must exactly match the memory ID.");
+          }
+          await api("/api/memories/" + encodeURIComponent(id) + "/delete", {
+            method: "POST",
+            body: JSON.stringify({
+              reason: reason.value.trim(),
+              confirmation: confirmation.value.trim(),
+            }),
+          });
+          setNotice("Memory deleted recoverably.");
+          await refreshDashboard();
+          await showMemory(id);
+        }, true));
+        deletionSection.append(deletionActions);
+      }
+      detailPanel.append(deletionSection);
     } catch (error) { setNotice(error.message, true); }
   }
 
-  document.querySelectorAll(".nav").forEach((button) => {
+  document.querySelectorAll(".nav[data-view]").forEach((button) => {
     button.addEventListener("click", () => {
       document.querySelectorAll(".nav").forEach((item) => item.classList.remove("active"));
       button.classList.add("active");
@@ -367,6 +449,14 @@ export const continuityConsoleJavaScript = `
       clearDetail();
       renderList();
     });
+  });
+
+  document.getElementById("export-button").addEventListener("click", async (event) => {
+    const button = event.currentTarget;
+    button.disabled = true;
+    try { await downloadPersonaExport(); }
+    catch (error) { setNotice(error.message, true); }
+    finally { button.disabled = false; }
   });
 
   refreshDashboard().catch((error) => {

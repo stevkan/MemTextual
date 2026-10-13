@@ -43,6 +43,15 @@ const emptySchema = z.object({}).strict();
 const correctionSchema = z
   .object({ assertion: z.string().trim().min(1).max(50_000) })
   .strict();
+const deletionSchema = z
+  .object({
+    reason: z.string().trim().min(1).max(1_000),
+    confirmation: z.string().trim().min(1).max(500),
+  })
+  .strict();
+const restorationSchema = z
+  .object({ confirmation: z.string().trim().min(1).max(500) })
+  .strict();
 
 class HttpError extends Error {
   public constructor(
@@ -113,11 +122,28 @@ function textResponse(
   };
 }
 
-function jsonResponse(status: number, value: unknown): ContinuityConsoleResponse {
+function jsonResponse(
+  status: number,
+  value: unknown,
+  extraHeaders: Record<string, string> = {},
+): ContinuityConsoleResponse {
   return textResponse(
     status,
     "application/json; charset=utf-8",
     `${JSON.stringify(value)}\n`,
+    extraHeaders,
+  );
+}
+
+function jsonDownloadResponse(
+  value: unknown,
+  filename: string,
+): ContinuityConsoleResponse {
+  return textResponse(
+    200,
+    "application/json; charset=utf-8",
+    `${JSON.stringify(value, null, 2)}\n`,
+    { "Content-Disposition": `attachment; filename="${filename}"` },
   );
 }
 
@@ -261,6 +287,22 @@ function requireLoopbackOrigin(origin: string): void {
   }
 }
 
+function requireExactConfirmation(confirmation: string, expected: string): void {
+  if (confirmation !== expected) {
+    throw new HttpError(400, "Confirmation must exactly match the memory ID.");
+  }
+}
+
+function exportFilename(personaName: string): string {
+  const slug = personaName
+    .normalize("NFKD")
+    .replace(/[^a-zA-Z0-9]+/gu, "-")
+    .replace(/^-+|-+$/gu, "")
+    .toLowerCase()
+    .slice(0, 80);
+  return `memtextual-continuity-${slug || "persona"}-memories.json`;
+}
+
 export function createContinuityConsoleApplication(
   options: Pick<StartContinuityConsoleOptions, "control" | "personaContext">,
   token: string,
@@ -318,6 +360,13 @@ export function createContinuityConsoleApplication(
             }),
             memories: options.control.listMemories(personaId),
           });
+        }
+
+        if (request.method === "GET" && url.pathname === "/api/export") {
+          return jsonDownloadResponse(
+            options.control.exportPersonaMemories(personaId),
+            exportFilename(options.personaContext.persona.name),
+          );
         }
 
         const candidateId = routeId(url.pathname);
@@ -404,6 +453,39 @@ export function createContinuityConsoleApplication(
               },
               { actor: "user", explicitUserAction: true },
             ),
+          );
+        }
+
+        const deletionId = routeId(url.pathname, "/delete");
+        if (deletionId !== null && url.pathname.startsWith("/api/memories/")) {
+          const input = parseBody(deletionSchema, body);
+          requireExactConfirmation(input.confirmation, deletionId);
+          return jsonResponse(
+            200,
+            options.control.deleteMemory(
+              {
+                personaId,
+                memoryId: deletionId,
+                deletion: { reason: input.reason },
+              },
+              { actor: "user", explicitUserAction: true },
+            ),
+          );
+        }
+
+        const restoreDeletedId = routeId(url.pathname, "/restore-deleted");
+        if (
+          restoreDeletedId !== null &&
+          url.pathname.startsWith("/api/memories/")
+        ) {
+          const input = parseBody(restorationSchema, body);
+          requireExactConfirmation(input.confirmation, restoreDeletedId);
+          return jsonResponse(
+            200,
+            options.control.restoreDeletedMemory(personaId, restoreDeletedId, {
+              actor: "user",
+              explicitUserAction: true,
+            }),
           );
         }
 

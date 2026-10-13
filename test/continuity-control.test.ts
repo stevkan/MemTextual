@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import test from "node:test";
 import {
   AmbientMemoryService,
+  continuityPersonaMemoryExportFormat,
   ContinuityControlService,
   ContinuityMemoryService,
   ExplicitContinuityControlActionRequiredError,
@@ -317,6 +318,65 @@ test("control mutations require explicit user action and preserve lifecycle hist
     assert.ok(events.some(({ event_type }) => event_type === "pinned"));
     assert.ok(events.some(({ event_type }) => event_type === "protected"));
     assert.ok(events.some(({ event_type }) => event_type === "revised"));
+  } finally {
+    setup.database.close();
+  }
+});
+
+test("persona-memory export includes complete history only for the selected persona", () => {
+  const setup = fixture();
+  try {
+    const skylarMemory = setup.control.createMemory(
+      {
+        personaId: setup.skylar.persona.id,
+        memoryClass: "durable",
+        assertion: "Original Skylar memory.",
+        type: "fact",
+      },
+      explicitUserAction,
+    );
+    setup.control.reviseMemory(
+      {
+        personaId: setup.skylar.persona.id,
+        memoryId: skylarMemory.memory.id,
+        revision: {
+          assertion: "Corrected Skylar memory.",
+          changeKind: "corrected",
+        },
+      },
+      explicitUserAction,
+    );
+    setup.control.deleteMemory(
+      {
+        personaId: setup.skylar.persona.id,
+        memoryId: skylarMemory.memory.id,
+        deletion: { reason: "Included deleted memory in user export." },
+      },
+      explicitUserAction,
+    );
+    setup.control.createMemory(
+      {
+        personaId: setup.advisor.persona.id,
+        memoryClass: "episodic",
+        assertion: "Advisor-only memory.",
+        type: "fact",
+      },
+      explicitUserAction,
+    );
+
+    const export_ = setup.control.exportPersonaMemories(setup.skylar.persona.id);
+    assert.equal(export_.format, continuityPersonaMemoryExportFormat);
+    assert.equal(export_.formatVersion, 1);
+    assert.equal(export_.personaContext.persona.id, setup.skylar.persona.id);
+    assert.equal(Number.isNaN(Date.parse(export_.exportedAt)), false);
+    assert.equal(export_.memories.length, 1);
+    assert.equal(export_.memories[0]?.personaMemory.memory.id, skylarMemory.memory.id);
+    assert.equal(export_.memories[0]?.personaMemory.memory.status, "deleted");
+    assert.deepEqual(
+      export_.memories[0]?.history.map(({ assertion }) => assertion),
+      ["Original Skylar memory.", "Corrected Skylar memory."],
+    );
+    assert.equal(JSON.stringify(export_).includes("Advisor-only memory."), false);
   } finally {
     setup.database.close();
   }

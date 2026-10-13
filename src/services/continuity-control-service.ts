@@ -8,7 +8,9 @@ import type {
   ContinuityMemoryDetail,
   ContinuityMemoryPurgeRequest,
   ContinuityMemoryRevisionRequest,
+  ContinuityPersonaMemoryExport,
 } from "../domain/continuity-control.js";
+import { continuityPersonaMemoryExportFormat } from "../domain/continuity-control.js";
 import type {
   CreatePersonaMemoryInput,
   PersonaMemory,
@@ -134,6 +136,23 @@ export class ContinuityControlService {
     return {
       personaMemory,
       history: this.memories.getHistory(memoryId),
+    };
+  }
+
+  public exportPersonaMemories(personaId: string): ContinuityPersonaMemoryExport {
+    const personaContext = this.requirePersona(personaId);
+    const memories = this.continuityMemories
+      .listForPersona(personaId)
+      .map((personaMemory) => ({
+        personaMemory,
+        history: this.memories.getHistory(personaMemory.memory.id),
+      }));
+    return {
+      format: continuityPersonaMemoryExportFormat,
+      formatVersion: 1,
+      exportedAt: new Date().toISOString(),
+      personaContext,
+      memories,
     };
   }
 

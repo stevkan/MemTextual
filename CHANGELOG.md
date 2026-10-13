@@ -72,6 +72,12 @@ describe only the current design and behavior.
   target enforcement.
 - Added graphical direct correction that creates an immutable corrected revision
   and clears stale normalized text while preserving prior revision history.
+- Added a versioned, persona-isolated JSON memory export containing current
+  profiles and complete immutable revision histories without claiming to be a
+  database backup or provenance-complete export.
+- Added graphical recoverable deletion and restoration with a required reason,
+  exact-ID confirmation, explicit user action, and the existing transactional
+  tombstone safeguards; confirmed purge remains outside the console.
 
 ## 0.8.0 - 2026-10-12
 

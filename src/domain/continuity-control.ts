@@ -13,6 +13,10 @@ import type {
   PurgeMemoryInput,
   ReviseMemoryInput,
 } from "./memory.js";
+import type { PersonaContext } from "./persona.js";
+
+export const continuityPersonaMemoryExportFormat =
+  "memtextual-continuity-persona-memories" as const;
 
 export interface ContinuityControlMutationContext {
   actor?: "user" | "system";
@@ -40,6 +44,14 @@ export interface ContinuityCandidateReview {
 export interface ContinuityMemoryDetail {
   personaMemory: PersonaMemory;
   history: MemoryRevision[];
+}
+
+export interface ContinuityPersonaMemoryExport {
+  format: typeof continuityPersonaMemoryExportFormat;
+  formatVersion: 1;
+  exportedAt: string;
+  personaContext: PersonaContext;
+  memories: ContinuityMemoryDetail[];
 }
 
 export interface ContinuityCandidateQueueQuery {

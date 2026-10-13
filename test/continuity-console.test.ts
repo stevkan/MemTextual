@@ -316,6 +316,75 @@ test("Continuity console requires same-origin explicit mutations", async () => {
         },
       ],
     );
+
+    const exportResponse = await request(application, token, {
+      method: "GET",
+      url: "/api/export",
+    });
+    assert.equal(exportResponse.status, 200);
+    assert.equal(
+      exportResponse.headers["Content-Disposition"],
+      'attachment; filename="memtextual-continuity-skylar-memories.json"',
+    );
+    const export_ = JSON.parse(exportResponse.body) as {
+      format: string;
+      personaContext: { persona: { id: string } };
+      memories: Array<{ history: unknown[] }>;
+    };
+    assert.equal(export_.format, "memtextual-continuity-persona-memories");
+    assert.equal(export_.personaContext.persona.id, setup.skylar.persona.id);
+    assert.equal(export_.memories.length, 1);
+    assert.equal(export_.memories[0]?.history.length, 2);
+
+    const wrongDeletionConfirmation = await request(application, token, {
+      ...mutation,
+      url: `/api/memories/${memoryId}/delete`,
+      headers: { ...mutation.headers, origin },
+      body: JSON.stringify({
+        reason: "User requested forgetting.",
+        confirmation: "wrong-id",
+      }),
+    });
+    assert.equal(wrongDeletionConfirmation.status, 400);
+
+    const deletionResponse = await request(application, token, {
+      ...mutation,
+      url: `/api/memories/${memoryId}/delete`,
+      headers: { ...mutation.headers, origin },
+      body: JSON.stringify({
+        reason: "User requested forgetting.",
+        confirmation: memoryId,
+      }),
+    });
+    assert.equal(deletionResponse.status, 200);
+    const deleted = JSON.parse(deletionResponse.body) as {
+      status: string;
+      deletionReason: string | null;
+    };
+    assert.equal(deleted.status, "deleted");
+    assert.equal(deleted.deletionReason, "User requested forgetting.");
+
+    const wrongRestoreConfirmation = await request(application, token, {
+      ...mutation,
+      url: `/api/memories/${memoryId}/restore-deleted`,
+      headers: { ...mutation.headers, origin },
+      body: JSON.stringify({ confirmation: "wrong-id" }),
+    });
+    assert.equal(wrongRestoreConfirmation.status, 400);
+
+    const restorationResponse = await request(application, token, {
+      ...mutation,
+      url: `/api/memories/${memoryId}/restore-deleted`,
+      headers: { ...mutation.headers, origin },
+      body: JSON.stringify({ confirmation: memoryId }),
+    });
+    assert.equal(restorationResponse.status, 200);
+    const restored = JSON.parse(restorationResponse.body) as {
+      status: string;
+      deletionReason: string | null;
+    };
+    assert.equal(restored.status, "active");
+    assert.equal(restored.deletionReason, null);
   } finally {
     setup.database.close();
   }

@@ -30,10 +30,35 @@ for an available port.
 - Correct an active memory by creating a new immutable revision while retaining
   its earlier wording in history.
 - Pin or unpin, protect or unprotect, archive, and restore a memory.
+- Download a versioned JSON export of every memory profile and complete revision
+  history belonging to the selected persona, including deleted memories.
+- Recoverably delete a memory with a reason and exact-ID confirmation, then
+  restore it to its prior lifecycle state with another exact-ID confirmation.
 
-The console does not yet expose export, recoverable deletion, or confirmed
-purge. Those operations remain available through their existing trusted library
-or CLI boundaries where implemented.
+The console does not expose confirmed purge. Permanent removal remains available
+through the trusted privacy CLI and is a separate interface package because it
+is irreversible.
+
+## Persona-memory export
+
+The downloaded `memtextual-continuity-persona-memories` format is versioned and
+contains the selected persona and relationship context, current memory profiles,
+and every immutable revision for those memories. It excludes source records,
+candidate lineage, audit events, other personas, and backup metadata. It is a
+portable user-memory record, not a complete database backup or a restorable
+database image.
+
+The file can contain sensitive personal information. Browser downloads are
+outside the active database: later deletion, purge, or backup-retention actions
+do not modify a previously downloaded export.
+
+## Recoverable deletion
+
+The console requires a short operational reason and the exact memory ID before
+deletion. Deletion removes the memory from retrieval while preserving its
+profile, revisions, and a restorable tombstone. Restoration also requires the
+exact ID and returns the memory to its lifecycle state from immediately before
+deletion. Neither action purges source evidence, exports, snapshots, or backups.
 
 ## Security boundary
 

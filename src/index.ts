@@ -62,17 +62,19 @@ export type {
   HostEventEnvelope,
   HostEventReceipt,
 } from "./domain/host-event.js";
-export type {
-  ContinuityCandidateEvidenceView,
-  ContinuityCandidateQueueItem,
-  ContinuityCandidateQueueQuery,
-  ContinuityCandidateResolutionRequest,
-  ContinuityCandidateReview,
-  ContinuityControlMutationContext,
-  ContinuityMemoryDeletionRequest,
-  ContinuityMemoryDetail,
-  ContinuityMemoryPurgeRequest,
-  ContinuityMemoryRevisionRequest,
+export {
+  continuityPersonaMemoryExportFormat,
+  type ContinuityPersonaMemoryExport,
+  type ContinuityCandidateEvidenceView,
+  type ContinuityCandidateQueueItem,
+  type ContinuityCandidateQueueQuery,
+  type ContinuityCandidateResolutionRequest,
+  type ContinuityCandidateReview,
+  type ContinuityControlMutationContext,
+  type ContinuityMemoryDeletionRequest,
+  type ContinuityMemoryDetail,
+  type ContinuityMemoryPurgeRequest,
+  type ContinuityMemoryRevisionRequest,
 } from "./domain/continuity-control.js";
 export type {
   ContinuityUser,
