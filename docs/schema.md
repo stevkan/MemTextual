@@ -80,6 +80,11 @@ subject of the memory. Database triggers require the relationship scope to be
 the memory's sole scope and reject cross-persona scope changes while the memory
 is not deleted.
 
+Continuity retrieval resolves the relationship scope from the persona identity
+inside the repository. It then requires both the matching
+`continuity_memory_profiles` row and its primary relationship-scope binding.
+Callers cannot supply arbitrary scope IDs through this path.
+
 ### Entity and relationship
 
 Entities normalize people, organizations, projects, products, places, and

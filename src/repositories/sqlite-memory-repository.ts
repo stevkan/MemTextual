@@ -22,6 +22,11 @@ import type {
   ScopeKind,
   Sensitivity,
 } from "../domain/memory.js";
+import {
+  normalizeRetrievalLimit,
+  sqlPlaceholders,
+  toFtsQuery,
+} from "../search/fts-query.js";
 import type { MemoryRepository } from "./memory-repository.js";
 
 interface MemoryRow {
@@ -141,15 +146,6 @@ function mapScope(row: ScopeRow): Scope {
   };
 }
 
-function toFtsQuery(query: string): string | null {
-  const terms = query.match(/[\p{L}\p{N}_-]+/gu);
-  if (terms === null || terms.length === 0) {
-    return null;
-  }
-
-  return terms.map((term) => `"${term.replaceAll('"', '""')}"*`).join(" AND ");
-}
-
 function validateAssertion(assertion: string): string {
   const trimmed = assertion.trim();
   if (trimmed.length === 0) {
@@ -163,10 +159,6 @@ function validateConfidence(confidence: number): number {
     throw new Error("Memory confidence must be between 0 and 1.");
   }
   return confidence;
-}
-
-function placeholders(values: readonly unknown[]): string {
-  return values.map(() => "?").join(", ");
 }
 
 export class SqliteMemoryRepository implements MemoryRepository {
@@ -879,7 +871,7 @@ export class SqliteMemoryRepository implements MemoryRepository {
       return [];
     }
 
-    const safeLimit = Math.max(1, Math.min(Math.trunc(query.limit ?? 20), 100));
+    const safeLimit = normalizeRetrievalLimit(query.limit);
     const sql = `SELECT d.memory_id, bm25(memory_search_fts) AS relevance
       FROM memory_search_fts
       JOIN memory_search_documents d ON d.rowid = memory_search_fts.rowid
@@ -887,12 +879,12 @@ export class SqliteMemoryRepository implements MemoryRepository {
       WHERE memory_search_fts MATCH ?
         AND m.status = 'active'
         AND m.retrieval_policy = 'include'
-        AND m.sensitivity IN (${placeholders(allowedSensitivities)})
+        AND m.sensitivity IN (${sqlPlaceholders(allowedSensitivities)})
         AND EXISTS (
           SELECT 1
           FROM memory_scopes ms
           WHERE ms.memory_id = m.id
-            AND ms.scope_id IN (${placeholders(scopeIds)})
+            AND ms.scope_id IN (${sqlPlaceholders(scopeIds)})
         )
       ORDER BY m.is_pinned DESC, relevance ASC, m.updated_at DESC
       LIMIT ?`;

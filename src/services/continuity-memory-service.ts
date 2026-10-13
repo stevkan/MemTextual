@@ -1,7 +1,9 @@
 import type {
+  ContinuityRetrievalQuery,
   CreatePersonaMemoryInput,
   PersonaMemory,
   PersonaMemoryClass,
+  PersonaMemoryRetrievalResult,
 } from "../domain/continuity-memory.js";
 import type { ContinuityMemoryRepository } from "../repositories/continuity-memory-repository.js";
 
@@ -21,5 +23,11 @@ export class ContinuityMemoryService {
     memoryClass?: PersonaMemoryClass,
   ): PersonaMemory[] {
     return this.repository.listForPersona(personaId, memoryClass);
+  }
+
+  public retrieve(
+    query: ContinuityRetrievalQuery,
+  ): PersonaMemoryRetrievalResult[] {
+    return this.repository.retrieve(query);
   }
 }

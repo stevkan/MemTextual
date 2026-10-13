@@ -75,6 +75,10 @@ Memory and source-series deletion, restoration, and purge are also absent from
 MCP. They always require an explicitly confirming user and are available
 through the trusted local `memtextual-privacy` CLI described in `privacy.md`.
 
+Continuity persona creation and persona-aware retrieval are currently
+library-only. The generic MCP retrieval tool still requires caller-authorized
+scope IDs and must not be presented as the Continuity persona boundary.
+
 ## Example host configuration
 
 Build the project, then configure an MCP host to launch the compiled entry point.

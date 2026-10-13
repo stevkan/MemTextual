@@ -2,8 +2,7 @@
 
 MemTextual Continuity models the local user, each persona, and the relationship
 between that user and persona as separate durable records with separate scopes.
-These are the first Phase 2 foundations; they do not yet perform ambient capture
-or persona-aware retrieval.
+These are the Phase 2 foundations. Ambient capture remains a later phase.
 
 ## Scope hierarchy
 
@@ -60,10 +59,28 @@ Database triggers reject attaching another relationship scope, moving the
 binding to another persona, or removing the active memory's required binding.
 Permanent memory purge removes the profile and records it in the purge receipt.
 
+## Persona-aware retrieval
+
+`ContinuityMemoryService.retrieve` accepts a persona ID, search text, optional
+memory classes, allowed sensitivities, and a bounded result limit. It does not
+accept scope IDs. The repository resolves the persona's relationship internally
+and searches only active, included, profiled memories owned by that persona and
+bound to that relationship's primary scope.
+
+Normal sensitivity is the default. Both episodic and durable memories are
+eligible unless the caller narrows the classes. Memories belonging to another
+persona, unprofiled developer memories, excluded/manual memories, deleted or
+archived memories, and disallowed sensitivities are not returned and do not
+receive retrieval-use or audit events.
+
+Every returned memory receives the normal retrieval counters and a client audit
+event attributed to the resolved persona and relationship. Cross-persona shared
+scopes remain unsupported and cannot be inferred by this API.
+
 ## Current boundary
 
-The current package establishes identities, isolated scope topology, and
-explicit episodic-versus-durable classification through the TypeScript library.
-It does not expose persona management through MCP. The next Phase 2 package will
-add a Continuity retrieval path that accepts a persona identity instead of
-arbitrary scope IDs.
+The current package establishes identities, isolated scope topology, explicit
+episodic-versus-durable classification, and persona-aware retrieval through the
+TypeScript library. Persona management and Continuity retrieval are not exposed
+through MCP; authenticated distribution and end-user interfaces remain later
+phases.

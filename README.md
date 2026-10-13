@@ -27,6 +27,7 @@ The system provides:
 - dependency-aware source-series deletion, restoration, and confirmed purge;
 - multi-persona identity and relationship scopes with enforced ownership;
 - explicit episodic and durable persona-memory classes;
+- persona-aware retrieval with default-deny cross-persona isolation;
 - sensitivity, retrieval, pinning, and protection controls;
 - policy-aware FTS5 retrieval and retrieval audits;
 - a trusted terminal workflow for candidate review;
@@ -113,8 +114,8 @@ behavior remains behind repository interfaces.
 `PersonaService` creates Continuity users and multiple personas with an
 enforced user -> persona -> relationship scope hierarchy.
 `ContinuityMemoryService` transactionally binds explicitly episodic or durable
-memories to one relationship. Persona-aware retrieval is the next Phase 2
-package.
+memories to one relationship and retrieves them by persona identity without
+accepting caller-selected scope IDs.
 
 Before a release applies new migrations to a real database, use the safeguard
 workflow in `docs/migration-safety.md`. It creates an online SQLite backup, a

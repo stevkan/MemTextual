@@ -31,9 +31,11 @@ export {
 } from "./domain/memory.js";
 export {
   personaMemoryClasses,
+  type ContinuityRetrievalQuery,
   type CreatePersonaMemoryInput,
   type PersonaMemory,
   type PersonaMemoryClass,
+  type PersonaMemoryRetrievalResult,
 } from "./domain/continuity-memory.js";
 export type {
   ContinuityUser,

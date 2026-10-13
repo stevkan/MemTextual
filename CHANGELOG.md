@@ -33,6 +33,9 @@ describe only the current design and behavior.
 - Added explicit episodic and durable persona-memory profiles, transactional
   core-memory creation, strict single-relationship scope binding, and purge
   accounting for Continuity profiles.
+- Added persona-aware retrieval that resolves relationship scope internally,
+  enforces class and sensitivity filters, excludes unprofiled and cross-persona
+  memories, and records use only for returned results.
 
 ## 0.8.0 - 2026-10-12
 

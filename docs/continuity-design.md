@@ -44,8 +44,9 @@ data model and isolation rules from the start.
 
 Phase 1 memory correctness is complete. Phase 2 now includes additive user,
 persona, and relationship identities, an enforced namespace-scope hierarchy,
-and explicit episodic-versus-durable memory classification. Persona-aware
-retrieval remains the next Phase 2 package.
+explicit episodic-versus-durable memory classification, and a persona-aware
+retrieval path that denies cross-persona recall by default. This completes the
+planned Persona Foundations phase; ambient memory is the next phase.
 
 ## Everyday data durability and recovery
 

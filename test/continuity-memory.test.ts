@@ -204,3 +204,154 @@ test("memory purge removes its Continuity profile and reports it", () => {
     setup.database.close();
   }
 });
+
+test("persona-aware retrieval excludes other personas and unprofiled memories", () => {
+  const setup = fixture();
+  try {
+    const user = setup.personas.createUser({ displayName: "Steve" });
+    const skylar = setup.personas.createPersona({ userId: user.id, name: "Skylar" });
+    const advisor = setup.personas.createPersona({ userId: user.id, name: "Advisor" });
+    const durable = setup.continuity.create({
+      personaId: skylar.persona.id,
+      memoryClass: "durable",
+      assertion: "Oranges are a durable preference.",
+      type: "preference",
+    });
+    const episode = setup.continuity.create({
+      personaId: skylar.persona.id,
+      memoryClass: "episodic",
+      assertion: "Oranges were discussed this morning.",
+      type: "task_context",
+    });
+    const sensitive = setup.continuity.create({
+      personaId: skylar.persona.id,
+      memoryClass: "durable",
+      assertion: "Oranges appear in a sensitive preference.",
+      type: "preference",
+      sensitivity: "sensitive",
+    });
+    setup.continuity.create({
+      personaId: skylar.persona.id,
+      memoryClass: "durable",
+      assertion: "Oranges are excluded from automatic retrieval.",
+      type: "preference",
+      retrievalPolicy: "exclude",
+    });
+    const otherPersona = setup.continuity.create({
+      personaId: advisor.persona.id,
+      memoryClass: "durable",
+      assertion: "Oranges belong to the advisor relationship.",
+      type: "relationship",
+    });
+    const unprofiled = setup.memoryService.create({
+      assertion: "Oranges in an unprofiled developer memory.",
+      type: "fact",
+      scopeId: skylar.relationship.scopeId,
+    });
+
+    const normal = setup.continuity.retrieve({
+      personaId: skylar.persona.id,
+      text: "oranges",
+    });
+    assert.deepEqual(
+      normal.map(({ personaMemory }) => personaMemory.memory.id).sort(),
+      [durable.memory.id, episode.memory.id].sort(),
+    );
+    assert.ok(
+      normal.every(
+        ({ personaMemory }) => personaMemory.personaId === skylar.persona.id,
+      ),
+    );
+
+    const durableOnly = setup.continuity.retrieve({
+      personaId: skylar.persona.id,
+      text: "oranges",
+      memoryClasses: ["durable"],
+    });
+    assert.deepEqual(
+      durableOnly.map(({ personaMemory }) => personaMemory.memory.id),
+      [durable.memory.id],
+    );
+    const withSensitive = setup.continuity.retrieve({
+      personaId: skylar.persona.id,
+      text: "oranges",
+      allowedSensitivities: ["normal", "sensitive"],
+    });
+    assert.ok(
+      withSensitive.some(
+        ({ personaMemory }) => personaMemory.memory.id === sensitive.memory.id,
+      ),
+    );
+
+    for (const id of [otherPersona.memory.id, unprofiled.id]) {
+      const row = setup.database
+        .prepare("SELECT use_count FROM memory_items WHERE id = ?")
+        .get(id) as { use_count: number };
+      assert.equal(row.use_count, 0);
+      const auditCount = setup.database
+        .prepare(
+          `SELECT count(*) AS count FROM audit_events
+           WHERE memory_id = ? AND event_type = 'retrieved'`,
+        )
+        .get(id) as { count: number };
+      assert.equal(auditCount.count, 0);
+    }
+    const detail = setup.database
+      .prepare(
+        `SELECT detail_json FROM audit_events
+         WHERE memory_id = ? AND event_type = 'retrieved'
+         ORDER BY occurred_at LIMIT 1`,
+      )
+      .get(durable.memory.id) as { detail_json: string };
+    assert.deepEqual(JSON.parse(detail.detail_json), {
+      query: "oranges",
+      personaId: skylar.persona.id,
+      relationshipId: skylar.relationship.id,
+      memoryClasses: ["episodic", "durable"],
+    });
+  } finally {
+    setup.database.close();
+  }
+});
+
+test("persona-aware retrieval fails closed for unknown personas and empty filters", () => {
+  const setup = fixture();
+  try {
+    assert.throws(
+      () =>
+        setup.continuity.retrieve({
+          personaId: "unknown-persona",
+          text: "anything",
+        }),
+      /Persona not found/u,
+    );
+    const user = setup.personas.createUser({ displayName: "Steve" });
+    const persona = setup.personas.createPersona({ userId: user.id, name: "Skylar" });
+    assert.deepEqual(
+      setup.continuity.retrieve({
+        personaId: persona.persona.id,
+        text: "anything",
+        memoryClasses: [],
+      }),
+      [],
+    );
+    assert.deepEqual(
+      setup.continuity.retrieve({
+        personaId: persona.persona.id,
+        text: "!!!",
+      }),
+      [],
+    );
+    assert.throws(
+      () =>
+        setup.continuity.retrieve({
+          personaId: persona.persona.id,
+          text: "anything",
+          limit: Number.NaN,
+        }),
+      /finite number/u,
+    );
+  } finally {
+    setup.database.close();
+  }
+});

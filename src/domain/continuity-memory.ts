@@ -1,4 +1,4 @@
-import type { CreateMemoryInput, Memory } from "./memory.js";
+import type { CreateMemoryInput, Memory, Sensitivity } from "./memory.js";
 
 export const personaMemoryClasses = ["episodic", "durable"] as const;
 
@@ -18,4 +18,17 @@ export interface PersonaMemory {
   memoryClass: PersonaMemoryClass;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface ContinuityRetrievalQuery {
+  personaId: string;
+  text: string;
+  memoryClasses?: PersonaMemoryClass[];
+  allowedSensitivities?: Sensitivity[];
+  limit?: number;
+}
+
+export interface PersonaMemoryRetrievalResult {
+  personaMemory: PersonaMemory;
+  rank: number;
 }
