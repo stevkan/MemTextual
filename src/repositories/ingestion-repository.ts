@@ -1,6 +1,10 @@
 import type {
   CandidateAcceptance,
   CandidateActor,
+  CandidateMatch,
+  CandidateResolution,
+  CandidateResolutionInput,
+  CandidateResolutionResult,
   CandidateStatus,
   ImportSourceInput,
   MemoryCandidate,
@@ -20,6 +24,14 @@ export interface IngestionRepository {
   getCandidateByExternalId(externalId: string): MemoryCandidate | null;
   getCandidate(id: string): MemoryCandidate | null;
   listCandidates(status?: CandidateStatus, limit?: number): MemoryCandidate[];
+  findCandidateMatches(id: string, limit?: number): CandidateMatch[];
+  getCandidateResolution(id: string): CandidateResolution | null;
+  resolveCandidate(
+    id: string,
+    resolution: CandidateResolutionInput,
+    actor: CandidateActor,
+    note?: string,
+  ): CandidateResolutionResult;
   acceptCandidate(
     id: string,
     actor: CandidateActor,

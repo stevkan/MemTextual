@@ -27,6 +27,16 @@ export type CandidateActor =
   | "client";
 export type EvidenceRole = "supports" | "contradicts" | "context";
 
+export const candidateResolutionKinds = [
+  "create",
+  "revise",
+  "reaffirm",
+  "contradict",
+  "supersede",
+  "ignore",
+] as const;
+export type CandidateResolutionKind = (typeof candidateResolutionKinds)[number];
+
 export interface ImportSourceRecordInput {
   kind: SourceRecordKind;
   content: string;
@@ -146,4 +156,33 @@ export interface CandidateReviewContext {
 export interface CandidateAcceptance {
   candidate: MemoryCandidate;
   memory: Memory;
+}
+
+export interface CandidateResolutionInput {
+  outcome: CandidateResolutionKind;
+  targetMemoryId?: string;
+}
+
+export interface CandidateResolution {
+  candidateId: string;
+  outcome: CandidateResolutionKind;
+  targetMemoryId: string | null;
+  resultMemoryId: string | null;
+  actor: CandidateActor;
+  note: string | null;
+  resolvedAt: string;
+}
+
+export interface CandidateResolutionResult {
+  candidate: MemoryCandidate;
+  resolution: CandidateResolution;
+  memory: Memory | null;
+  targetMemory: Memory | null;
+}
+
+export interface CandidateMatch {
+  memory: Memory;
+  matchKind: "exact_normalized";
+  score: 1;
+  reason: string;
 }

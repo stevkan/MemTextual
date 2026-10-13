@@ -13,6 +13,10 @@ describe only the current design and behavior.
   reports.
 - Added tests that permit additive schema changes while detecting deleted or
   modified durable records.
+- Added deterministic exact-normalized candidate matching and explicit create,
+  revise, reaffirm, contradict, supersede, and ignore resolutions.
+- Added immutable candidate-resolution records and upgraded the trusted review
+  CLI to display matches and apply reconciliation choices.
 
 ## 0.8.0 - 2026-10-12
 

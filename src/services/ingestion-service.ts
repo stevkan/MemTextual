@@ -1,5 +1,8 @@
 import type {
   CandidateAcceptance,
+  CandidateMatch,
+  CandidateResolutionInput,
+  CandidateResolutionResult,
   CandidateReviewContext,
   CandidateStatus,
   ImportSourceInput,
@@ -94,6 +97,21 @@ export class IngestionService {
     limit?: number,
   ): MemoryCandidate[] {
     return this.repository.listCandidates(status, limit);
+  }
+
+  public findCandidateMatches(id: string, limit?: number): CandidateMatch[] {
+    this.requireCandidate(id);
+    return this.repository.findCandidateMatches(id, limit);
+  }
+
+  public resolveCandidate(
+    id: string,
+    resolution: CandidateResolutionInput,
+    context: CandidateReviewContext = {},
+  ): CandidateResolutionResult {
+    this.requireCandidate(id);
+    this.requireExplicitUserReview(context);
+    return this.repository.resolveCandidate(id, resolution, "user", context.note);
   }
 
   public acceptCandidate(

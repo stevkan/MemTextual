@@ -34,12 +34,26 @@ The CLI loads up to 100 pending candidates, oldest first. For each candidate it 
 
 The available actions are:
 
-- `accept` or `a`: request an optional note, create the memory transactionally, and mark the candidate accepted;
-- `reject` or `r`: request an optional note, retain the candidate and evidence, and mark it rejected;
+- `create` or `c` (`accept` and `a` remain aliases): create a new memory;
+- `revise` or `v`: create a corrected revision on a specified active memory;
+- `reaffirm` or `f`: preserve the target assertion while adding a reaffirming
+  revision and the candidate's evidence;
+- `contradict` or `x`: create the candidate memory and mark a specified memory
+  contradicted by it;
+- `supersede` or `u`: create the candidate memory and supersede a specified
+  memory with it;
+- `ignore` or `i` (`reject` and `r` remain aliases): retain the candidate and
+  evidence without creating or changing a memory;
 - `skip` or `s`: leave the candidate pending and continue; and
 - `quit` or `q`: leave the current and remaining candidates pending and end the session.
 
-Every accept or reject action is passed to `IngestionService` as actor `user` with `explicitUserAction: true`. The repository's existing review-state and transaction checks remain in force.
+Targeted actions require an active memory of the same type in the candidate's
+scope. Every resolution is passed to `IngestionService` as actor `user` with
+`explicitUserAction: true`. The repository's review-state, protected-memory,
+scope, type, and transaction checks remain in force.
+
+Before prompting, the CLI lists exact normalized matches. A match is a review
+aid only: it never chooses a target or authorizes a merge automatically.
 
 The session ends with counts for accepted, rejected, skipped, and failed decisions. A failure affects only that candidate and does not prevent review of the remaining snapshot.
 
@@ -56,4 +70,5 @@ The MCP server exposes nineteen tools. It exposes no candidate accept or reject 
 - The CLI is intended for a trusted local terminal. It may display sensitive source content.
 - Bulk review and configurable automation are provided by the separate policy
   CLI and automation service.
-- The CLI performs no candidate deduplication or existing-memory conflict analysis beyond the current repository constraints.
+- Matching currently covers deterministic normalized equality. Broader semantic
+  duplicate and conflict analysis remains deferred.

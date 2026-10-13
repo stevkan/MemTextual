@@ -26,8 +26,9 @@ The system provides:
 - sensitivity, retrieval, pinning, and protection controls;
 - policy-aware FTS5 retrieval and retrieval audits;
 - a trusted terminal workflow for candidate review;
+- deterministic duplicate suggestions and explicit candidate reconciliation;
 - an idempotent, review-gated legacy-memory migration CLI;
-- versioned global and scope-specific review-automation policies; and
+- versioned global and scope-specific review-automation policies;
 - consistent database snapshots with durable-data preservation verification; and
 - a local stdio MCP server with capability discovery.
 
@@ -67,6 +68,7 @@ python -m sqlite3 memtextual.db ".read migrations/001_initial.sql"
 python -m sqlite3 memtextual.db ".read migrations/002_ingestion_candidates.sql"
 python -m sqlite3 memtextual.db ".read migrations/003_review_automation.sql"
 python -m sqlite3 memtextual.db ".read migrations/004_legacy_memory_migration.sql"
+python -m sqlite3 memtextual.db ".read migrations/005_candidate_resolution.sql"
 python -m sqlite3 memtextual.db ".read examples/seed-v0.1.sql"
 ```
 

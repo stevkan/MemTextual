@@ -1,5 +1,6 @@
 import type {
   CandidateEvidence,
+  CandidateResolutionKind,
   MemoryCandidate,
   SourceRecord,
 } from "../domain/ingestion.js";
@@ -85,6 +86,32 @@ function optionalNote(value: string): string | undefined {
   return trimmed.length === 0 ? undefined : trimmed;
 }
 
+function resolutionAction(value: string): CandidateResolutionKind | null {
+  const actions: Record<string, CandidateResolutionKind> = {
+    a: "create",
+    accept: "create",
+    c: "create",
+    create: "create",
+    v: "revise",
+    revise: "revise",
+    f: "reaffirm",
+    reaffirm: "reaffirm",
+    x: "contradict",
+    contradict: "contradict",
+    u: "supersede",
+    supersede: "supersede",
+    i: "ignore",
+    ignore: "ignore",
+    r: "ignore",
+    reject: "ignore",
+  };
+  return actions[value] ?? null;
+}
+
+function requiresTarget(outcome: CandidateResolutionKind): boolean {
+  return ["revise", "reaffirm", "contradict", "supersede"].includes(outcome);
+}
+
 export async function reviewPendingCandidates(
   service: IngestionService,
   io: CandidateReviewIO,
@@ -118,10 +145,19 @@ export async function reviewPendingCandidates(
     io.write("");
     io.write(`Review ${index + 1} of ${candidates.length}`);
     io.write(formatCandidateForReview(candidate, records));
+    const matches = service.findCandidateMatches(candidate.id);
+    if (matches.length > 0) {
+      io.write("Exact normalized matches:");
+      for (const match of matches) {
+        io.write(`  - ${match.memory.id}: ${match.memory.assertion}`);
+      }
+    }
 
     let decided = false;
     while (!decided) {
-      const action = (await io.ask("Accept, reject, skip, or quit? [a/r/s/q] "))
+      const action = (await io.ask(
+        "Create, revise, reaffirm, contradict, supersede, ignore, skip, or quit? [c/v/f/x/u/i/s/q] ",
+      ))
         .trim()
         .toLowerCase();
 
@@ -135,29 +171,43 @@ export async function reviewPendingCandidates(
         decided = true;
         continue;
       }
-      if (action !== "a" && action !== "accept" && action !== "r" && action !== "reject") {
-        io.write("Enter a, r, s, or q.");
+      const outcome = resolutionAction(action);
+      if (outcome === null) {
+        io.write("Enter c, v, f, x, u, i, s, or q.");
         continue;
       }
 
+      const targetMemoryId = requiresTarget(outcome)
+        ? (await io.ask("Target memory ID: ")).trim()
+        : undefined;
+      if (requiresTarget(outcome) && targetMemoryId?.length === 0) {
+        io.write(`${outcome} requires a target memory ID.`);
+        continue;
+      }
       const note = optionalNote(await io.ask("Optional review note: "));
       try {
-        if (action === "a" || action === "accept") {
-          const accepted = service.acceptCandidate(candidate.id, {
+        const resolved = service.resolveCandidate(
+          candidate.id,
+          {
+            outcome,
+            ...(targetMemoryId === undefined ? {} : { targetMemoryId }),
+          },
+          {
             actor: "user",
             explicitUserAction: true,
             ...(note === undefined ? {} : { note }),
-          });
+          },
+        );
+        if (outcome !== "ignore") {
           summary.accepted += 1;
-          io.write(`Accepted as memory ${accepted.memory.id}.`);
+          io.write(
+            `Resolved as ${outcome}${
+              resolved.memory === null ? "." : ` using memory ${resolved.memory.id}.`
+            }`,
+          );
         } else {
-          service.rejectCandidate(candidate.id, {
-            actor: "user",
-            explicitUserAction: true,
-            ...(note === undefined ? {} : { note }),
-          });
           summary.rejected += 1;
-          io.write("Rejected.");
+          io.write("Ignored.");
         }
       } catch (error) {
         const message = error instanceof Error ? error.message : "Unknown review error";

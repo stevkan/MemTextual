@@ -75,7 +75,18 @@ The local MCP server deliberately exposes no accept or reject tool. An MCP clien
 
 ## Acceptance behavior
 
-Acceptance always creates a new memory. Matching a candidate to an existing memory and choosing revision, reaffirmation, contradiction, or supersession is not implemented.
+Candidate review supports six explicit outcomes: create, revise, reaffirm,
+contradict, supersede, or ignore. Create and ignore retain the established
+accept/reject behavior. The other outcomes require an explicit user action and
+an active target memory of the same type in the candidate's scope. Resolution,
+target, result, actor, note, and timestamp are retained in
+`candidate_resolutions`.
+
+MemTextual suggests deterministic exact matches when the candidate and an active
+memory have equivalent normalized assertions after Unicode, case, punctuation,
+and whitespace normalization. These suggestions are not treated as proof of
+semantic equivalence and never authorize automatic merging. Provider-neutral
+semantic matching remains deferred.
 
 Acceptance runs in one database transaction:
 
@@ -190,7 +201,8 @@ Current limitations include:
 - source version relationships and resumable imports;
 - source deletion and privacy purge semantics;
 - semantic candidate deduplication and matching to existing memories;
-- revise/reaffirm/contradict/supersede choices during acceptance;
+- provider-neutral semantic duplicate and conflict matching beyond deterministic
+  normalized equality;
 - a graphical review interface beyond the local CLI;
 - automatic extraction-provider integration;
 - source-level sensitivity and redaction; and

@@ -36,7 +36,7 @@ test("migration and seed preserve schema integrity", () => {
     const violations = database.prepare("PRAGMA foreign_key_check").all();
 
     assert.equal(memoryCount.count, 10);
-    assert.equal(migrationCount.count, 4);
+    assert.equal(migrationCount.count, 5);
     assert.deepEqual(violations, []);
   } finally {
     database.close();
@@ -171,6 +171,9 @@ test("review automation migration upgrades an existing candidate database", () =
       const legacyMigration = upgraded
         .prepare("SELECT name FROM schema_migrations WHERE version = 4")
         .get() as { name: string };
+      const resolutionMigration = upgraded
+        .prepare("SELECT name FROM schema_migrations WHERE version = 5")
+        .get() as { name: string };
 
       assert.equal(candidate.assertion, "Preserve this candidate.");
       assert.equal(candidate.proposer_id, null);
@@ -178,6 +181,92 @@ test("review automation migration upgrades an existing candidate database", () =
       assert.deepEqual(policyTable, { present: 1 });
       assert.equal(migration.name, "candidate_review_automation_v0.7");
       assert.equal(legacyMigration.name, "legacy_memory_migration_v0.8");
+      assert.equal(resolutionMigration.name, "candidate_resolution_v0.9");
+      assert.deepEqual(
+        upgraded
+          .prepare(
+            `SELECT 1 AS present FROM sqlite_master
+             WHERE type = 'table' AND name = 'candidate_resolutions'`,
+          )
+          .get(),
+        { present: 1 },
+      );
+      assert.deepEqual(upgraded.prepare("PRAGMA foreign_key_check").all(), []);
+    } finally {
+      upgraded.close();
+    }
+  } finally {
+    rmSync(temporaryDirectory, { recursive: true, force: true });
+  }
+});
+
+test("candidate resolution migration backfills completed reviews", () => {
+  const temporaryDirectory = mkdtempSync(join(tmpdir(), "memtextual-resolution-"));
+  const oldMigrations = join(temporaryDirectory, "old-migrations");
+  const databasePath = join(temporaryDirectory, "existing.db");
+  mkdirSync(oldMigrations);
+  for (const filename of [
+    "001_initial.sql",
+    "002_ingestion_candidates.sql",
+    "003_review_automation.sql",
+    "004_legacy_memory_migration.sql",
+  ]) {
+    copyFileSync(resolve("migrations", filename), join(oldMigrations, filename));
+  }
+
+  try {
+    const oldDatabase = openMemTextualDatabase({
+      filename: databasePath,
+      migrationsDirectory: oldMigrations,
+    });
+    const repository = new SqliteMemoryRepository(oldDatabase);
+    const scope = repository.createScope({ kind: "project", name: "Backfill" });
+    const memory = repository.create({
+      assertion: "Accepted memory.",
+      type: "fact",
+      scopeId: scope.id,
+    });
+    oldDatabase
+      .prepare(
+        `INSERT INTO memory_candidates (
+           id, memory_type, assertion, scope_id, proposed_by, status,
+           reviewed_by, reviewed_at, accepted_memory_id, review_note
+         ) VALUES
+           ('accepted_candidate', 'fact', 'Accepted memory.', ?, 'system',
+            'accepted', 'user', '2026-10-12T00:00:00.000Z', ?, 'Accepted.'),
+           ('rejected_candidate', 'fact', 'Ignored memory.', ?, 'system',
+            'rejected', 'user', '2026-10-12T00:01:00.000Z', NULL, 'Ignored.')`,
+      )
+      .run(scope.id, memory.id, scope.id);
+    oldDatabase.close();
+
+    const upgraded = openMemTextualDatabase({
+      filename: databasePath,
+      migrationsDirectory: resolve("migrations"),
+    });
+    try {
+      const resolutions = upgraded
+        .prepare(
+          `SELECT candidate_id, outcome, result_memory_id
+           FROM candidate_resolutions ORDER BY candidate_id`,
+        )
+        .all() as Array<{
+        candidate_id: string;
+        outcome: string;
+        result_memory_id: string | null;
+      }>;
+      assert.deepEqual(resolutions, [
+        {
+          candidate_id: "accepted_candidate",
+          outcome: "create",
+          result_memory_id: memory.id,
+        },
+        {
+          candidate_id: "rejected_candidate",
+          outcome: "ignore",
+          result_memory_id: null,
+        },
+      ]);
       assert.deepEqual(upgraded.prepare("PRAGMA foreign_key_check").all(), []);
     } finally {
       upgraded.close();

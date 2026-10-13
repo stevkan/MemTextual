@@ -127,6 +127,12 @@ test("candidate acceptance requires explicit user review and preserves evidence"
     assert.equal(accepted.candidate.acceptedMemoryId, accepted.memory.id);
     assert.equal(accepted.memory.isProtected, true);
     assert.equal(accepted.memory.scopes[0]?.id, scope.id);
+    assert.equal(
+      database
+        .prepare("SELECT outcome FROM candidate_resolutions WHERE candidate_id = ?")
+        .get(candidate.id) !== undefined,
+      true,
+    );
     assert.equal(memoryRepository.getById(accepted.memory.id)?.id, accepted.memory.id);
 
     const evidenceCount = database
@@ -176,6 +182,14 @@ test("candidate rejection preserves the proposal and review audit", () => {
 
     assert.equal(rejected.status, "rejected");
     assert.equal(rejected.acceptedMemoryId, null);
+    assert.equal(
+      (
+        database
+          .prepare("SELECT outcome FROM candidate_resolutions WHERE candidate_id = ?")
+          .get(candidate.id) as { outcome: string }
+      ).outcome,
+      "ignore",
+    );
     assert.match(rejected.reviewNote ?? "", /local-first/u);
     assert.equal(service.listCandidates("pending").length, 0);
     assert.equal(service.listCandidates("rejected")[0]?.id, candidate.id);

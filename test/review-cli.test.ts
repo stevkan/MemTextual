@@ -65,7 +65,7 @@ function reviewFixture() {
       proposedBy: "extractor",
     });
   }
-  return { database, service };
+  return { database, memoryRepository, scope, service };
 }
 
 test("review session accepts, skips, and rejects pending candidates", async () => {
@@ -112,6 +112,26 @@ test("review session can quit without changing candidate state", async () => {
     assert.equal(summary.quitEarly, true);
     assert.equal(summary.reviewed, 0);
     assert.equal(service.listCandidates("pending").length, 3);
+  } finally {
+    database.close();
+  }
+});
+
+test("review session can resolve a candidate as a revision", async () => {
+  const { database, memoryRepository, scope, service } = reviewFixture();
+  const target = memoryRepository.create({
+    assertion: "Original assertion.",
+    type: "fact",
+    scopeId: scope.id,
+  });
+  const io = new ScriptedReviewIO(["revise", target.id, "New evidence.", "q"]);
+
+  try {
+    const summary = await reviewPendingCandidates(service, io);
+    assert.equal(summary.accepted, 1);
+    assert.equal(summary.quitEarly, true);
+    assert.equal(memoryRepository.getById(target.id)?.revisionNumber, 2);
+    assert.equal(memoryRepository.getById(target.id)?.assertion.startsWith("Candidate assertion"), true);
   } finally {
     database.close();
   }

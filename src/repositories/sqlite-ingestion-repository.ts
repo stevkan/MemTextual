@@ -4,6 +4,11 @@ import type {
   CandidateAcceptance,
   CandidateActor,
   CandidateEvidence,
+  CandidateMatch,
+  CandidateResolution,
+  CandidateResolutionInput,
+  CandidateResolutionKind,
+  CandidateResolutionResult,
   CandidateStatus,
   ImportSourceInput,
   MemoryCandidate,
@@ -14,6 +19,7 @@ import type {
   SourceRecord,
   SourceRecordKind,
 } from "../domain/ingestion.js";
+import { candidateResolutionKinds } from "../domain/ingestion.js";
 import type {
   Explicitness,
   MemoryType,
@@ -83,6 +89,16 @@ interface CandidateEvidenceRow {
   excerpt: string | null;
 }
 
+interface CandidateResolutionRow {
+  candidate_id: string;
+  outcome: CandidateResolutionKind;
+  target_memory_id: string | null;
+  result_memory_id: string | null;
+  actor_type: CandidateActor;
+  note: string | null;
+  resolved_at: string;
+}
+
 function sha256(value: string): string {
   return createHash("sha256").update(value, "utf8").digest("hex");
 }
@@ -119,6 +135,15 @@ function validateConfidence(value: number): number {
     throw new Error("Candidate confidence must be between 0 and 1.");
   }
   return value;
+}
+
+function normalizeForExactMatch(value: string): string {
+  return value
+    .normalize("NFKC")
+    .toLocaleLowerCase("en-US")
+    .replaceAll(/[\p{P}\p{S}]+/gu, " ")
+    .replaceAll(/\s+/gu, " ")
+    .trim();
 }
 
 function mapSource(row: SourceRow): Source {
@@ -418,6 +443,178 @@ export class SqliteIngestionRepository implements IngestionRepository {
     return rows.map((row) => this.mapCandidate(row));
   }
 
+  public findCandidateMatches(id: string, limit = 20): CandidateMatch[] {
+    const candidate = this.requireCandidate(id);
+    const matchKey = normalizeForExactMatch(
+      candidate.normalizedAssertion ?? candidate.assertion,
+    );
+    if (matchKey.length === 0) {
+      return [];
+    }
+
+    const safeLimit = Math.max(1, Math.min(Math.trunc(limit), 100));
+    const rows = this.database
+      .prepare(
+        `SELECT m.id
+         FROM memory_items m
+         JOIN memory_revisions r ON r.id = m.current_revision_id
+         WHERE m.status = 'active'
+           AND m.memory_type = ?
+           AND EXISTS (
+             SELECT 1 FROM memory_scopes ms
+             WHERE ms.memory_id = m.id AND ms.scope_id = ?
+           )
+         ORDER BY m.updated_at DESC, m.id
+         LIMIT 100`,
+      )
+      .all(candidate.type, candidate.scopeId) as Array<{ id: string }>;
+
+    const matches: CandidateMatch[] = [];
+    for (const row of rows) {
+      const memory = this.memoryRepository.getById(row.id);
+      if (
+        memory !== null &&
+        normalizeForExactMatch(memory.normalizedAssertion ?? memory.assertion) ===
+          matchKey
+      ) {
+        matches.push({
+          memory,
+          matchKind: "exact_normalized",
+          score: 1,
+          reason: "The candidate and active memory have the same normalized assertion.",
+        });
+      }
+      if (matches.length >= safeLimit) {
+        break;
+      }
+    }
+    return matches;
+  }
+
+  public getCandidateResolution(id: string): CandidateResolution | null {
+    const row = this.database
+      .prepare("SELECT * FROM candidate_resolutions WHERE candidate_id = ?")
+      .get(id) as CandidateResolutionRow | undefined;
+    return row === undefined ? null : this.mapResolution(row);
+  }
+
+  public resolveCandidate(
+    id: string,
+    resolution: CandidateResolutionInput,
+    actor: CandidateActor,
+    note?: string,
+  ): CandidateResolutionResult {
+    this.requireReviewActor(id, actor);
+    if (!candidateResolutionKinds.includes(resolution.outcome)) {
+      throw new Error(`Unsupported candidate resolution: ${String(resolution.outcome)}`);
+    }
+    if (resolution.outcome === "create") {
+      const acceptance = this.acceptCandidate(id, actor, note);
+      return {
+        candidate: acceptance.candidate,
+        resolution: this.requireResolution(id),
+        memory: acceptance.memory,
+        targetMemory: null,
+      };
+    }
+    if (resolution.outcome === "ignore") {
+      const candidate = this.rejectCandidate(id, actor, note);
+      return {
+        candidate,
+        resolution: this.requireResolution(id),
+        memory: null,
+        targetMemory: null,
+      };
+    }
+
+    const targetMemoryId = resolution.targetMemoryId?.trim();
+    if (targetMemoryId === undefined || targetMemoryId.length === 0) {
+      throw new Error(`${resolution.outcome} requires a target memory ID.`);
+    }
+
+    let resultMemoryId = "";
+    const resolveTransaction = this.database.transaction(() => {
+      const candidate = this.requirePendingCandidate(id);
+      const target = this.requireResolutionTarget(candidate, targetMemoryId);
+      let result;
+
+      if (resolution.outcome === "revise") {
+        result = this.memoryRepository.revise(
+          target.id,
+          {
+            assertion: candidate.assertion,
+            normalizedAssertion: candidate.normalizedAssertion,
+            explicitness: candidate.explicitness,
+            confidence: candidate.confidence,
+            observedAt: candidate.observedAt,
+            changeKind: "corrected",
+          },
+          "user",
+          true,
+        );
+        this.copyCandidateEvidence(candidate, result.revisionId);
+      } else if (resolution.outcome === "reaffirm") {
+        result = this.memoryRepository.revise(
+          target.id,
+          {
+            assertion: target.assertion,
+            normalizedAssertion: target.normalizedAssertion,
+            explicitness: target.explicitness,
+            confidence: Math.max(target.confidence, candidate.confidence),
+            observedAt: candidate.observedAt,
+            changeKind: "reaffirmed",
+          },
+          "user",
+          true,
+        );
+        this.copyCandidateEvidence(candidate, result.revisionId);
+      } else {
+        result = this.createMemoryFromCandidate(candidate, "user");
+        if (resolution.outcome === "contradict") {
+          this.memoryRepository.contradict(target.id, result.id, "user", true);
+        } else {
+          this.memoryRepository.supersede(target.id, result.id, "user", true);
+        }
+      }
+
+      resultMemoryId = result.id;
+      this.completeCandidateReview(
+        candidate.id,
+        "accepted",
+        actor,
+        note,
+        result.id,
+      );
+      this.insertResolution(
+        candidate.id,
+        resolution.outcome,
+        target.id,
+        result.id,
+        actor,
+        note,
+      );
+      this.writeCandidateEvent(id, "accepted", actor, {
+        memoryId: result.id,
+        targetMemoryId: target.id,
+        resolution: resolution.outcome,
+        reviewMethod: "manual",
+      });
+    });
+
+    resolveTransaction();
+    const memory = this.memoryRepository.getById(resultMemoryId);
+    const targetMemory = this.memoryRepository.getById(targetMemoryId);
+    if (memory === null || targetMemory === null) {
+      throw new Error("The candidate was resolved but its memories could not be read back.");
+    }
+    return {
+      candidate: this.requireCandidate(id),
+      resolution: this.requireResolution(id),
+      memory,
+      targetMemory,
+    };
+  }
+
   public acceptCandidate(
     id: string,
     actor: CandidateActor,
@@ -463,6 +660,15 @@ export class SqliteIngestionRepository implements IngestionRepository {
         );
       }
 
+      this.insertResolution(
+        id,
+        "create",
+        null,
+        memory.id,
+        actor,
+        note,
+      );
+
       this.database
         .prepare(
           `UPDATE memory_candidates
@@ -502,6 +708,7 @@ export class SqliteIngestionRepository implements IngestionRepository {
     this.requireReviewActor(id, actor);
     const rejectTransaction = this.database.transaction(() => {
       this.requirePendingCandidate(id);
+      this.insertResolution(id, "ignore", null, null, actor, note);
       this.database
         .prepare(
           `UPDATE memory_candidates
@@ -594,6 +801,141 @@ export class SqliteIngestionRepository implements IngestionRepository {
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     };
+  }
+
+  private mapResolution(row: CandidateResolutionRow): CandidateResolution {
+    return {
+      candidateId: row.candidate_id,
+      outcome: row.outcome,
+      targetMemoryId: row.target_memory_id,
+      resultMemoryId: row.result_memory_id,
+      actor: row.actor_type,
+      note: row.note,
+      resolvedAt: row.resolved_at,
+    };
+  }
+
+  private requireResolution(id: string): CandidateResolution {
+    const resolution = this.getCandidateResolution(id);
+    if (resolution === null) {
+      throw new Error(`Candidate resolution not found: ${id}`);
+    }
+    return resolution;
+  }
+
+  private requireResolutionTarget(
+    candidate: MemoryCandidate,
+    targetMemoryId: string,
+  ) {
+    const target = this.memoryRepository.getById(targetMemoryId);
+    if (target === null) {
+      throw new Error(`Target memory not found: ${targetMemoryId}`);
+    }
+    if (target.status !== "active") {
+      throw new Error(
+        `Cannot resolve against memory ${target.id} while its status is ${target.status}.`,
+      );
+    }
+    if (target.type !== candidate.type) {
+      throw new Error("Candidate and target memory types must match.");
+    }
+    if (!target.scopes.some(({ id }) => id === candidate.scopeId)) {
+      throw new Error("Candidate and target memory must share the candidate scope.");
+    }
+    return target;
+  }
+
+  private createMemoryFromCandidate(
+    candidate: MemoryCandidate,
+    actor: CandidateActor,
+  ) {
+    const memory = this.memoryRepository.create({
+      assertion: candidate.assertion,
+      type: candidate.type,
+      scopeId: candidate.scopeId,
+      ...(candidate.normalizedAssertion === null
+        ? {}
+        : { normalizedAssertion: candidate.normalizedAssertion }),
+      explicitness: candidate.explicitness,
+      confidence: candidate.confidence,
+      ...(candidate.observedAt === null ? {} : { observedAt: candidate.observedAt }),
+      createdBy: actor === "user" ? "user" : "system",
+      retrievalPolicy: candidate.retrievalPolicy,
+      sensitivity: candidate.sensitivity,
+      isPinned: candidate.isPinned,
+      isProtected: candidate.isProtected,
+    });
+    this.copyCandidateEvidence(candidate, memory.revisionId);
+    return memory;
+  }
+
+  private copyCandidateEvidence(
+    candidate: MemoryCandidate,
+    revisionId: string,
+  ): void {
+    const insertEvidence = this.database.prepare(
+      `INSERT INTO memory_evidence (
+         memory_revision_id, source_record_id, evidence_role, excerpt
+       ) VALUES (?, ?, ?, ?)`,
+    );
+    for (const evidence of candidate.evidence) {
+      insertEvidence.run(
+        revisionId,
+        evidence.sourceRecordId,
+        evidence.role,
+        evidence.excerpt,
+      );
+    }
+  }
+
+  private completeCandidateReview(
+    id: string,
+    status: "accepted" | "rejected",
+    actor: CandidateActor,
+    note: string | undefined,
+    acceptedMemoryId: string | null,
+  ): void {
+    this.database
+      .prepare(
+        `UPDATE memory_candidates
+         SET status = ?, reviewed_by = ?,
+             reviewed_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+             review_note = ?, accepted_memory_id = ?,
+             updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+         WHERE id = ?`,
+      )
+      .run(
+        status,
+        actor,
+        this.normalizeNote(note),
+        acceptedMemoryId,
+        id,
+      );
+  }
+
+  private insertResolution(
+    candidateId: string,
+    outcome: CandidateResolutionKind,
+    targetMemoryId: string | null,
+    resultMemoryId: string | null,
+    actor: CandidateActor,
+    note?: string,
+  ): void {
+    this.database
+      .prepare(
+        `INSERT INTO candidate_resolutions (
+           candidate_id, outcome, target_memory_id, result_memory_id,
+           actor_type, note
+         ) VALUES (?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        candidateId,
+        outcome,
+        targetMemoryId,
+        resultMemoryId,
+        actor,
+        this.normalizeNote(note),
+      );
   }
 
   private candidateMatchesInput(
