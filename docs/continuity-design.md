@@ -32,12 +32,55 @@ explicit user-controlled shared scope.
    rejection, protection, forgetting, export, and deletion controls.
 5. **Retrieval quality:** optional provider-neutral embeddings, persona-aware
    ranking, temporal and emotional relevance, and bounded context composition.
-6. **Distribution:** authenticated streamable HTTP, ChatGPT integration,
+6. **Operational resilience:** automatic backups, integrity monitoring,
+   retention and recovery controls, and optional encrypted off-device
+   redundancy for everyday use.
+7. **Distribution:** authenticated streamable HTTP, ChatGPT integration,
    installers, and separately packaged Developer and Continuity editions.
-7. **Expansion:** legacy adapters, administration, and a public REST interface.
+8. **Expansion:** legacy adapters, administration, and a public REST interface.
 
 The first vertical slice targets one persona while retaining the multi-persona
 data model and isolation rules from the start.
+
+## Everyday data durability and recovery
+
+Continuity must protect a user's memories during ordinary daily use, not only
+during upgrades. SQLite transactions, foreign keys, and WAL journaling reduce
+the risk of inconsistent writes, but they are not backups and do not protect
+against disk failure, accidental deletion, ransomware, or unnoticed corruption.
+
+The production design therefore requires:
+
+- automatic online backups on a user-visible schedule, including at least one
+  daily recovery point;
+- rotating historical backups with configurable daily, weekly, and monthly
+  retention rather than a single continuously overwritten copy;
+- backup storage separate from the active database, with an optional encrypted
+  off-device destination;
+- an immediate recovery point before bulk deletion, import, migration, repair,
+  or other high-impact automated changes;
+- an integrity check, durable-table counts, and deterministic content hashes for
+  every completed backup;
+- periodic automated restore tests against disposable copies so a backup is not
+  considered healthy merely because it exists;
+- a user-visible status showing the last successful backup, last verified
+  restore, covered time range, destination, and any failure requiring action;
+- a guided restore workflow that previews the selected recovery point, preserves
+  the current database before replacement, verifies the restored copy, and
+  records a recovery report;
+- configurable recovery retention for recently deleted memories, with archive
+  remaining the default reversible removal action; and
+- clear recovery-point and recovery-time expectations so the user can understand
+  how much recent activity could be lost and how restoration will work.
+
+Backup contents include private memory data. Local and off-device copies must be
+protected accordingly; off-device backups must be encrypted before transfer and
+must never silently activate without the user's choice. Backup failure must be
+visible and auditable rather than silently ignored.
+
+Exact schedules, retention counts, storage limits, and off-device providers are
+configuration decisions. They must not be hard-coded or enabled through an
+unstated assumption.
 
 ## Non-destructive migration contract
 
