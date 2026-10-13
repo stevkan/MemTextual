@@ -205,6 +205,20 @@ source stated the assertion directly or an extractor inferred it.
 SQLite FTS5 indexes it. `memory_embeddings` stores embedding metadata and an
 opaque vector reference, avoiding provider lock-in.
 
+The optional Continuity embedding service stores only validated finite vectors
+for a specific provider, model, dimension count, and immutable memory revision.
+The SQLite adapter currently uses an internal inline vector reference; callers
+do not depend on that representation. Hybrid retrieval joins embeddings only to
+the current revision, so revising a memory makes its prior vector ineligible
+until the new revision is indexed. Embeddings remain derived data and are not
+included in durable-data safeguard manifests.
+
+Hybrid retrieval is opt-in. It resolves the persona's relationship scope
+internally and applies the same memory-class, sensitivity, lifecycle, retrieval
+policy, and temporal filters as lexical Continuity retrieval. It then combines
+lexical reciprocal rank with cosine similarity over a bounded candidate set.
+Only final returned memories receive use-count updates and retrieval audits.
+
 ## SQLite-enforced invariants
 
 - Enum-like values and confidence ranges are checked.

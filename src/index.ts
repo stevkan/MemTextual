@@ -39,6 +39,19 @@ export {
   type PersonaMemoryRetrievalResult,
 } from "./domain/continuity-memory.js";
 export type {
+  ContinuityEmbeddingProvider,
+  ContinuityEmbeddingSource,
+  ContinuityHybridRetrievalQuery,
+  ContinuityQueryEmbedding,
+  EmbeddingProviderIdentity,
+  EmbeddingPurpose,
+  EmbeddingRequest,
+  HybridRetrievalWeights,
+  PersonaMemoryHybridRetrievalResult,
+  StoreContinuityEmbeddingInput,
+  StoredContinuityEmbedding,
+} from "./domain/continuity-embedding.js";
+export type {
   AmbientCaptureResult,
   AmbientExtractionInput,
   AmbientExtractionProvider,
@@ -163,6 +176,7 @@ export {
 } from "./mcp/server.js";
 export type { MemoryRepository } from "./repositories/memory-repository.js";
 export type { ContinuityMemoryRepository } from "./repositories/continuity-memory-repository.js";
+export type { ContinuityEmbeddingRepository } from "./repositories/continuity-embedding-repository.js";
 export type { IngestionRepository } from "./repositories/ingestion-repository.js";
 export type { PersonaRepository } from "./repositories/persona-repository.js";
 export type { ReviewPolicyRepository } from "./repositories/review-policy-repository.js";
@@ -194,6 +208,7 @@ export {
   type CandidateProposalOptions,
 } from "./services/ingestion-service.js";
 export { ContinuityMemoryService } from "./services/continuity-memory-service.js";
+export { ContinuityEmbeddingService } from "./services/continuity-embedding-service.js";
 export {
   ContinuityControlService,
   ExplicitContinuityControlActionRequiredError,

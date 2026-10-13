@@ -92,6 +92,18 @@ separate permanent-removal and external-copy acknowledgements, and returns an
 assertion-free receipt. Phase 4's planned local user-control surface is complete;
 broader administration and source-series controls remain separate.
 
+Phase 5 now has its first additive foundation. An injected provider-neutral
+embedding interface identifies its provider, model, and fixed vector dimensions;
+provider output must be finite, dimensionally exact, and non-zero. Embeddings
+bind to immutable memory revisions, so an edit cannot reuse stale semantic data.
+The opt-in hybrid path combines lexical reciprocal rank and cosine similarity
+over a bounded candidate pool while preserving the existing persona, policy,
+sensitivity, lifecycle, and temporal boundaries. The ordinary lexical path
+remains the default, and MemTextual does not select or contact an external
+embedding provider on its own. Persona-aware ranking beyond the existing pin
+tie-breaker, emotional relevance, and bounded context composition remain later
+Phase 5 work packages.
+
 ## Everyday data durability and recovery
 
 Continuity must protect a user's memories during ordinary daily use, not only

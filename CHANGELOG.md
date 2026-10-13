@@ -82,6 +82,9 @@ describe only the current design and behavior.
   enforcement, a fresh server-side eligibility check, exact-ID confirmation,
   separate permanence and external-copy acknowledgements, final browser
   confirmation, and the existing assertion-free receipt.
+- Added opt-in provider-neutral embedding generation and persona-safe hybrid
+  retrieval with validated vectors, revision-bound derived storage, bounded
+  candidate selection, and unchanged lexical retrieval defaults.
 
 ## 0.8.0 - 2026-10-12
 

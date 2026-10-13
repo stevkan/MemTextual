@@ -130,6 +130,12 @@ enforced user -> persona -> relationship scope hierarchy.
 `ContinuityMemoryService` transactionally binds explicitly episodic or durable
 memories to one relationship and retrieves them by persona identity without
 accepting caller-selected scope IDs.
+`ContinuityEmbeddingService` optionally indexes a persona memory's current
+revision through an injected provider-neutral embedding contract. Its separate
+hybrid retrieval path combines lexical rank and cosine similarity while
+reapplying persona, relationship, class, sensitivity, lifecycle, policy, and
+temporal boundaries. No embedding provider is configured or contacted by
+default, and ordinary lexical retrieval is unchanged.
 `ContinuityControlService` exposes persona-bound candidate queues, resolved
 evidence, revision history, correction, pin/protect controls, lifecycle actions,
 and privacy operations. Every mutation requires an explicit user action, and
@@ -165,5 +171,5 @@ upgraded copy without rejecting additive schema changes.
 Concrete vendor extractor and host-event clients, vendor-specific legacy-export
 adapters, graphical source-series privacy workflows, standalone-source deletion,
 backup-retention enforcement, resumable imports, streamable HTTP, REST API,
-admin UI, embedding provider, host-specific installers, and the broader
-packaging strategy remain open.
+admin UI, concrete vendor embedding provider, host-specific installers, and the
+broader packaging strategy remain open.
