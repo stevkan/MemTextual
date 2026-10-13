@@ -3,6 +3,18 @@
 This file records user-visible changes to MemTextual. The files under `docs/`
 describe only the current design and behavior.
 
+## 0.8.0 - 2026-10-12
+
+- Added the trusted local `memtextual-migrate` CLI and a versioned JSON export
+  format for importing memories retained by earlier systems.
+- Added one-to-one source-record and candidate creation with preserved legacy
+  identity, timestamps, authorship, origin, and metadata.
+- Added conservative defaults and mandatory manual-review flags so migration
+  cannot silently convert legacy assertions into retrievable memories.
+- Added stable candidate external IDs and conflict-safe, idempotent reruns.
+- Added schema migration 004 and reported legacy migration as an implemented
+  CLI capability through `server_info`.
+
 ## 0.7.0 - 2026-10-12
 
 - Added immutable, versioned global and scope-specific candidate-review policies.
@@ -36,7 +48,7 @@ describe only the current design and behavior.
 - Added transactional acceptance that creates a memory and transfers provenance.
 - Added six MCP tools for source import, candidate proposal, and queue inspection.
 
-## 0.3.0 - 2026-10-12
+## 0.3.0 - 2026-10-7
 
 - Added the local stdio MCP server using the official TypeScript SDK.
 - Added eleven validated tools for scopes, memory storage, retrieval, and
@@ -45,14 +57,14 @@ describe only the current design and behavior.
   executable.
 - Added in-memory protocol coverage and a real stdio handshake test.
 
-## 0.2.0 - 2026-10-12
+## 0.2.0 - 2026-10-7
 
 - Added the storage-neutral `MemoryService` and repository contracts.
 - Added immutable revision history and lifecycle operations.
 - Added protected-memory authorization, scope and sensitivity filtering,
   pinned-result ranking, usage tracking, and retrieval audits.
 
-## 0.1.0 - 2026-10-12
+## 0.1.0 - 2026-10-7
 
 - Added the initial SQLite schema and migration runner.
 - Added source provenance, scoped and revisioned memories, lifecycle relations,

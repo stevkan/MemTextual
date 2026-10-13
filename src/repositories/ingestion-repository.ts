@@ -17,6 +17,7 @@ export interface IngestionRepository {
   getSourceRecord(id: string): SourceRecord | null;
   getSourceRecords(sourceId: string): SourceRecord[];
   proposeCandidate(input: ProposeMemoryCandidateInput): MemoryCandidate;
+  getCandidateByExternalId(externalId: string): MemoryCandidate | null;
   getCandidate(id: string): MemoryCandidate | null;
   listCandidates(status?: CandidateStatus, limit?: number): MemoryCandidate[];
   acceptCandidate(

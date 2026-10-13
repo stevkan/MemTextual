@@ -146,6 +146,14 @@ test("server_info reports server identity, capabilities, and the discovered tool
     assert.ok(
       info.capabilities.some(
         ({ name, status, interface: capabilityInterface }) =>
+          name === "legacy_memory_migration" &&
+          status === "implemented" &&
+          capabilityInterface === "cli",
+      ),
+    );
+    assert.ok(
+      info.capabilities.some(
+        ({ name, status, interface: capabilityInterface }) =>
           name === "candidate_review" &&
           status === "implemented" &&
           capabilityInterface === "cli",
@@ -458,7 +466,7 @@ test("stdio entry point completes an MCP handshake", async () => {
       arguments: {},
     });
     const info = structuredResult<{ version: string; tools: unknown[] }>(infoCall);
-    assert.equal(info.version, "0.7.0");
+    assert.equal(info.version, "0.8.0");
     assert.equal(info.tools.length, 19);
   } finally {
     await client.close();

@@ -6,7 +6,7 @@ import type { IngestionService } from "../services/ingestion-service.js";
 import type { MemoryService } from "../services/memory-service.js";
 
 export const mcpServerName = "memtextual";
-export const mcpServerVersion = "0.7.0";
+export const mcpServerVersion = "0.8.0";
 
 const scopeKinds = ["global", "project", "conversation", "namespace"] as const;
 const sensitivities = ["normal", "sensitive", "restricted"] as const;
@@ -54,7 +54,7 @@ export const mcpCapabilityCatalog = [
     status: "implemented",
     interface: "cli",
   },
-  { name: "legacy_memory_migration", status: "planned", interface: null },
+  { name: "legacy_memory_migration", status: "implemented", interface: "cli" },
 ] as const;
 
 export const mcpToolCatalog = [

@@ -92,6 +92,7 @@ export interface CandidateEvidence {
 }
 
 export interface ProposeMemoryCandidateInput {
+  externalId?: string;
   assertion: string;
   type: MemoryType;
   scopeId: string;
@@ -111,6 +112,7 @@ export interface ProposeMemoryCandidateInput {
 
 export interface MemoryCandidate {
   id: string;
+  externalId: string | null;
   status: CandidateStatus;
   assertion: string;
   type: MemoryType;

@@ -25,6 +25,10 @@ export interface CandidateAutomationProcessor {
   ): BulkReviewResult;
 }
 
+export interface CandidateProposalOptions {
+  processAutomation?: boolean;
+}
+
 export class CandidateNotFoundError extends Error {
   public constructor(id: string) {
     super(`Memory candidate not found: ${id}`);
@@ -61,9 +65,12 @@ export class IngestionService {
     return this.repository.getSourceRecords(sourceId);
   }
 
-  public proposeCandidate(input: ProposeMemoryCandidateInput): MemoryCandidate {
+  public proposeCandidate(
+    input: ProposeMemoryCandidateInput,
+    options: CandidateProposalOptions = {},
+  ): MemoryCandidate {
     const candidate = this.repository.proposeCandidate(input);
-    if (this.automation === undefined) {
+    if (this.automation === undefined || options.processAutomation === false) {
       return candidate;
     }
     try {
@@ -76,6 +83,10 @@ export class IngestionService {
 
   public getCandidate(id: string): MemoryCandidate | null {
     return this.repository.getCandidate(id);
+  }
+
+  public getCandidateByExternalId(externalId: string): MemoryCandidate | null {
+    return this.repository.getCandidateByExternalId(externalId);
   }
 
   public listCandidates(

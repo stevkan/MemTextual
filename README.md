@@ -26,6 +26,7 @@ The system provides:
 - sensitivity, retrieval, pinning, and protection controls;
 - policy-aware FTS5 retrieval and retrieval audits;
 - a trusted terminal workflow for candidate review;
+- an idempotent, review-gated legacy-memory migration CLI;
 - versioned global and scope-specific review-automation policies; and
 - a local stdio MCP server with capability discovery.
 
@@ -37,6 +38,7 @@ docs/schema.md             Domain model and behavioral rules
 docs/service.md            Service contract and lifecycle behavior
 docs/mcp.md                MCP tools, configuration, and host example
 docs/ingestion.md          Source ingestion and candidate review contract
+docs/legacy-migration.md   Legacy export format and migration workflow
 docs/review-cli.md         Trusted local candidate-review workflow
 docs/review-automation.md  Configurable review-policy contract and CLI
 migrations/                Numbered SQLite schema migrations
@@ -60,6 +62,7 @@ JSON1 and FTS5 enabled. For example:
 python -m sqlite3 memtextual.db ".read migrations/001_initial.sql"
 python -m sqlite3 memtextual.db ".read migrations/002_ingestion_candidates.sql"
 python -m sqlite3 memtextual.db ".read migrations/003_review_automation.sql"
+python -m sqlite3 memtextual.db ".read migrations/004_legacy_memory_migration.sql"
 python -m sqlite3 memtextual.db ".read examples/seed-v0.1.sql"
 ```
 
@@ -78,6 +81,7 @@ npm run build
 npm run mcp -- --database .\data\memtextual.db --migrations .\migrations
 npm run review -- --database .\data\memtextual.db --migrations .\migrations
 npm run policy -- list --database .\data\memtextual.db --migrations .\migrations
+npm run migrate -- --file .\legacy-memories.json --scope PROJECT_SCOPE_ID --database .\data\memtextual.db --migrations .\migrations
 ```
 
 The SQLite adapter applies pending numbered migrations when it opens a writable
@@ -88,8 +92,8 @@ behavior remains behind repository interfaces.
 
 ## Deliberately deferred
 
-Automatic extraction, a trusted graphical candidate-review UI, a legacy-memory
-migration workflow, semantic candidate deduplication and conflict matching,
+Automatic extraction, vendor-specific legacy-export adapters, a trusted
+graphical candidate-review UI, semantic candidate deduplication and conflict matching,
 source versioning and purge semantics, streamable HTTP, REST API, admin UI,
 embedding provider, host-specific installers, and the broader packaging
 strategy remain open.

@@ -47,6 +47,11 @@ pending -> rejected
 Accepted and rejected candidates are retained. They cannot be reviewed a second time.
 An accepted memory cannot be deleted while its retained candidate still references it; future purge semantics must resolve that lineage explicitly.
 
+Candidates may carry a stable external ID. Re-proposing the same external ID
+with identical content reuses the existing candidate and its review state;
+reusing it with different content fails. The legacy migration CLI uses this
+identity to make reruns safe.
+
 Every candidate requires:
 
 - a nonempty assertion;
@@ -95,6 +100,7 @@ Portable types are in `src/domain/ingestion.ts`.
 - `getSourceRecords`
 - `proposeCandidate`
 - `getCandidate`
+- `getCandidateByExternalId`
 - `listCandidates`
 - `acceptCandidate`
 - `rejectCandidate`
@@ -120,26 +126,24 @@ MCP proposals are recorded with actor `system`. The tools cannot accept or rejec
 
 The MCP transport is local stdio. Source and candidate reads do not have a separate sensitivity or authorization model. Do not expose this server remotely without first designing authentication and source-level access controls.
 
-## Legacy-memory migration requirement
+## Legacy-memory migration
 
-**Status: Confirmed design decision, not implemented as a dedicated importer.**
-Memories retained by an agent or another memory system before MemTextual was
-introduced should be migrated through the same provenance and candidate-review
-boundary as other imported material:
+Memories retained by an earlier agent or memory system use the same provenance
+and candidate-review boundary as other imported material:
 
 ```text
 legacy export -> source records -> pending candidates -> explicit review -> memories
 ```
 
-The migration workflow should:
+The trusted local migration CLI:
 
 - import the legacy collection as a source, normally using one ordered source
   record per prior memory;
 - preserve available origin system, legacy identifier, creation or observation
   time, and export details as source or record metadata;
 - propose each prior memory as a candidate linked to its imported source record;
-- classify authorship and explicitness conservatively when the original user or
-  agent provenance cannot be established; and
+- applies conservative defaults when authorship or explicitness cannot be
+  established; and
 - use the normal trusted review workflow so the user can accept, reject, skip,
   and inspect each candidate before it becomes retrievable memory.
 
@@ -147,16 +151,17 @@ The legacy memory text is evidence of what the earlier system stored, not proof
 that its assertion is correct. Migration must not silently elevate uncertain
 agent-generated summaries into explicit user statements.
 
-The initial migration path may compose the existing `source_import`,
-`candidate_propose`, and review CLI operations. A dedicated importer or
-conversion command remains future work and should be idempotent where the
-source export provides a stable identity.
+Stable source and legacy-memory identifiers make reruns idempotent. Reusing an
+identity with different content fails rather than rewriting provenance. Every
+legacy candidate is flagged for manual review, so configured automation cannot
+silently approve it.
 
-Until candidate deduplication and conflict matching are implemented, migration
-must warn that accepting a candidate creates a new memory and may duplicate or
-conflict with an existing one. Automatic merging, revision, reaffirmation,
-contradiction, or supersession decisions remain out of scope for the initial
-migration workflow.
+Accepting a candidate creates a new memory and may duplicate or conflict with
+an existing one. Automatic merging, revision, reaffirmation, contradiction, or
+supersession decisions are not implemented.
+
+See `docs/legacy-migration.md` for the JSON format, CLI command, defaults,
+idempotency rules, and limitations.
 
 ## Configurable review policies
 

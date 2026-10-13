@@ -45,6 +45,14 @@ export {
   type SourceRecord,
   type SourceRecordKind,
 } from "./domain/ingestion.js";
+export type {
+  LegacyMemoryEntry,
+  LegacyMemoryExport,
+  LegacyMemoryMigrationItemResult,
+  LegacyMemoryMigrationOptions,
+  LegacyMemoryMigrationResult,
+  LegacyMemorySource,
+} from "./domain/legacy-migration.js";
 export {
   reviewPolicyModes,
   type BulkReviewItemResult,
@@ -85,7 +93,14 @@ export {
   ExplicitCandidateReviewRequiredError,
   IngestionService,
   type CandidateAutomationProcessor,
+  type CandidateProposalOptions,
 } from "./services/ingestion-service.js";
+export {
+  createLegacyCandidateExternalId,
+  LegacyMemoryMigrationService,
+  parseLegacyMemoryExport,
+  type LegacyMigrationScopeReader,
+} from "./services/legacy-memory-migration-service.js";
 export {
   ExplicitPolicyConfigurationRequiredError,
   ReviewAutomationService,

@@ -36,7 +36,7 @@ test("migration and seed preserve schema integrity", () => {
     const violations = database.prepare("PRAGMA foreign_key_check").all();
 
     assert.equal(memoryCount.count, 10);
-    assert.equal(migrationCount.count, 3);
+    assert.equal(migrationCount.count, 4);
     assert.deepEqual(violations, []);
   } finally {
     database.close();
@@ -151,10 +151,14 @@ test("review automation migration upgrades an existing candidate database", () =
     try {
       const candidate = upgraded
         .prepare(
-          `SELECT assertion, proposer_id
+          `SELECT assertion, proposer_id, external_id
            FROM memory_candidates WHERE id = 'candidate_upgrade'`,
         )
-        .get() as { assertion: string; proposer_id: string | null };
+        .get() as {
+          assertion: string;
+          proposer_id: string | null;
+          external_id: string | null;
+        };
       const policyTable = upgraded
         .prepare(
           `SELECT 1 AS present FROM sqlite_master
@@ -164,11 +168,16 @@ test("review automation migration upgrades an existing candidate database", () =
       const migration = upgraded
         .prepare("SELECT name FROM schema_migrations WHERE version = 3")
         .get() as { name: string };
+      const legacyMigration = upgraded
+        .prepare("SELECT name FROM schema_migrations WHERE version = 4")
+        .get() as { name: string };
 
       assert.equal(candidate.assertion, "Preserve this candidate.");
       assert.equal(candidate.proposer_id, null);
+      assert.equal(candidate.external_id, null);
       assert.deepEqual(policyTable, { present: 1 });
       assert.equal(migration.name, "candidate_review_automation_v0.7");
+      assert.equal(legacyMigration.name, "legacy_memory_migration_v0.8");
       assert.deepEqual(upgraded.prepare("PRAGMA foreign_key_check").all(), []);
     } finally {
       upgraded.close();

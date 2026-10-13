@@ -1,10 +1,11 @@
 {
   "name": "memtextual",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "Local-first persistent memory for AI agents",
   "main": "dist/src/index.js",
   "bin": {
     "memtextual-mcp": "dist/src/mcp/stdio.js",
+    "memtextual-migrate": "dist/src/cli/migrate.js",
     "memtextual-review": "dist/src/cli/review.js",
     "memtextual-policy": "dist/src/cli/policy.js"
   },
@@ -13,6 +14,7 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "mcp": "tsx src/mcp/stdio.ts",
+    "migrate": "tsx src/cli/migrate.ts",
     "review": "tsx src/cli/review.ts",
     "policy": "tsx src/cli/policy.ts",
     "pretest": "node scripts/check-node.mjs",

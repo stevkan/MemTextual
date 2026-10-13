@@ -53,6 +53,7 @@ interface SourceRecordRow {
 
 interface CandidateRow {
   id: string;
+  external_id: string | null;
   status: CandidateStatus;
   memory_type: MemoryType;
   assertion: string;
@@ -303,6 +304,10 @@ export class SqliteIngestionRepository implements IngestionRepository {
   public proposeCandidate(input: ProposeMemoryCandidateInput): MemoryCandidate {
     const assertion = validateText(input.assertion, "A candidate assertion");
     const confidence = validateConfidence(input.confidence ?? 1);
+    const externalId = input.externalId?.trim();
+    if (externalId !== undefined && externalId.length === 0) {
+      throw new Error("A candidate external ID cannot be empty.");
+    }
     if (input.evidence.length === 0) {
       throw new Error("A memory candidate requires at least one evidence record.");
     }
@@ -316,20 +321,33 @@ export class SqliteIngestionRepository implements IngestionRepository {
       evidenceKeys.add(key);
     }
 
+    if (externalId !== undefined) {
+      const existing = this.getCandidateByExternalId(externalId);
+      if (existing !== null) {
+        if (!this.candidateMatchesInput(existing, input, assertion, confidence)) {
+          throw new Error(
+            `Candidate external ID ${externalId} already exists with different content. Use a new external ID to preserve provenance.`,
+          );
+        }
+        return existing;
+      }
+    }
+
     const id = randomUUID();
     const actor = input.proposedBy ?? "system";
     const proposeTransaction = this.database.transaction(() => {
       this.database
         .prepare(
           `INSERT INTO memory_candidates (
-             id, memory_type, assertion, normalized_assertion, explicitness,
+             id, external_id, memory_type, assertion, normalized_assertion, explicitness,
              confidence, observed_at, retrieval_policy, sensitivity,
              is_pinned, is_protected, scope_id, proposed_by, proposer_id,
              metadata_json
-           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         )
         .run(
           id,
+          externalId ?? null,
           input.type,
           assertion,
           input.normalizedAssertion ?? null,
@@ -370,6 +388,14 @@ export class SqliteIngestionRepository implements IngestionRepository {
     const row = this.database
       .prepare("SELECT * FROM memory_candidates WHERE id = ?")
       .get(id) as CandidateRow | undefined;
+    return row === undefined ? null : this.mapCandidate(row);
+  }
+
+  public getCandidateByExternalId(externalId: string): MemoryCandidate | null {
+    const normalized = validateText(externalId, "A candidate external ID");
+    const row = this.database
+      .prepare("SELECT * FROM memory_candidates WHERE external_id = ?")
+      .get(normalized) as CandidateRow | undefined;
     return row === undefined ? null : this.mapCandidate(row);
   }
 
@@ -540,6 +566,7 @@ export class SqliteIngestionRepository implements IngestionRepository {
       .all(row.id) as CandidateEvidenceRow[];
     return {
       id: row.id,
+      externalId: row.external_id,
       status: row.status,
       assertion: row.assertion,
       type: row.memory_type,
@@ -567,6 +594,59 @@ export class SqliteIngestionRepository implements IngestionRepository {
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     };
+  }
+
+  private candidateMatchesInput(
+    candidate: MemoryCandidate,
+    input: ProposeMemoryCandidateInput,
+    assertion: string,
+    confidence: number,
+  ): boolean {
+    const evidence = input.evidence
+      .map((item) => ({
+        sourceRecordId: item.sourceRecordId,
+        role: item.role ?? "supports",
+        excerpt: item.excerpt ?? null,
+      }))
+      .sort((left, right) =>
+        canonicalJson(left).localeCompare(canonicalJson(right)),
+      );
+    const existingEvidence = [...candidate.evidence].sort((left, right) =>
+      canonicalJson(left).localeCompare(canonicalJson(right)),
+    );
+    return canonicalJson({
+      assertion: candidate.assertion,
+      type: candidate.type,
+      scopeId: candidate.scopeId,
+      evidence: existingEvidence,
+      normalizedAssertion: candidate.normalizedAssertion,
+      explicitness: candidate.explicitness,
+      confidence: candidate.confidence,
+      observedAt: candidate.observedAt,
+      retrievalPolicy: candidate.retrievalPolicy,
+      sensitivity: candidate.sensitivity,
+      isPinned: candidate.isPinned,
+      isProtected: candidate.isProtected,
+      proposedBy: candidate.proposedBy,
+      proposerId: candidate.proposerId,
+      metadata: candidate.metadata,
+    }) === canonicalJson({
+      assertion,
+      type: input.type,
+      scopeId: input.scopeId,
+      evidence,
+      normalizedAssertion: input.normalizedAssertion ?? null,
+      explicitness: input.explicitness ?? "explicit",
+      confidence,
+      observedAt: input.observedAt ?? null,
+      retrievalPolicy: input.retrievalPolicy ?? "include",
+      sensitivity: input.sensitivity ?? "normal",
+      isPinned: input.isPinned === true,
+      isProtected: input.isProtected === true,
+      proposedBy: input.proposedBy ?? "system",
+      proposerId: input.proposerId ?? null,
+      metadata: input.metadata ?? {},
+    });
   }
 
   private requireCandidate(id: string): MemoryCandidate {
