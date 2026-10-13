@@ -13,9 +13,24 @@ import {
   SqliteReviewPolicyRepository,
   openMemTextualDatabase,
   type AmbientMemoryExtractor,
+  type AmbientSensitivityClassifier,
 } from "../src/index.js";
 
-function fixture(extractor: AmbientMemoryExtractor, withAutomation = false) {
+const normalClassifier: AmbientSensitivityClassifier = {
+  id: "test.normal-sensitivity",
+  version: "1",
+  classify: () => ({
+    sensitivity: "normal",
+    confidence: 1,
+    reasonCodes: ["no_sensitive_signal"],
+  }),
+};
+
+function fixture(
+  extractor: AmbientMemoryExtractor,
+  withAutomation = false,
+  sensitivityClassifier?: AmbientSensitivityClassifier,
+) {
   const database = openMemTextualDatabase({
     filename: ":memory:",
     migrationsDirectory: resolve("migrations"),
@@ -46,6 +61,7 @@ function fixture(extractor: AmbientMemoryExtractor, withAutomation = false) {
     ingestion,
     personaRepository,
     extractor,
+    sensitivityClassifier,
   );
   const continuity = new SqliteContinuityMemoryRepository(
     database,
@@ -99,13 +115,18 @@ test("ambient capture creates pending, persona-isolated, idempotent candidates",
     assert.equal(first.createdCandidateCount, 1);
     assert.equal(first.candidates[0]?.status, "pending");
     assert.equal(first.candidates[0]?.explicitness, "inferred");
+    assert.equal(first.candidates[0]?.sensitivity, "sensitive");
     assert.equal(first.candidates[0]?.scopeId, setup.skylar.relationship.scopeId);
     assert.equal(setup.continuity.listForPersona(setup.skylar.persona.id).length, 0);
     assert.equal(setup.continuity.listForPersona(setup.advisor.persona.id).length, 0);
 
     const profile = setup.database
       .prepare(
-        `SELECT persona_id, relationship_id, memory_class, extractor_version
+        `SELECT
+           persona_id, relationship_id, memory_class, extractor_version,
+           sensitivity_assessment_status, assessed_sensitivity,
+           sensitivity_confidence, sensitivity_classifier_id,
+           sensitivity_reason_codes_json
          FROM ambient_candidate_profiles WHERE candidate_id = ?`,
       )
       .get(first.candidates[0]!.id) as {
@@ -113,12 +134,22 @@ test("ambient capture creates pending, persona-isolated, idempotent candidates",
       relationship_id: string;
       memory_class: string;
       extractor_version: string;
+      sensitivity_assessment_status: string;
+      assessed_sensitivity: string;
+      sensitivity_confidence: number;
+      sensitivity_classifier_id: string;
+      sensitivity_reason_codes_json: string;
     };
     assert.deepEqual(profile, {
       persona_id: setup.skylar.persona.id,
       relationship_id: setup.skylar.relationship.id,
       memory_class: "durable",
       extractor_version: "1",
+      sensitivity_assessment_status: "unassessed",
+      assessed_sensitivity: "sensitive",
+      sensitivity_confidence: 0,
+      sensitivity_classifier_id: "memtextual.unassessed",
+      sensitivity_reason_codes_json: '["classifier_unavailable"]',
     });
 
     const repeated = setup.ambient.captureInteraction(input);
@@ -138,7 +169,68 @@ test("ambient capture creates pending, persona-isolated, idempotent candidates",
       setup.continuity.getById(accepted.memory.id)?.memoryClass,
       "durable",
     );
+    assert.equal(accepted.memory.sensitivity, "sensitive");
+    assert.deepEqual(
+      setup.continuity.retrieve({
+        personaId: setup.skylar.persona.id,
+        text: "Mr. Steve",
+      }),
+      [],
+    );
     assert.equal(setup.continuity.listForPersona(setup.advisor.persona.id).length, 0);
+  } finally {
+    setup.database.close();
+  }
+});
+
+test("unassessed ambient candidates cannot be automatically accepted", () => {
+  const extractor: AmbientMemoryExtractor = {
+    id: "test.unassessed-extractor",
+    version: "1",
+    extract: ({ records }) => [
+      {
+        assertion: "Steve prefers short replies.",
+        type: "preference",
+        memoryClass: "durable",
+        evidence: [{ sourceRecordId: records[0]!.id }],
+        explicitness: "explicit",
+        confidence: 1,
+      },
+    ],
+  };
+  const setup = fixture(extractor, true);
+  try {
+    setup.automation.setPolicy(
+      {
+        name: "Trusted but unassessed extractor",
+        mode: "risk_based",
+        scopeId: setup.skylar.relationship.scopeId,
+        conditions: {
+          trustedProposerIds: [extractor.id],
+          minimumConfidence: 1,
+        },
+      },
+      { actor: "user", explicitUserAction: true },
+    );
+    const result = setup.ambient.captureInteraction({
+      personaId: setup.skylar.persona.id,
+      source: {
+        kind: "chat",
+        title: "Unassessed policy capture",
+        records: [
+          { kind: "message", authorRole: "user", content: "Keep it short." },
+        ],
+      },
+    });
+    assert.equal(result.candidates[0]?.sensitivity, "sensitive");
+    assert.equal(result.candidates[0]?.status, "pending");
+    assert.ok(
+      setup.automation
+        .previewCandidate(result.candidates[0]!.id)
+        .checks.some(
+          ({ name, passed }) => name === "normal_sensitivity" && !passed,
+        ),
+    );
   } finally {
     setup.database.close();
   }
@@ -168,7 +260,7 @@ test("an explicit user policy may accept eligible ambient candidates only", () =
       },
     ],
   };
-  const setup = fixture(extractor, true);
+  const setup = fixture(extractor, true, normalClassifier);
   try {
     setup.automation.setPolicy(
       {
@@ -207,6 +299,10 @@ test("an explicit user policy may accept eligible ambient candidates only", () =
     assert.deepEqual(
       result.candidates.map(({ status }) => status),
       ["accepted", "pending"],
+    );
+    assert.deepEqual(
+      result.candidates.map(({ sensitivity }) => sensitivity),
+      ["normal", "sensitive"],
     );
     const acceptedMemoryId = result.candidates[0]!.acceptedMemoryId;
     assert.notEqual(acceptedMemoryId, null);
@@ -259,6 +355,130 @@ test("ambient capture rejects evidence outside the captured interaction", () => 
   }
 });
 
+test("sensitivity classification may raise but never lower a proposal", () => {
+  const extractor: AmbientMemoryExtractor = {
+    id: "test.sensitivity-extractor",
+    version: "1",
+    extract: ({ records }) => [
+      {
+        assertion: "Classifier raises this proposal.",
+        type: "fact",
+        memoryClass: "episodic",
+        evidence: [{ sourceRecordId: records[0]!.id }],
+      },
+      {
+        assertion: "Extractor already restricted this proposal.",
+        type: "fact",
+        memoryClass: "durable",
+        evidence: [{ sourceRecordId: records[1]!.id }],
+        sensitivity: "restricted",
+      },
+    ],
+  };
+  const classifier: AmbientSensitivityClassifier = {
+    id: "test.mixed-sensitivity",
+    version: "3",
+    classify: ({ proposal }) => ({
+      sensitivity: proposal.assertion.startsWith("Classifier")
+        ? "restricted"
+        : "normal",
+      confidence: 0.9,
+      reasonCodes: ["test_signal"],
+    }),
+  };
+  const setup = fixture(extractor, false, classifier);
+  try {
+    const result = setup.ambient.captureInteraction({
+      personaId: setup.skylar.persona.id,
+      source: {
+        kind: "chat",
+        title: "Sensitivity assessment",
+        records: [
+          { kind: "message", content: "First evidence" },
+          { kind: "message", content: "Second evidence" },
+        ],
+      },
+    });
+    assert.deepEqual(
+      result.candidates.map(({ sensitivity }) => sensitivity),
+      ["restricted", "restricted"],
+    );
+    const assessments = setup.database
+      .prepare(
+        `SELECT
+           sensitivity_assessment_status AS status,
+           assessed_sensitivity AS assessed,
+           declared_sensitivity AS declared,
+           sensitivity_classifier_id AS classifier
+         FROM ambient_candidate_profiles
+         ORDER BY candidate_id`,
+      )
+      .all() as Array<{
+      status: string;
+      assessed: string;
+      declared: string | null;
+      classifier: string;
+    }>;
+    assert.equal(assessments.length, 2);
+    assert.ok(assessments.every(({ status }) => status === "assessed"));
+    assert.ok(
+      assessments.every(
+        ({ classifier: classifierId }) => classifierId === classifier.id,
+      ),
+    );
+    assert.ok(
+      assessments.some(
+        ({ assessed, declared }) =>
+          assessed === "normal" && declared === "restricted",
+      ),
+    );
+  } finally {
+    setup.database.close();
+  }
+});
+
+test("invalid sensitivity assessments fail before candidate creation", () => {
+  const extractor: AmbientMemoryExtractor = {
+    id: "test.invalid-assessment-extractor",
+    version: "1",
+    extract: ({ records }) => [
+      {
+        assertion: "Invalid sensitivity result",
+        type: "fact",
+        memoryClass: "episodic",
+        evidence: [{ sourceRecordId: records[0]!.id }],
+      },
+    ],
+  };
+  const classifier: AmbientSensitivityClassifier = {
+    id: "test.invalid-assessment",
+    version: "1",
+    classify: () => ({
+      sensitivity: "normal",
+      confidence: 1,
+      reasonCodes: ["Raw sensitive detail: do not store"],
+    }),
+  };
+  const setup = fixture(extractor, false, classifier);
+  try {
+    assert.throws(
+      () =>
+        setup.ambient.captureInteraction({
+          personaId: setup.skylar.persona.id,
+          source: {
+            kind: "chat",
+            title: "Invalid assessment",
+            records: [{ kind: "message", content: "Evidence" }],
+          },
+        }),
+      /machine-readable identifiers/u,
+    );
+    assert.equal(setup.ingestion.listCandidates().length, 0);
+  } finally {
+    setup.database.close();
+  }
+});
+
 test("database invariants reject ambient candidates bound to another persona scope", () => {
   const extractor: AmbientMemoryExtractor = {
     id: "test.noop",
@@ -289,9 +509,68 @@ test("database invariants reject ambient candidates bound to another persona sco
             memoryClass: "durable",
             extractorId: extractor.id,
             extractorVersion: extractor.version,
+            sensitivityAssessment: {
+              status: "assessed",
+              declaredSensitivity: null,
+              assessedSensitivity: "normal",
+              confidence: 1,
+              classifierId: normalClassifier.id,
+              classifierVersion: normalClassifier.version,
+              reasonCodes: ["no_sensitive_signal"],
+            },
           },
         }),
       /relationship scope/u,
+    );
+    assert.equal(setup.ingestion.listCandidates().length, 0);
+  } finally {
+    setup.database.close();
+  }
+});
+
+test("database invariants reject understated ambient sensitivity", () => {
+  const extractor: AmbientMemoryExtractor = {
+    id: "test.sensitivity-invariant",
+    version: "1",
+    extract: () => [],
+  };
+  const setup = fixture(extractor);
+  try {
+    const imported = setup.ingestion.importSource({
+      kind: "chat",
+      title: "Sensitivity invariant source",
+      records: [{ kind: "message", content: "Evidence" }],
+    });
+    assert.throws(
+      () =>
+        setup.ingestionRepository.proposeCandidate({
+          assertion: "Understated sensitivity",
+          type: "fact",
+          scopeId: setup.skylar.relationship.scopeId,
+          evidence: [{ sourceRecordId: imported.records[0]!.id }],
+          sensitivity: "normal",
+          proposedBy: "extractor",
+          proposerId: extractor.id,
+          ambientContext: {
+            sourceId: imported.source.id,
+            userId: setup.user.id,
+            personaId: setup.skylar.persona.id,
+            relationshipId: setup.skylar.relationship.id,
+            memoryClass: "episodic",
+            extractorId: extractor.id,
+            extractorVersion: extractor.version,
+            sensitivityAssessment: {
+              status: "assessed",
+              declaredSensitivity: null,
+              assessedSensitivity: "sensitive",
+              confidence: 1,
+              classifierId: "test.sensitivity-classifier",
+              classifierVersion: "1",
+              reasonCodes: ["sensitive_signal"],
+            },
+          },
+        }),
+      /sensitivity assessment is invalid or understated/u,
     );
     assert.equal(setup.ingestion.listCandidates().length, 0);
   } finally {

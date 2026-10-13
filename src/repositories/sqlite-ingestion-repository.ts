@@ -798,8 +798,12 @@ export class SqliteIngestionRepository implements IngestionRepository {
           .prepare(
             `INSERT INTO ambient_candidate_profiles (
                candidate_id, source_id, user_id, persona_id, relationship_id,
-               memory_class, extractor_id, extractor_version
-             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+               memory_class, extractor_id, extractor_version,
+               sensitivity_assessment_status, declared_sensitivity,
+               assessed_sensitivity, sensitivity_confidence,
+               sensitivity_classifier_id, sensitivity_classifier_version,
+               sensitivity_reason_codes_json
+             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           )
           .run(
             id,
@@ -810,6 +814,13 @@ export class SqliteIngestionRepository implements IngestionRepository {
             context.memoryClass,
             context.extractorId,
             context.extractorVersion,
+            context.sensitivityAssessment.status,
+            context.sensitivityAssessment.declaredSensitivity,
+            context.sensitivityAssessment.assessedSensitivity,
+            context.sensitivityAssessment.confidence,
+            context.sensitivityAssessment.classifierId,
+            context.sensitivityAssessment.classifierVersion,
+            JSON.stringify(context.sensitivityAssessment.reasonCodes),
           );
       }
       this.writeCandidateEvent(id, "proposed", actor);
@@ -827,7 +838,10 @@ export class SqliteIngestionRepository implements IngestionRepository {
       .prepare(
         `SELECT
            source_id, user_id, persona_id, relationship_id, memory_class,
-           extractor_id, extractor_version
+           extractor_id, extractor_version, sensitivity_assessment_status,
+           declared_sensitivity, assessed_sensitivity, sensitivity_confidence,
+           sensitivity_classifier_id, sensitivity_classifier_version,
+           sensitivity_reason_codes_json
          FROM ambient_candidate_profiles
          WHERE candidate_id = ?`,
       )
@@ -840,6 +854,13 @@ export class SqliteIngestionRepository implements IngestionRepository {
           memory_class: string;
           extractor_id: string;
           extractor_version: string;
+          sensitivity_assessment_status: string;
+          declared_sensitivity: Sensitivity | null;
+          assessed_sensitivity: Sensitivity;
+          sensitivity_confidence: number;
+          sensitivity_classifier_id: string;
+          sensitivity_classifier_version: string;
+          sensitivity_reason_codes_json: string;
         }
       | undefined;
     const context = input.ambientContext;
@@ -854,7 +875,19 @@ export class SqliteIngestionRepository implements IngestionRepository {
       row.relationship_id === context.relationshipId &&
       row.memory_class === context.memoryClass &&
       row.extractor_id === context.extractorId &&
-      row.extractor_version === context.extractorVersion
+      row.extractor_version === context.extractorVersion &&
+      row.sensitivity_assessment_status === context.sensitivityAssessment.status &&
+      row.declared_sensitivity ===
+        context.sensitivityAssessment.declaredSensitivity &&
+      row.assessed_sensitivity ===
+        context.sensitivityAssessment.assessedSensitivity &&
+      row.sensitivity_confidence === context.sensitivityAssessment.confidence &&
+      row.sensitivity_classifier_id ===
+        context.sensitivityAssessment.classifierId &&
+      row.sensitivity_classifier_version ===
+        context.sensitivityAssessment.classifierVersion &&
+      canonicalJson(JSON.parse(row.sensitivity_reason_codes_json)) ===
+        canonicalJson(context.sensitivityAssessment.reasonCodes)
     );
   }
 

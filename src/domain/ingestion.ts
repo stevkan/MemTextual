@@ -180,6 +180,17 @@ export interface AmbientCandidateContext {
   memoryClass: PersonaMemoryClass;
   extractorId: string;
   extractorVersion: string;
+  sensitivityAssessment: AmbientSensitivityAssessmentContext;
+}
+
+export interface AmbientSensitivityAssessmentContext {
+  status: "assessed" | "unassessed";
+  declaredSensitivity: Sensitivity | null;
+  assessedSensitivity: Sensitivity;
+  confidence: number;
+  classifierId: string;
+  classifierVersion: string;
+  reasonCodes: string[];
 }
 
 export interface MemoryCandidate {

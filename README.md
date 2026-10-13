@@ -85,6 +85,7 @@ python -m sqlite3 memtextual.db ".read migrations/008_source_series_deletion_pur
 python -m sqlite3 memtextual.db ".read migrations/009_persona_foundations.sql"
 python -m sqlite3 memtextual.db ".read migrations/010_persona_memory_classes.sql"
 python -m sqlite3 memtextual.db ".read migrations/011_ambient_capture.sql"
+python -m sqlite3 memtextual.db ".read migrations/012_ambient_sensitivity.sql"
 python -m sqlite3 memtextual.db ".read examples/seed-v0.1.sql"
 ```
 
@@ -122,7 +123,9 @@ accepting caller-selected scope IDs.
 `AmbientMemoryService` imports a recorded interaction, invokes a configured
 versioned extractor, and creates idempotent candidates bound to that persona's
 relationship and evidence. It defaults extracted claims to inferred and pending;
-only explicit review or an existing user-configured policy can accept them.
+only explicit review or an existing user-configured policy can accept them. A
+versioned sensitivity classifier may assess proposals; absent assessment fails
+closed to sensitive, and classification can never lower declared protection.
 
 Before a release applies new migrations to a real database, use the safeguard
 workflow in `docs/migration-safety.md`. It creates an online SQLite backup, a

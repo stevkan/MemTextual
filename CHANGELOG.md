@@ -40,6 +40,11 @@ describe only the current design and behavior.
   evidence-constrained, idempotent candidate capture with conservative defaults.
 - Added database-enforced ambient provenance and transactional transfer of
   accepted candidates into episodic or durable persona-memory profiles.
+- Added provider-neutral, versioned ambient sensitivity assessment with
+  immutable classifier provenance and machine-readable reason codes.
+- Changed unassessed ambient capture to fail closed as sensitive, prevented
+  classifiers from lowering declared protection, and enforced both rules in
+  the database while preserving schema-11 candidate state.
 
 ## 0.8.0 - 2026-10-12
 

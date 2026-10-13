@@ -38,7 +38,7 @@ test("snapshot creates an integrity-checked backup, manifest, and durable export
     assert.equal(result.manifest.protectedTables.scopes?.rowCount, 1);
     assert.equal(result.manifest.protectedTables.memory_items?.rowCount, 0);
     assert.equal(result.manifest.protectedTables.memory_embeddings, undefined);
-    assert.equal(result.manifest.migrations.length, 11);
+    assert.equal(result.manifest.migrations.length, 12);
 
     const export_ = JSON.parse(readFileSync(result.exportPath, "utf8")) as {
       tables: { scopes: Array<{ id: string }> };

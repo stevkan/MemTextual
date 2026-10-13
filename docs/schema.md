@@ -92,6 +92,13 @@ from that active source and require the candidate's scope and proposer to match
 the recorded relationship and extractor. On acceptance, a trigger creates the
 corresponding `continuity_memory_profiles` row in the same transaction.
 
+Migration 012 extends each ambient profile with immutable sensitivity-assessment
+provenance. New rows record whether assessment completed, declared and assessed
+sensitivity, confidence, classifier ID/version, and machine-readable reason
+codes. A trigger requires the candidate sensitivity to be at least as protective
+as both inputs. Older schema-11 profiles remain `legacy_unassessed` rather than
+being silently reclassified during migration.
+
 ### Entity and relationship
 
 Entities normalize people, organizations, projects, products, places, and

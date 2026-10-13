@@ -42,6 +42,9 @@ export type {
   AmbientExtractionInput,
   AmbientMemoryExtractor,
   AmbientMemoryProposal,
+  AmbientSensitivityAssessment,
+  AmbientSensitivityClassifier,
+  AmbientSensitivityInput,
   CaptureAmbientInteractionInput,
 } from "./domain/ambient-memory.js";
 export type {
@@ -60,6 +63,7 @@ export {
   candidateMatchKinds,
   type CandidateAcceptance,
   type AmbientCandidateContext,
+  type AmbientSensitivityAssessmentContext,
   type CandidateActor,
   type CandidateEvidence,
   type CandidateEvidenceInput,

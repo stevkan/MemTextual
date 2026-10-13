@@ -40,7 +40,7 @@ test("migration and seed preserve schema integrity", () => {
     const violations = database.prepare("PRAGMA foreign_key_check").all();
 
     assert.equal(memoryCount.count, 10);
-    assert.equal(migrationCount.count, 11);
+    assert.equal(migrationCount.count, 12);
     assert.deepEqual(violations, []);
   } finally {
     database.close();
@@ -182,6 +182,110 @@ test("ambient capture migration upgrades schema 10 without changing existing dat
         upgraded.prepare("SELECT name FROM schema_migrations WHERE version = 11").get(),
         { name: "ambient_candidate_capture_v0.9" },
       );
+      assert.deepEqual(
+        upgraded.prepare("SELECT name FROM schema_migrations WHERE version = 12").get(),
+        { name: "ambient_sensitivity_assessment_v0.9" },
+      );
+      assert.deepEqual(upgraded.prepare("PRAGMA foreign_key_check").all(), []);
+    } finally {
+      upgraded.close();
+    }
+  } finally {
+    rmSync(temporaryDirectory, { force: true, recursive: true });
+  }
+});
+
+test("ambient sensitivity migration preserves schema 11 candidates", () => {
+  const temporaryDirectory = mkdtempSync(join(tmpdir(), "memtextual-sensitive-"));
+  const oldMigrations = join(temporaryDirectory, "old-migrations");
+  const databasePath = join(temporaryDirectory, "schema-11.db");
+  mkdirSync(oldMigrations);
+  for (const filename of [
+    "001_initial.sql",
+    "002_ingestion_candidates.sql",
+    "003_review_automation.sql",
+    "004_legacy_memory_migration.sql",
+    "005_candidate_resolution.sql",
+    "006_source_versioning.sql",
+    "007_memory_deletion_purge.sql",
+    "008_source_series_deletion_purge.sql",
+    "009_persona_foundations.sql",
+    "010_persona_memory_classes.sql",
+    "011_ambient_capture.sql",
+  ]) {
+    copyFileSync(resolve("migrations", filename), join(oldMigrations, filename));
+  }
+
+  try {
+    const oldDatabase = openMemTextualDatabase({
+      filename: databasePath,
+      migrationsDirectory: oldMigrations,
+    });
+    const memoryRepository = new SqliteMemoryRepository(oldDatabase);
+    const ingestionRepository = new SqliteIngestionRepository(
+      oldDatabase,
+      memoryRepository,
+    );
+    const ingestion = new IngestionService(ingestionRepository);
+    const personas = new PersonaService(new SqlitePersonaRepository(oldDatabase));
+    const user = personas.createUser({ displayName: "Existing user" });
+    const persona = personas.createPersona({ userId: user.id, name: "Skylar" });
+    const imported = ingestion.importSource({
+      kind: "chat",
+      title: "Existing ambient source",
+      records: [{ kind: "message", content: "Existing ambient evidence" }],
+    });
+    const candidate = ingestion.proposeCandidate({
+      assertion: "Existing ambient candidate",
+      type: "fact",
+      scopeId: persona.relationship.scopeId,
+      evidence: [{ sourceRecordId: imported.records[0]!.id }],
+      proposedBy: "extractor",
+      proposerId: "existing.extractor",
+    });
+    oldDatabase
+      .prepare(
+        `INSERT INTO ambient_candidate_profiles (
+           candidate_id, source_id, user_id, persona_id, relationship_id,
+           memory_class, extractor_id, extractor_version
+         ) VALUES (?, ?, ?, ?, ?, 'durable', 'existing.extractor', '1')`,
+      )
+      .run(
+        candidate.id,
+        imported.source.id,
+        user.id,
+        persona.persona.id,
+        persona.relationship.id,
+      );
+    oldDatabase.close();
+
+    const upgraded = openMemTextualDatabase({
+      filename: databasePath,
+      migrationsDirectory: resolve("migrations"),
+    });
+    try {
+      assert.deepEqual(
+        upgraded
+          .prepare(
+            `SELECT
+               sensitivity_assessment_status AS status,
+               declared_sensitivity AS declared,
+               assessed_sensitivity AS assessed,
+               sensitivity_reason_codes_json AS reasons
+             FROM ambient_candidate_profiles WHERE candidate_id = ?`,
+          )
+          .get(candidate.id),
+        {
+          status: "legacy_unassessed",
+          declared: null,
+          assessed: null,
+          reasons: "[]",
+        },
+      );
+      assert.deepEqual(
+        upgraded.prepare("SELECT name FROM schema_migrations WHERE version = 12").get(),
+        { name: "ambient_sensitivity_assessment_v0.9" },
+      );
       assert.deepEqual(upgraded.prepare("PRAGMA foreign_key_check").all(), []);
     } finally {
       upgraded.close();
@@ -273,6 +377,9 @@ test("review automation migration upgrades an existing candidate database", () =
       const ambientCaptureMigration = upgraded
         .prepare("SELECT name FROM schema_migrations WHERE version = 11")
         .get() as { name: string };
+      const ambientSensitivityMigration = upgraded
+        .prepare("SELECT name FROM schema_migrations WHERE version = 12")
+        .get() as { name: string };
 
       assert.equal(candidate.assertion, "Preserve this candidate.");
       assert.equal(candidate.proposer_id, null);
@@ -295,6 +402,10 @@ test("review automation migration upgrades an existing candidate database", () =
       assert.equal(
         ambientCaptureMigration.name,
         "ambient_candidate_capture_v0.9",
+      );
+      assert.equal(
+        ambientSensitivityMigration.name,
+        "ambient_sensitivity_assessment_v0.9",
       );
       assert.deepEqual(
         upgraded

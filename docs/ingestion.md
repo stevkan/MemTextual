@@ -139,8 +139,10 @@ Continuity ambient capture uses the same source and candidate boundary through
 `AmbientMemoryService`. Its provider-neutral extractor contract can propose
 episodic or durable memories only from records in the just-imported interaction.
 The service selects the persona relationship scope and defaults extracted
-claims to inferred, confidence `0.5`, and pending review. See
-`ambient-memory.md`.
+claims to inferred, confidence `0.5`, and pending review. A configured versioned
+sensitivity classifier may assess each proposal; without one, the candidate
+fails closed to sensitive. Classification can raise but never lower an
+extractor-declared sensitivity. See `ambient-memory.md`.
 
 ## MCP tools
 

@@ -42,6 +42,23 @@ export interface AmbientMemoryExtractor {
   extract(input: AmbientExtractionInput): AmbientMemoryProposal[];
 }
 
+export interface AmbientSensitivityAssessment {
+  sensitivity: Sensitivity;
+  confidence: number;
+  reasonCodes: string[];
+}
+
+export interface AmbientSensitivityInput extends AmbientExtractionInput {
+  proposal: AmbientMemoryProposal;
+  evidenceRecords: SourceRecord[];
+}
+
+export interface AmbientSensitivityClassifier {
+  readonly id: string;
+  readonly version: string;
+  classify(input: AmbientSensitivityInput): AmbientSensitivityAssessment;
+}
+
 export interface CaptureAmbientInteractionInput {
   personaId: string;
   source: ImportSourceInput;

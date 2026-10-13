@@ -73,6 +73,11 @@ persona, unprofiled developer memories, excluded/manual memories, deleted or
 archived memories, and disallowed sensitivities are not returned and do not
 receive retrieval-use or audit events.
 
+The normal default applies to retrieval and explicit core-memory creation, not
+unassessed ambient extraction. Ambient proposals without a completed
+sensitivity assessment are marked sensitive and therefore excluded here by
+default.
+
 Every returned memory receives the normal retrieval counters and a client audit
 event attributed to the resolved persona and relationship. Cross-persona shared
 scopes remain unsupported and cannot be inferred by this API.

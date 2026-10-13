@@ -53,8 +53,10 @@ interactions can now produce idempotent, evidence-backed candidates bound to
 one persona relationship and an explicit episodic or durable class. Candidates
 remain pending by default; the existing user-configured review policies are the
 only automatic-acceptance path, and accepted candidates are transactionally
-profiled as persona memories. Extraction-provider adapters, sensitive-data
-classification, and temporal relevance remain later Phase 3 work packages.
+profiled as persona memories. Ambient sensitivity assessment is also in place:
+classifiers are provider-neutral and versioned, classifications cannot lower
+protection, and missing classification fails closed to sensitive. Extraction
+provider adapters and temporal relevance remain later Phase 3 work packages.
 
 ## Everyday data durability and recovery
 
