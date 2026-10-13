@@ -104,11 +104,16 @@ is reversible.
 
 ### Delete
 
-Deletion is a tombstone operation: set status to `deleted`, set `deleted_at`,
-remove the search document and embeddings, and write an audit event. The
-application may then purge assertion or source content when privacy policy or
-user intent requires it. It must not claim erasure until all retained copies,
-backups, and indexes have been handled.
+Deletion is a recoverable tombstone operation: set status to `deleted`, retain
+the prior lifecycle state in `memory_deletion_events`, remove the search
+document, and write an audit event. Explicit restoration rebuilds the search
+document and returns the prior state.
+
+Purge is separately authorized and physically removes a deleted memory's
+revisions and active-database lineage. `privacy_purge_receipts` retains a
+content-free operational receipt. Source records and external backups are
+separate copies, so a memory purge reports them rather than claiming they were
+erased. See `privacy.md`.
 
 ## Retrieval rules
 

@@ -1,9 +1,13 @@
 import type {
   CreateMemoryInput,
   CreateScopeInput,
+  DeleteMemoryInput,
   Memory,
   MemoryActor,
   MemoryMutationContext,
+  MemoryPurgePreview,
+  MemoryPurgeReceipt,
+  PurgeMemoryInput,
   MemoryRevision,
   RetrievalQuery,
   RetrievalResult,
@@ -25,6 +29,13 @@ export class ProtectedMemoryError extends Error {
       `Memory ${id} is protected. An explicit user action is required to modify it.`,
     );
     this.name = "ProtectedMemoryError";
+  }
+}
+
+export class ExplicitUserActionRequiredError extends Error {
+  public constructor(operation: string) {
+    super(`${operation} requires an explicit user action.`);
+    this.name = "ExplicitUserActionRequiredError";
   }
 }
 
@@ -80,6 +91,50 @@ export class MemoryService {
     return this.repository.restore(id, actor, allowProtected);
   }
 
+  public delete(
+    id: string,
+    input: DeleteMemoryInput,
+    context: MemoryMutationContext = {},
+  ): Memory {
+    const actor = context.actor ?? "system";
+    const explicitUserAction = this.requireExplicitUserAction("Memory deletion", actor, context);
+    this.requireMemory(id);
+    return this.repository.delete(id, input, actor, explicitUserAction);
+  }
+
+  public restoreDeleted(
+    id: string,
+    context: MemoryMutationContext = {},
+  ): Memory {
+    const actor = context.actor ?? "system";
+    const explicitUserAction = this.requireExplicitUserAction(
+      "Deleted-memory restoration",
+      actor,
+      context,
+    );
+    this.requireMemory(id);
+    return this.repository.restoreDeleted(id, actor, explicitUserAction);
+  }
+
+  public previewPurge(id: string): MemoryPurgePreview {
+    this.requireMemory(id);
+    return this.repository.previewPurge(id);
+  }
+
+  public purge(
+    id: string,
+    input: PurgeMemoryInput,
+    context: MemoryMutationContext = {},
+  ): MemoryPurgeReceipt {
+    const actor = context.actor ?? "system";
+    const explicitUserAction = this.requireExplicitUserAction("Memory purge", actor, context);
+    if (input.confirmation !== id) {
+      throw new Error("Memory purge confirmation must exactly match the memory ID.");
+    }
+    this.requireMemory(id);
+    return this.repository.purge(id, input.reason, actor, explicitUserAction);
+  }
+
   public supersede(
     id: string,
     replacementId: string,
@@ -130,6 +185,17 @@ export class MemoryService {
     }
 
     return explicitUserAction;
+  }
+
+  private requireExplicitUserAction(
+    operation: string,
+    actor: MemoryActor,
+    context: MemoryMutationContext,
+  ): true {
+    if (actor !== "user" || context.explicitUserAction !== true) {
+      throw new ExplicitUserActionRequiredError(operation);
+    }
+    return true;
   }
 
   private requireMemory(id: string): Memory {

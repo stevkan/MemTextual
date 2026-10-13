@@ -75,7 +75,38 @@ export interface Memory {
   observedAt: string | null;
   createdAt: string;
   updatedAt: string;
+  deletedAt: string | null;
+  deletionReason: string | null;
   scopes: MemoryScope[];
+}
+
+export interface DeleteMemoryInput {
+  reason: string;
+}
+
+export interface PurgeMemoryInput {
+  reason: string;
+  confirmation: string;
+}
+
+export interface MemoryPurgePreview {
+  memoryId: string;
+  status: MemoryStatus;
+  revisionCount: number;
+  candidateCount: number;
+  auditEventCount: number;
+  retainedSourceRecordIds: string[];
+  canPurge: boolean;
+  externalCopiesNotModified: true;
+}
+
+export interface MemoryPurgeReceipt {
+  receiptId: string;
+  memoryId: string;
+  purgedAt: string;
+  deletedRowCounts: Record<string, number>;
+  retainedSourceRecordCount: number;
+  externalCopiesNotModified: true;
 }
 
 export interface CreateMemoryInput {

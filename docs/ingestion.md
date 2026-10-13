@@ -52,7 +52,9 @@ pending -> rejected
 ```
 
 Accepted and rejected candidates are retained. They cannot be reviewed a second time.
-An accepted memory cannot be deleted while its retained candidate still references it; future purge semantics must resolve that lineage explicitly.
+Deleting an accepted memory retains its candidate lineage during the recoverable
+period. Purging the memory removes candidates and resolutions that would retain
+or reference the purged assertion.
 
 Candidates may carry a stable external ID. Re-proposing the same external ID
 with identical content reuses the existing candidate and its review state;
@@ -211,7 +213,7 @@ precedence, evaluation behavior, and audit contract.
 Current limitations include:
 
 - resumable imports;
-- source deletion and privacy purge semantics;
+- source-series deletion and privacy-purge semantics;
 - an explicitly configured local or external semantic-provider adapter;
 - a graphical review interface beyond the local CLI;
 - automatic extraction-provider integration;

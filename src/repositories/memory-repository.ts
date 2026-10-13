@@ -1,8 +1,11 @@
 import type {
   CreateMemoryInput,
   CreateScopeInput,
+  DeleteMemoryInput,
   Memory,
   MemoryActor,
+  MemoryPurgePreview,
+  MemoryPurgeReceipt,
   MemoryRevision,
   RetrievalQuery,
   RetrievalResult,
@@ -19,6 +22,10 @@ export interface MemoryRepository {
   revise(id: string, input: ReviseMemoryInput, actor: MemoryActor, allowProtected: boolean): Memory;
   archive(id: string, actor: MemoryActor, allowProtected: boolean): Memory;
   restore(id: string, actor: MemoryActor, allowProtected: boolean): Memory;
+  delete(id: string, input: DeleteMemoryInput, actor: MemoryActor, explicitUserAction: boolean): Memory;
+  restoreDeleted(id: string, actor: MemoryActor, explicitUserAction: boolean): Memory;
+  previewPurge(id: string): MemoryPurgePreview;
+  purge(id: string, reason: string, actor: MemoryActor, explicitUserAction: boolean): MemoryPurgeReceipt;
   supersede(id: string, replacementId: string, actor: MemoryActor, allowProtected: boolean): Memory;
   contradict(id: string, contradictingId: string, actor: MemoryActor, allowProtected: boolean): Memory;
   retrieve(query: RetrievalQuery): RetrievalResult[];

@@ -15,6 +15,10 @@ getHistory(id: string): MemoryRevision[];
 revise(id: string, input: ReviseMemoryInput, context?: MemoryMutationContext): Memory;
 archive(id: string, context?: MemoryMutationContext): Memory;
 restore(id: string, context?: MemoryMutationContext): Memory;
+delete(id: string, input: DeleteMemoryInput, context?: MemoryMutationContext): Memory;
+restoreDeleted(id: string, context?: MemoryMutationContext): Memory;
+previewPurge(id: string): MemoryPurgePreview;
+purge(id: string, input: PurgeMemoryInput, context?: MemoryMutationContext): MemoryPurgeReceipt;
 supersede(id: string, replacementId: string, context?: MemoryMutationContext): Memory;
 contradict(id: string, contradictingId: string, context?: MemoryMutationContext): Memory;
 retrieve(query: RetrievalQuery): RetrievalResult[];
@@ -53,6 +57,16 @@ repository during the transaction.
 
 Each transition is transactional and produces a corresponding audit event.
 
+## Deletion and purge
+
+Archive remains the default reversible removal. Delete, restore-deleted, and
+purge require `actor === "user"` and `explicitUserAction === true` regardless of
+protection status. Delete creates a recoverable tombstone and removes the search
+document. Restore returns the exact prior lifecycle state. Purge requires an
+already-deleted memory plus an exact memory-ID confirmation and removes its
+active-database lineage transactionally. See `privacy.md` for retained-copy
+boundaries.
+
 ## Retrieval policy
 
 Normal retrieval requires all of the following:
@@ -78,6 +92,5 @@ The following are not implemented:
 - automatic extraction;
 - hierarchical scope expansion;
 - semantic or hybrid vector ranking;
-- memory deletion and purge workflows;
 - pin, protection, retrieval-policy, sensitivity, and scope mutation APIs;
 - REST and administrative UI adapters.

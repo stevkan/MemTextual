@@ -3,10 +3,13 @@ import { randomUUID } from "node:crypto";
 import type {
   CreateMemoryInput,
   CreateScopeInput,
+  DeleteMemoryInput,
   Explicitness,
   Memory,
   MemoryActor,
   MemoryChangeKind,
+  MemoryPurgePreview,
+  MemoryPurgeReceipt,
   MemoryRevision,
   MemoryScope,
   MemoryStatus,
@@ -38,6 +41,8 @@ interface MemoryRow {
   observed_at: string | null;
   created_at: string;
   updated_at: string;
+  deleted_at: string | null;
+  deletion_reason: string | null;
   scopes_json: string;
 }
 
@@ -96,6 +101,8 @@ function mapMemory(row: MemoryRow): Memory {
     observedAt: row.observed_at,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    deletedAt: row.deleted_at,
+    deletionReason: row.deletion_reason,
     scopes: scopes.map((scope) => ({
       id: scope.id,
       kind: scope.kind,
@@ -334,6 +341,8 @@ export class SqliteMemoryRepository implements MemoryRepository {
            r.observed_at,
            m.created_at,
            m.updated_at,
+           m.deleted_at,
+           m.deletion_reason,
            COALESCE((
              SELECT json_group_array(json_object(
                'id', s.id,
@@ -503,6 +512,321 @@ export class SqliteMemoryRepository implements MemoryRepository {
 
     restoreTransaction();
     return this.requireMemory(id);
+  }
+
+  public delete(
+    id: string,
+    input: DeleteMemoryInput,
+    actor: MemoryActor,
+    explicitUserAction: boolean,
+  ): Memory {
+    const reason = input.reason.trim();
+    if (reason.length === 0) {
+      throw new Error("A memory deletion reason cannot be empty.");
+    }
+    this.requireExplicitUserAction(actor, explicitUserAction, "delete");
+
+    const deletionTransaction = this.database.transaction(() => {
+      const current = this.requireMemory(id);
+      if (current.status === "deleted") {
+        throw new Error(`Memory ${id} is already deleted.`);
+      }
+      const lifecycle = this.database
+        .prepare("SELECT archived_at FROM memory_items WHERE id = ?")
+        .get(id) as { archived_at: string | null };
+
+      this.database
+        .prepare(
+          `INSERT INTO memory_deletion_events (
+             id, memory_id, previous_status, previous_archived_at, reason, actor_type
+           ) VALUES (?, ?, ?, ?, ?, 'user')`,
+        )
+        .run(randomUUID(), id, current.status, lifecycle.archived_at, reason);
+      this.database
+        .prepare("DELETE FROM memory_search_documents WHERE memory_id = ?")
+        .run(id);
+      this.database
+        .prepare(
+          `UPDATE memory_items
+           SET status = 'deleted', archived_at = NULL,
+               deleted_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+               deletion_reason = ?,
+               updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+           WHERE id = ?`,
+        )
+        .run(reason, id);
+      this.writeAudit(id, "deleted", actor, { reason });
+    });
+
+    deletionTransaction();
+    return this.requireMemory(id);
+  }
+
+  public restoreDeleted(
+    id: string,
+    actor: MemoryActor,
+    explicitUserAction: boolean,
+  ): Memory {
+    this.requireExplicitUserAction(actor, explicitUserAction, "restore a deleted memory");
+    const restoreTransaction = this.database.transaction(() => {
+      const current = this.requireMemory(id);
+      this.requireStatus(current, "deleted", "restore deleted");
+      const deletion = this.database
+        .prepare(
+          `SELECT id, previous_status, previous_archived_at
+           FROM memory_deletion_events
+           WHERE memory_id = ? AND restored_at IS NULL AND is_recoverable = 1`,
+        )
+        .get(id) as
+        | {
+            id: string;
+            previous_status: Exclude<MemoryStatus, "deleted">;
+            previous_archived_at: string | null;
+          }
+        | undefined;
+      if (deletion === undefined) {
+        throw new Error(`Memory ${id} has no recoverable deletion record.`);
+      }
+
+      this.database
+        .prepare(
+          `UPDATE memory_items
+           SET status = ?, archived_at = ?, deleted_at = NULL, deletion_reason = NULL,
+               updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+           WHERE id = ?`,
+        )
+        .run(deletion.previous_status, deletion.previous_archived_at, id);
+      this.database
+        .prepare(
+          `INSERT INTO memory_search_documents (memory_id, revision_id, search_text)
+           SELECT m.id, r.id,
+                  r.assertion || CASE
+                    WHEN r.normalized_assertion IS NULL THEN ''
+                    ELSE ' ' || r.normalized_assertion
+                  END
+           FROM memory_items m
+           JOIN memory_revisions r ON r.id = m.current_revision_id
+           WHERE m.id = ?`,
+        )
+        .run(id);
+      this.database
+        .prepare(
+          `UPDATE memory_deletion_events
+           SET restored_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+           WHERE id = ?`,
+        )
+        .run(deletion.id);
+      this.writeAudit(id, "restored", actor, { restoredFrom: "deleted" });
+    });
+
+    restoreTransaction();
+    return this.requireMemory(id);
+  }
+
+  public previewPurge(id: string): MemoryPurgePreview {
+    const memory = this.requireMemory(id);
+    const count = (sql: string): number =>
+      (this.database.prepare(sql).get(id, id, id) as { count: number }).count;
+    const retainedSourceRecordIds = this.database
+      .prepare(
+        `SELECT DISTINCT me.source_record_id
+         FROM memory_revisions mr
+         JOIN memory_evidence me ON me.memory_revision_id = mr.id
+         WHERE mr.memory_id = ?
+         ORDER BY me.source_record_id`,
+      )
+      .all(id)
+      .map((row) => (row as { source_record_id: string }).source_record_id);
+
+    return {
+      memoryId: id,
+      status: memory.status,
+      revisionCount: (
+        this.database
+          .prepare("SELECT count(*) AS count FROM memory_revisions WHERE memory_id = ?")
+          .get(id) as { count: number }
+      ).count,
+      candidateCount: count(
+        `SELECT count(DISTINCT mc.id) AS count
+         FROM memory_candidates mc
+         LEFT JOIN candidate_resolutions cr ON cr.candidate_id = mc.id
+         WHERE mc.accepted_memory_id = ? OR cr.target_memory_id = ? OR cr.result_memory_id = ?`,
+      ),
+      auditEventCount: (
+        this.database
+          .prepare("SELECT count(*) AS count FROM audit_events WHERE memory_id = ?")
+          .get(id) as { count: number }
+      ).count,
+      retainedSourceRecordIds,
+      canPurge: memory.status === "deleted",
+      externalCopiesNotModified: true,
+    };
+  }
+
+  public purge(
+    id: string,
+    reasonInput: string,
+    actor: MemoryActor,
+    explicitUserAction: boolean,
+  ): MemoryPurgeReceipt {
+    const reason = reasonInput.trim();
+    if (reason.length === 0) {
+      throw new Error("A memory purge reason cannot be empty.");
+    }
+    this.requireExplicitUserAction(actor, explicitUserAction, "purge");
+    const preview = this.previewPurge(id);
+    if (!preview.canPurge) {
+      throw new Error(`Memory ${id} must be deleted before it can be purged.`);
+    }
+
+    const receiptId = randomUUID();
+    const purgedAt = new Date().toISOString();
+    const purgeTransaction = this.database.transaction(() => {
+      const current = this.requireMemory(id);
+      this.requireStatus(current, "deleted", "purge");
+      const candidateIds = this.database
+        .prepare(
+          `SELECT DISTINCT mc.id
+           FROM memory_candidates mc
+           LEFT JOIN candidate_resolutions cr ON cr.candidate_id = mc.id
+           WHERE mc.accepted_memory_id = ? OR cr.target_memory_id = ? OR cr.result_memory_id = ?`,
+        )
+        .all(id, id, id) as Array<{ id: string }>;
+      const revisionRows = this.database
+        .prepare(
+          `SELECT id FROM memory_revisions
+           WHERE memory_id = ? ORDER BY revision_number DESC`,
+        )
+        .all(id) as Array<{ id: string }>;
+      const countRows = (sql: string): number =>
+        (this.database.prepare(sql).get(id) as { count: number }).count;
+      const candidatePlaceholders = candidateIds.map(() => "?").join(", ");
+      const candidateRelatedCount = (table: string): number =>
+        candidateIds.length === 0
+          ? 0
+          : (
+              this.database
+                .prepare(
+                  `SELECT count(*) AS count FROM ${table}
+                   WHERE candidate_id IN (${candidatePlaceholders})`,
+                )
+                .get(...candidateIds.map(({ id: candidateId }) => candidateId)) as {
+                count: number;
+              }
+            ).count;
+      const deletedRowCounts: Record<string, number> = {
+        memoryItems: 1,
+        memoryRevisions: revisionRows.length,
+        memoryEvidence: countRows(
+          `SELECT count(*) AS count FROM memory_evidence
+           WHERE memory_revision_id IN (
+             SELECT id FROM memory_revisions WHERE memory_id = ?
+           )`,
+        ),
+        memoryEmbeddings: countRows(
+          `SELECT count(*) AS count FROM memory_embeddings
+           WHERE memory_revision_id IN (
+             SELECT id FROM memory_revisions WHERE memory_id = ?
+           )`,
+        ),
+        memoryScopes: countRows(
+          "SELECT count(*) AS count FROM memory_scopes WHERE memory_id = ?",
+        ),
+        memoryEntities: countRows(
+          "SELECT count(*) AS count FROM memory_entities WHERE memory_id = ?",
+        ),
+        memoryRelations: (
+          this.database
+            .prepare(
+              `SELECT count(*) AS count FROM memory_relations
+               WHERE from_memory_id = ? OR to_memory_id = ?`,
+            )
+            .get(id, id) as { count: number }
+        ).count,
+        memorySearchDocuments: countRows(
+          "SELECT count(*) AS count FROM memory_search_documents WHERE memory_id = ?",
+        ),
+        memoryDeletionEvents: countRows(
+          "SELECT count(*) AS count FROM memory_deletion_events WHERE memory_id = ?",
+        ),
+        memoryCandidates: candidateIds.length,
+        candidateEvidence: candidateRelatedCount("candidate_evidence"),
+        candidateEvents: candidateRelatedCount("candidate_events"),
+        candidateResolutions: candidateRelatedCount("candidate_resolutions"),
+        auditEvents: preview.auditEventCount,
+      };
+
+      for (const candidate of candidateIds) {
+        this.database.prepare("DELETE FROM memory_candidates WHERE id = ?").run(candidate.id);
+      }
+      this.database.prepare("DELETE FROM memory_search_documents WHERE memory_id = ?").run(id);
+      this.database
+        .prepare(
+          `DELETE FROM memory_embeddings
+           WHERE memory_revision_id IN (
+             SELECT id FROM memory_revisions WHERE memory_id = ?
+           )`,
+        )
+        .run(id);
+      this.database
+        .prepare(
+          `DELETE FROM memory_evidence
+           WHERE memory_revision_id IN (
+             SELECT id FROM memory_revisions WHERE memory_id = ?
+           )`,
+        )
+        .run(id);
+      this.database
+        .prepare("UPDATE memory_items SET current_revision_id = NULL WHERE id = ?")
+        .run(id);
+      for (const revision of revisionRows) {
+        this.database.prepare("DELETE FROM memory_revisions WHERE id = ?").run(revision.id);
+      }
+      this.database.prepare("DELETE FROM audit_events WHERE memory_id = ?").run(id);
+      this.database.prepare("DELETE FROM memory_items WHERE id = ?").run(id);
+      this.database
+        .prepare(
+          `INSERT INTO privacy_purge_receipts (
+             id, subject_kind, subject_id, reason, actor_type,
+             deleted_row_counts_json, retained_source_record_count, purged_at
+           ) VALUES (?, 'memory', ?, ?, 'user', ?, ?, ?)`,
+        )
+        .run(
+          receiptId,
+          id,
+          reason,
+          JSON.stringify(deletedRowCounts),
+          preview.retainedSourceRecordIds.length,
+          purgedAt,
+        );
+      this.database
+        .prepare(
+          `INSERT INTO audit_events (
+             id, memory_id, event_type, actor_type, detail_json, occurred_at
+           ) VALUES (?, NULL, 'purged', 'user', ?, ?)`,
+        )
+        .run(randomUUID(), JSON.stringify({ purgedMemoryId: id, receiptId }), purgedAt);
+    });
+
+    purgeTransaction();
+    const receipt = this.database
+      .prepare(
+        `SELECT deleted_row_counts_json, retained_source_record_count, purged_at
+         FROM privacy_purge_receipts WHERE id = ?`,
+      )
+      .get(receiptId) as {
+      deleted_row_counts_json: string;
+      retained_source_record_count: number;
+      purged_at: string;
+    };
+    return {
+      receiptId,
+      memoryId: id,
+      purgedAt: receipt.purged_at,
+      deletedRowCounts: JSON.parse(receipt.deleted_row_counts_json) as Record<string, number>,
+      retainedSourceRecordCount: receipt.retained_source_record_count,
+      externalCopiesNotModified: true,
+    };
   }
 
   public supersede(
@@ -696,6 +1020,16 @@ export class SqliteMemoryRepository implements MemoryRepository {
     return memory;
   }
 
+  private requireExplicitUserAction(
+    actor: MemoryActor,
+    explicitUserAction: boolean,
+    operation: string,
+  ): void {
+    if (actor !== "user" || !explicitUserAction) {
+      throw new Error(`An explicit user action is required to ${operation} a memory.`);
+    }
+  }
+
   private requireStatus(
     memory: Memory,
     expected: MemoryStatus,
@@ -716,7 +1050,8 @@ export class SqliteMemoryRepository implements MemoryRepository {
       | "superseded"
       | "contradicted"
       | "archived"
-      | "restored",
+      | "restored"
+      | "deleted",
     actor: MemoryActor | "client",
     detail: Record<string, unknown> = {},
   ): void {

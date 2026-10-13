@@ -21,6 +21,9 @@ describe only the current design and behavior.
   advisory duplicate, refinement, conflict, and related suggestions.
 - Added explicit immutable source versioning, stable source-series identities,
   retained version reasons, current-source listing, and complete source history.
+- Added explicitly authorized recoverable memory deletion, exact-confirmation
+  purge, assertion-free purge receipts, retained-copy disclosure, and a trusted
+  local privacy CLI.
 
 ## 0.8.0 - 2026-10-12
 

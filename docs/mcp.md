@@ -71,6 +71,10 @@ archived, restored, superseded, or contradicted through this transport.
 Explicit protected-memory management remains available to a future local admin
 interface that can obtain direct user confirmation.
 
+Memory deletion, deleted-memory restoration, and purge are also absent from MCP.
+They always require an explicitly confirming user and are available through the
+trusted local `memtextual-privacy` CLI described in `privacy.md`.
+
 ## Example host configuration
 
 Build the project, then configure an MCP host to launch the compiled entry point.

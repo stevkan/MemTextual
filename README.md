@@ -23,6 +23,7 @@ The system provides:
 - atomic, idempotent source ingestion with explicit immutable version history;
 - scoped, typed memories with immutable revision history;
 - archive, restore, supersede, and contradiction lifecycles;
+- explicitly authorized recoverable deletion and confirmed memory purge;
 - sensitivity, retrieval, pinning, and protection controls;
 - policy-aware FTS5 retrieval and retrieval audits;
 - a trusted terminal workflow for candidate review;
@@ -43,6 +44,7 @@ docs/ingestion.md          Source ingestion and candidate review contract
 docs/legacy-migration.md   Legacy export format and migration workflow
 docs/continuity-design.md  Continuity product plan and non-destructive contract
 docs/migration-safety.md   Snapshot, upgrade-copy, and verification workflow
+docs/privacy.md            Recoverable deletion and memory-purge contract
 docs/semantic-matching.md  Provider-neutral advisory matching contract
 docs/review-cli.md         Trusted local candidate-review workflow
 docs/review-automation.md  Configurable review-policy contract and CLI
@@ -71,6 +73,7 @@ python -m sqlite3 memtextual.db ".read migrations/003_review_automation.sql"
 python -m sqlite3 memtextual.db ".read migrations/004_legacy_memory_migration.sql"
 python -m sqlite3 memtextual.db ".read migrations/005_candidate_resolution.sql"
 python -m sqlite3 memtextual.db ".read migrations/006_source_versioning.sql"
+python -m sqlite3 memtextual.db ".read migrations/007_memory_deletion_purge.sql"
 python -m sqlite3 memtextual.db ".read examples/seed-v0.1.sql"
 ```
 
@@ -91,6 +94,7 @@ npm run review -- --database .\data\memtextual.db --migrations .\migrations
 npm run policy -- list --database .\data\memtextual.db --migrations .\migrations
 npm run migrate -- --file .\legacy-memories.json --scope PROJECT_SCOPE_ID --database .\data\memtextual.db --migrations .\migrations
 npm run safeguard -- snapshot -- --database .\data\memtextual.db --output .\backups
+npm run privacy -- preview --id MEMORY_ID --database .\data\memtextual.db --migrations .\migrations
 ```
 
 The SQLite adapter applies pending numbered migrations when it opens a writable
@@ -108,6 +112,7 @@ upgraded copy without rejecting additive schema changes.
 
 Automatic extraction, vendor-specific legacy-export adapters, a trusted
 graphical candidate-review UI, semantic candidate deduplication and conflict matching,
-source privacy purge semantics, resumable imports, streamable HTTP, REST API, admin UI,
+source-series deletion and purge, backup-retention enforcement, resumable imports,
+streamable HTTP, REST API, admin UI,
 embedding provider, host-specific installers, and the broader packaging
 strategy remain open.
