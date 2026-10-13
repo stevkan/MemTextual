@@ -26,6 +26,7 @@ The system provides:
 - explicitly authorized recoverable deletion and confirmed memory purge;
 - dependency-aware source-series deletion, restoration, and confirmed purge;
 - multi-persona identity and relationship scopes with enforced ownership;
+- explicit episodic and durable persona-memory classes;
 - sensitivity, retrieval, pinning, and protection controls;
 - policy-aware FTS5 retrieval and retrieval audits;
 - a trusted terminal workflow for candidate review;
@@ -79,6 +80,7 @@ python -m sqlite3 memtextual.db ".read migrations/006_source_versioning.sql"
 python -m sqlite3 memtextual.db ".read migrations/007_memory_deletion_purge.sql"
 python -m sqlite3 memtextual.db ".read migrations/008_source_series_deletion_purge.sql"
 python -m sqlite3 memtextual.db ".read migrations/009_persona_foundations.sql"
+python -m sqlite3 memtextual.db ".read migrations/010_persona_memory_classes.sql"
 python -m sqlite3 memtextual.db ".read examples/seed-v0.1.sql"
 ```
 
@@ -109,8 +111,10 @@ source import, candidate proposal, and explicit-user review. Database-specific
 behavior remains behind repository interfaces.
 
 `PersonaService` creates Continuity users and multiple personas with an
-enforced user -> persona -> relationship scope hierarchy. Persona-aware memory
-classification and retrieval are the next Phase 2 package.
+enforced user -> persona -> relationship scope hierarchy.
+`ContinuityMemoryService` transactionally binds explicitly episodic or durable
+memories to one relationship. Persona-aware retrieval is the next Phase 2
+package.
 
 Before a release applies new migrations to a real database, use the safeguard
 workflow in `docs/migration-safety.md`. It creates an online SQLite backup, a

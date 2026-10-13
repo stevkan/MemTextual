@@ -29,6 +29,12 @@ export {
   type ScopeKind,
   type Sensitivity,
 } from "./domain/memory.js";
+export {
+  personaMemoryClasses,
+  type CreatePersonaMemoryInput,
+  type PersonaMemory,
+  type PersonaMemoryClass,
+} from "./domain/continuity-memory.js";
 export type {
   ContinuityUser,
   CreateContinuityUserInput,
@@ -113,10 +119,12 @@ export {
   mcpToolCatalog,
 } from "./mcp/server.js";
 export type { MemoryRepository } from "./repositories/memory-repository.js";
+export type { ContinuityMemoryRepository } from "./repositories/continuity-memory-repository.js";
 export type { IngestionRepository } from "./repositories/ingestion-repository.js";
 export type { PersonaRepository } from "./repositories/persona-repository.js";
 export type { ReviewPolicyRepository } from "./repositories/review-policy-repository.js";
 export { SqliteIngestionRepository } from "./repositories/sqlite-ingestion-repository.js";
+export { SqliteContinuityMemoryRepository } from "./repositories/sqlite-continuity-memory-repository.js";
 export { SqliteMemoryRepository } from "./repositories/sqlite-memory-repository.js";
 export { SqlitePersonaRepository } from "./repositories/sqlite-persona-repository.js";
 export { SqliteReviewPolicyRepository } from "./repositories/sqlite-review-policy-repository.js";
@@ -128,6 +136,7 @@ export {
   type CandidateAutomationProcessor,
   type CandidateProposalOptions,
 } from "./services/ingestion-service.js";
+export { ContinuityMemoryService } from "./services/continuity-memory-service.js";
 export {
   createLegacyCandidateExternalId,
   LegacyMemoryMigrationService,

@@ -2,8 +2,8 @@
 
 MemTextual Continuity models the local user, each persona, and the relationship
 between that user and persona as separate durable records with separate scopes.
-This is the first Phase 2 foundation; it does not yet perform ambient capture or
-persona-aware retrieval.
+These are the first Phase 2 foundations; they do not yet perform ambient capture
+or persona-aware retrieval.
 
 ## Scope hierarchy
 
@@ -42,11 +42,28 @@ case. Optional external persona IDs are also unique per user.
 Metadata is JSON object data. It may hold provider-neutral descriptive settings,
 but credentials and sensitive secrets do not belong there.
 
+## Persona memory classes
+
+`ContinuityMemoryService` creates a core memory and its persona profile in one
+transaction. The caller must explicitly choose one of two orthogonal classes:
+
+- `episodic`: a bounded event, interaction, or experience; or
+- `durable`: stable personal knowledge intended to remain useful across future
+  interactions.
+
+The class does not replace the core memory type, lifecycle, sensitivity, or
+retrieval policy. For example, a preference can be durable while a task-context
+memory can be episodic.
+
+Every profiled memory is created in exactly one persona relationship scope.
+Database triggers reject attaching another relationship scope, moving the
+binding to another persona, or removing the active memory's required binding.
+Permanent memory purge removes the profile and records it in the purge receipt.
+
 ## Current boundary
 
-The current package establishes identities and isolated scope topology through
-the TypeScript library. It does not expose persona management through MCP and
-does not yet decide which scope classes are eligible for retrieval. The next
-Phase 2 package will add episodic-versus-durable memory classification and a
-Continuity retrieval path that accepts a persona identity instead of arbitrary
-scope IDs.
+The current package establishes identities, isolated scope topology, and
+explicit episodic-versus-durable classification through the TypeScript library.
+It does not expose persona management through MCP. The next Phase 2 package will
+add a Continuity retrieval path that accepts a persona identity instead of
+arbitrary scope IDs.

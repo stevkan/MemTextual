@@ -30,6 +30,9 @@ describe only the current design and behavior.
 - Added Continuity user identities, multiple personas per user, one relationship
   context per persona, transactional scope creation, and database-enforced
   user-to-persona-to-relationship scope ownership.
+- Added explicit episodic and durable persona-memory profiles, transactional
+  core-memory creation, strict single-relationship scope binding, and purge
+  accounting for Continuity profiles.
 
 ## 0.8.0 - 2026-10-12
 

@@ -73,6 +73,13 @@ its `continuity_relationships` row owns a namespace child of the persona scope.
 Triggers enforce this topology and make bound ownership and scope identities
 immutable. Different personas never share a relationship scope by default.
 
+`continuity_memory_profiles` classifies a core memory as `episodic` or
+`durable` and binds it to one user, persona, and relationship. This class is
+orthogonal to `memory_type`: it describes persistence semantics rather than the
+subject of the memory. Database triggers require the relationship scope to be
+the memory's sole scope and reject cross-persona scope changes while the memory
+is not deleted.
+
 ### Entity and relationship
 
 Entities normalize people, organizations, projects, products, places, and

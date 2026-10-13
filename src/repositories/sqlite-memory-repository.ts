@@ -749,6 +749,9 @@ export class SqliteMemoryRepository implements MemoryRepository {
         memoryDeletionEvents: countRows(
           "SELECT count(*) AS count FROM memory_deletion_events WHERE memory_id = ?",
         ),
+        continuityMemoryProfiles: countRows(
+          "SELECT count(*) AS count FROM continuity_memory_profiles WHERE memory_id = ?",
+        ),
         memoryCandidates: candidateIds.length,
         candidateEvidence: candidateRelatedCount("candidate_evidence"),
         candidateEvents: candidateRelatedCount("candidate_events"),
