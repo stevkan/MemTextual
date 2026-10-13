@@ -88,10 +88,17 @@ Every returned memory receives the normal retrieval counters and a client audit
 event attributed to the resolved persona and relationship. Cross-persona shared
 scopes remain unsupported and cannot be inferred by this API.
 
+The optional Continuity hybrid path adds provider-neutral semantic matching and
+an immutable ranking profile per persona. Ranking profiles can explicitly tune
+lexical, semantic, pin, explicitness, episodic, durable, and emotional signals.
+Emotional relevance is disabled by default. It uses only explicit user
+annotations and explicit query context; it does not infer a user's emotional or
+medical state from text.
+
 ## Current boundary
 
 The current package establishes identities, isolated scope topology, explicit
-episodic-versus-durable classification, and persona-aware retrieval through the
-TypeScript library. Persona management and Continuity retrieval are not exposed
-through MCP; authenticated distribution and end-user interfaces remain later
-phases.
+episodic-versus-durable classification, persona-aware lexical and optional
+hybrid retrieval, and a local Continuity control console. Persona management,
+hybrid retrieval, ranking configuration, and emotional annotation are not
+exposed through MCP; authenticated distribution remains a later phase.

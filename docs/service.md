@@ -105,6 +105,13 @@ the same policy boundaries, while the profile controls lexical/semantic weights
 and explainable pin, explicitness, episodic, and durable boosts. Profile changes
 require explicit user action and an expected current revision.
 
+`ContinuityEmotionService` stores only explicit user annotations for a persona
+memory's current revision. Values are bounded valence, activation, and salience
+cues, not inferred psychological or medical findings. Emotional ranking is off
+by default, requires a non-zero persona `emotionalWeight`, and applies only when
+the hybrid query includes an explicit emotional context. A later memory revision
+cannot reuse the prior annotation.
+
 ## Current limitations
 
 The following are not implemented:

@@ -84,8 +84,9 @@ delivered through a URL fragment. The console also includes a versioned
 persona-memory JSON export with complete revision histories, plus
 exact-ID-confirmed recoverable deletion and restoration. The export is
 intentionally described as a user-memory record rather than a database backup:
-it excludes source, candidate, audit, and backup data, and downloaded copies are
-not changed by later privacy actions. Graphical confirmed purge is implemented
+it excludes source, candidate, audit, ranking, emotional-annotation, and backup
+data, and downloaded copies are not changed by later privacy actions. Graphical
+confirmed purge is implemented
 as a separately guarded flow because it is irreversible: it requires a fresh
 impact preview, prior deletion, an operational reason, exact-ID confirmation,
 separate permanent-removal and external-copy acknowledgements, and returns an
@@ -111,8 +112,18 @@ Users can explicitly revise those weights and independently
 boost episodic or durable memory for a persona; optimistic revision checks
 prevent silent overwrites. Each hybrid result explains the applied signals and
 boost, and its audit event records the profile revision. Ranking profiles are
-durable user configuration covered by database safeguards. Emotional relevance
-and bounded context composition remain later Phase 5 work packages.
+durable user configuration covered by database safeguards.
+
+Emotional relevance is now available only through explicit user annotation. A
+memory revision may receive revisioned valence, activation, and salience values;
+these are user-provided relevance cues, not inferred psychological states or
+medical findings. The default emotional ranking weight is zero. Emotional
+alignment affects hybrid ranking only after the user explicitly enables a
+non-zero persona weight and the query supplies an emotional context. Raw query
+values are omitted from retrieval audits, stale annotations do not cross memory
+revisions, and permanent memory purge removes and accounts for the annotations.
+Automatic emotion inference is intentionally outside this package. Bounded
+context composition remains the final planned Phase 5 work package.
 
 ## Everyday data durability and recovery
 

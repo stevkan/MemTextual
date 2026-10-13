@@ -96,6 +96,7 @@ python -m sqlite3 memtextual.db ".read migrations/012_ambient_sensitivity.sql"
 python -m sqlite3 memtextual.db ".read migrations/013_temporal_relevance.sql"
 python -m sqlite3 memtextual.db ".read migrations/014_authorized_host_capture.sql"
 python -m sqlite3 memtextual.db ".read migrations/015_persona_ranking.sql"
+python -m sqlite3 memtextual.db ".read migrations/016_emotional_relevance.sql"
 python -m sqlite3 memtextual.db ".read examples/seed-v0.1.sql"
 ```
 
@@ -142,6 +143,13 @@ profile. Explicit user action can tune lexical and semantic weights plus pin,
 explicit-assertion, episodic, and durable boosts. Hybrid results report the
 applied profile revision, signals, and boost, and retrieval audits retain the
 profile revision used.
+`ContinuityEmotionService` lets a user explicitly annotate the current revision
+of a persona memory with bounded valence, activation, and salience values.
+Annotations are immutable and revisioned. Hybrid retrieval uses them only when
+the query supplies an emotional context and the persona's explicitly configured
+`emotionalWeight` is above zero. MemTextual does not infer emotion from text,
+make psychological or medical claims, or store raw query-emotion values in the
+retrieval audit.
 `ContinuityControlService` exposes persona-bound candidate queues, resolved
 evidence, revision history, correction, pin/protect controls, lifecycle actions,
 and privacy operations. Every mutation requires an explicit user action, and

@@ -16,6 +16,7 @@ interface RankingProfileRow {
   explicit_boost: number;
   episodic_boost: number;
   durable_boost: number;
+  emotional_weight: number;
   created_by: "user" | "system";
   note: string | null;
   created_at: string;
@@ -32,6 +33,7 @@ function mapProfile(row: RankingProfileRow): PersonaRankingProfile {
     explicitBoost: row.explicit_boost,
     episodicBoost: row.episodic_boost,
     durableBoost: row.durable_boost,
+    emotionalWeight: row.emotional_weight,
     createdBy: row.created_by,
     note: row.note,
     createdAt: row.created_at,
@@ -64,7 +66,7 @@ export class SqliteContinuityRankingRepository
         `SELECT
            id, persona_id, revision_number, lexical_weight, semantic_weight,
            pinned_boost, explicit_boost, episodic_boost, durable_boost,
-           created_by, note, created_at
+           emotional_weight, created_by, note, created_at
          FROM continuity_ranking_profiles
          WHERE persona_id = ?
          ORDER BY revision_number DESC
@@ -90,7 +92,7 @@ export class SqliteContinuityRankingRepository
         `SELECT
            id, persona_id, revision_number, lexical_weight, semantic_weight,
            pinned_boost, explicit_boost, episodic_boost, durable_boost,
-           created_by, note, created_at
+           emotional_weight, created_by, note, created_at
          FROM continuity_ranking_profiles
          WHERE persona_id = ?
          ORDER BY revision_number`,
@@ -128,8 +130,8 @@ export class SqliteContinuityRankingRepository
           `INSERT INTO continuity_ranking_profiles (
              id, persona_id, revision_number, lexical_weight, semantic_weight,
              pinned_boost, explicit_boost, episodic_boost, durable_boost,
-             created_by, note
-           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+             emotional_weight, created_by, note
+           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         )
         .run(
           randomUUID(),
@@ -141,6 +143,10 @@ export class SqliteContinuityRankingRepository
           weight(input.explicitBoost ?? current.explicitBoost, "explicitBoost"),
           weight(input.episodicBoost ?? current.episodicBoost, "episodicBoost"),
           weight(input.durableBoost ?? current.durableBoost, "durableBoost"),
+          weight(
+            input.emotionalWeight ?? current.emotionalWeight,
+            "emotionalWeight",
+          ),
           actor,
           note(input.note),
         );

@@ -53,6 +53,7 @@ test("personas receive independent default ranking profiles", () => {
       assert.equal(profile.semanticWeight, 0.65);
       assert.equal(profile.pinnedBoost, 0.15);
       assert.equal(profile.explicitBoost, 0.05);
+      assert.equal(profile.emotionalWeight, 0);
       assert.equal(profile.createdBy, "system");
     }
     assert.notEqual(

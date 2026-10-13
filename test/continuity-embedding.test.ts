@@ -245,6 +245,14 @@ test("hybrid retrieval validates persona and query before calling a provider", a
       }),
       /candidate limit/u,
     );
+    await assert.rejects(
+      setup.embeddings.retrieve({
+        personaId: persona.persona.id,
+        text: "query",
+        emotionalContext: { valence: 2, activation: 0.5, salience: 0.5 },
+      }),
+      /valence must be between -1 and 1/u,
+    );
     assert.deepEqual(
       await setup.embeddings.retrieve({
         personaId: persona.persona.id,

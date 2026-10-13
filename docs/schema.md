@@ -115,6 +115,11 @@ authorization, adapter version, persona relationship, active source, and
 ambient candidate IDs. Triggers reject expired or revoked authorization,
 cross-persona receipts, candidates from another source, and receipt updates.
 
+Migration 015 adds immutable per-persona ranking-profile revisions. Migration
+016 adds a disabled-by-default emotional weight to those profiles and immutable,
+user-authored emotional annotations bound to current persona-memory revisions.
+The latter are ranking cues only and do not perform emotion inference.
+
 ### Entity and relationship
 
 Entities normalize people, organizations, projects, products, places, and
@@ -231,6 +236,23 @@ profile revision, which is also written to the retrieval audit.
 The direct-statement signal is the revision's extraction `explicitness`; it is
 not an assessment that the assertion is objectively true.
 
+`continuity_emotional_profiles` stores immutable user-authored annotations for
+the current revision of one persona memory. Each revision contains bounded
+valence from -1 to 1 plus activation and salience from 0 to 1. The values are
+relevance cues only; they are not inferred diagnoses or claims about objective
+emotional state. Revising a memory leaves its prior annotations in history but
+makes them ineligible for current retrieval.
+
+Ranking-profile revisions include an `emotional_weight` from 0 to 1. It defaults
+to zero, so emotional ranking is disabled until the user explicitly changes the
+persona profile. When enabled and a query supplies an emotional context, the
+hybrid score adds the configured weight times an explainable alignment score
+based on valence similarity, activation similarity, and both salience values.
+Audits record only whether emotional context was applied and which annotation
+revision was used; raw query values are omitted. Emotional annotations are
+durable safeguard data and are deleted and counted during confirmed memory
+purge.
+
 ## SQLite-enforced invariants
 
 - Enum-like values and confidence ranges are checked.
@@ -239,6 +261,8 @@ not an assessment that the assertion is objectively true.
 - A memory cannot relate to itself.
 - Current and previous revisions must belong to the expected memory.
 - Persona ranking profile revisions are sequential and immutable.
+- Emotional profile revisions are sequential, immutable, persona-bound, and
+  restricted to a retained current memory revision.
 - Source-series identities and version numbers are unique, and source-version
   predecessors cannot point to themselves.
 - FTS rows track search-document inserts, updates, and deletes.

@@ -825,6 +825,12 @@ export class SqliteMemoryRepository implements MemoryRepository {
              SELECT id FROM memory_revisions WHERE memory_id = ?
            )`,
         ),
+        continuityEmotionalProfiles: countRows(
+          `SELECT count(*) AS count FROM continuity_emotional_profiles
+           WHERE memory_revision_id IN (
+             SELECT id FROM memory_revisions WHERE memory_id = ?
+           )`,
+        ),
         memoryScopes: countRows(
           "SELECT count(*) AS count FROM memory_scopes WHERE memory_id = ?",
         ),
@@ -865,6 +871,14 @@ export class SqliteMemoryRepository implements MemoryRepository {
       this.database
         .prepare(
           `DELETE FROM memory_embeddings
+           WHERE memory_revision_id IN (
+             SELECT id FROM memory_revisions WHERE memory_id = ?
+           )`,
+        )
+        .run(id);
+      this.database
+        .prepare(
+          `DELETE FROM continuity_emotional_profiles
            WHERE memory_revision_id IN (
              SELECT id FROM memory_revisions WHERE memory_id = ?
            )`,

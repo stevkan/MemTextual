@@ -10,6 +10,7 @@ export interface PersonaRankingProfile {
   explicitBoost: number;
   episodicBoost: number;
   durableBoost: number;
+  emotionalWeight: number;
   createdBy: "user" | "system";
   note: string | null;
   createdAt: string;
@@ -24,6 +25,7 @@ export interface UpdatePersonaRankingProfileInput {
   explicitBoost?: number;
   episodicBoost?: number;
   durableBoost?: number;
+  emotionalWeight?: number;
   note?: string;
 }
 

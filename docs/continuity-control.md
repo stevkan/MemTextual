@@ -44,3 +44,6 @@ through this boundary. It also packages a versioned persona-memory export and
 exposes exact-ID-confirmed recoverable deletion and restoration. Confirmed purge
 uses the same persona boundary with a fresh preview, exact-ID confirmation,
 explicit irreversible-action acknowledgements, and an assertion-free receipt.
+The persona-memory export is not a settings or backup export and therefore does
+not include persona ranking profiles or emotional annotations; the database
+safeguard export includes both as durable tables.

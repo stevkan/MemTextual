@@ -10,6 +10,10 @@ import type {
 } from "../domain/continuity-embedding.js";
 import type { PersonaRankingProfile } from "../domain/continuity-ranking.js";
 import {
+  emotionalRelevanceScore,
+  validateEmotionalContext,
+} from "../emotion/emotional-relevance.js";
+import {
   personaMemoryClasses,
   type ContinuityRetrievalQuery,
   type CreatePersonaMemoryInput,
@@ -57,6 +61,10 @@ interface HybridCandidateRow {
   vector_ref: string | null;
   explicitness: "explicit" | "inferred";
   memory_class: PersonaMemoryClass;
+  emotion_revision_number: number | null;
+  emotion_valence: number | null;
+  emotion_activation: number | null;
+  emotion_salience: number | null;
 }
 
 interface StoredEmbeddingRow {
@@ -422,6 +430,9 @@ export class SqliteContinuityMemoryRepository
     const safeLimit = normalizeRetrievalLimit(query.limit);
     normalizeCandidateLimit(query.candidateLimit, safeLimit);
     resolveWeights(this.requireRankingProfile(query.personaId));
+    if (query.emotionalContext !== undefined) {
+      validateEmotionalContext(query.emotionalContext);
+    }
     resolveAsOf(query.asOf);
     return memoryClasses.length > 0 && allowedSensitivities.length > 0;
   }
@@ -556,7 +567,11 @@ export class SqliteContinuityMemoryRepository
         memory.updated_at,
         embedding.vector_ref,
         revision.explicitness,
-        profile.memory_class
+        profile.memory_class,
+        emotion.revision_number AS emotion_revision_number,
+        emotion.valence AS emotion_valence,
+        emotion.activation AS emotion_activation,
+        emotion.salience AS emotion_salience
       FROM memory_items memory
       JOIN memory_revisions revision ON revision.id = memory.current_revision_id
       JOIN continuity_memory_profiles profile ON profile.memory_id = memory.id
@@ -568,6 +583,14 @@ export class SqliteContinuityMemoryRepository
        AND embedding.provider = ?
        AND embedding.model = ?
        AND embedding.dimensions = ?
+      LEFT JOIN continuity_emotional_profiles emotion
+        ON emotion.memory_revision_id = memory.current_revision_id
+       AND emotion.persona_id = profile.persona_id
+       AND emotion.revision_number = (
+         SELECT MAX(current_emotion.revision_number)
+         FROM continuity_emotional_profiles current_emotion
+         WHERE current_emotion.memory_revision_id = memory.current_revision_id
+       )
       WHERE profile.persona_id = ?
         AND profile.relationship_id = ?
         AND relationship.scope_id = ?
@@ -643,16 +666,29 @@ export class SqliteContinuityMemoryRepository
           (rankingSignals.memoryClass === "episodic"
             ? rankingProfile.episodicBoost
             : rankingProfile.durableBoost);
+        const emotionalScore =
+          query.emotionalContext === undefined ||
+          row.emotion_valence === null ||
+          row.emotion_activation === null ||
+          row.emotion_salience === null
+            ? null
+            : emotionalRelevanceScore(query.emotionalContext, {
+                valence: row.emotion_valence,
+                activation: row.emotion_activation,
+                salience: row.emotion_salience,
+              });
         return {
           ...row,
           lexicalScore,
           semanticScore,
           rankingBoost,
           rankingSignals,
+          emotionalScore,
           combinedScore:
             weights.lexical * lexicalScore +
             weights.semantic * (semanticScore ?? 0) +
-            rankingBoost,
+            rankingBoost +
+            rankingProfile.emotionalWeight * (emotionalScore ?? 0),
         };
       })
       .filter((row) => row.lexicalScore > 0 || row.semanticScore !== null)
@@ -695,6 +731,8 @@ export class SqliteContinuityMemoryRepository
               embeddingProvider: queryEmbedding.provider,
               embeddingModel: queryEmbedding.model,
               rankingProfileRevision: rankingProfile.revisionNumber,
+              emotionalContextApplied: query.emotionalContext !== undefined,
+              emotionalProfileRevision: row.emotion_revision_number,
             }),
             retrievedAt,
           );
@@ -709,6 +747,8 @@ export class SqliteContinuityMemoryRepository
         rank: index + 1,
         lexicalScore: row.lexicalScore,
         semanticScore: row.semanticScore,
+        emotionalScore: row.emotionalScore,
+        emotionalProfileRevision: row.emotion_revision_number,
         rankingBoost: row.rankingBoost,
         rankingProfileRevision: rankingProfile.revisionNumber,
         rankingSignals: row.rankingSignals,
@@ -745,7 +785,7 @@ export class SqliteContinuityMemoryRepository
         `SELECT
            id, persona_id, revision_number, lexical_weight, semantic_weight,
            pinned_boost, explicit_boost, episodic_boost, durable_boost,
-           created_by, note, created_at
+           emotional_weight, created_by, note, created_at
          FROM continuity_ranking_profiles
          WHERE persona_id = ?
          ORDER BY revision_number DESC
@@ -762,6 +802,7 @@ export class SqliteContinuityMemoryRepository
           explicit_boost: number;
           episodic_boost: number;
           durable_boost: number;
+          emotional_weight: number;
           created_by: "user" | "system";
           note: string | null;
           created_at: string;
@@ -780,6 +821,7 @@ export class SqliteContinuityMemoryRepository
       explicitBoost: row.explicit_boost,
       episodicBoost: row.episodic_boost,
       durableBoost: row.durable_boost,
+      emotionalWeight: row.emotional_weight,
       createdBy: row.created_by,
       note: row.note,
       createdAt: row.created_at,

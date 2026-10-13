@@ -88,6 +88,10 @@ describe only the current design and behavior.
 - Added immutable per-persona ranking profiles with explicit-user configuration,
   optimistic revision checks, explainable pin, explicit-assertion, episodic, and
   durable boosts, retrieval audit attribution, and safeguard coverage.
+- Added explicit, revision-bound emotional annotations using bounded valence,
+  activation, and salience values; emotional ranking is disabled by default,
+  omits raw context from audits, rejects stale revisions, and participates in
+  safeguards and permanent-purge accounting.
 
 ## 0.8.0 - 2026-10-12
 
