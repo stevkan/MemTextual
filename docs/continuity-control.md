@@ -42,4 +42,5 @@ console uses it for its review queue and memory inspector without duplicating
 policy rules. The console exposes candidate reconciliation and direct correction
 through this boundary. It also packages a versioned persona-memory export and
 exposes exact-ID-confirmed recoverable deletion and restoration. Confirmed purge
-remains a later Phase 4 package.
+uses the same persona boundary with a fresh preview, exact-ID confirmation,
+explicit irreversible-action acknowledgements, and an assertion-free receipt.

@@ -138,7 +138,8 @@ The `memtextual-continuity` CLI adds a local browser console for one selected
 persona. It uses a per-launch bearer token, binds only to `127.0.0.1`, and
 supports evidence-backed candidate acceptance or rejection plus memory history,
 candidate reconciliation, immutable correction, pinning, protection, archive,
-restore, persona-memory export, and recoverable deletion controls.
+restore, persona-memory export, recoverable deletion, and safeguarded permanent
+purge controls.
 `AmbientMemoryService` imports a recorded interaction, invokes a configured
 versioned extractor, and creates idempotent candidates bound to that persona's
 relationship and evidence. It defaults extracted claims to inferred and pending;
@@ -162,7 +163,7 @@ upgraded copy without rejecting additive schema changes.
 ## Deliberately deferred
 
 Concrete vendor extractor and host-event clients, vendor-specific legacy-export
-adapters, graphical confirmed-purge workflows, standalone-source deletion,
+adapters, graphical source-series privacy workflows, standalone-source deletion,
 backup-retention enforcement, resumable imports, streamable HTTP, REST API,
 admin UI, embedding provider, host-specific installers, and the broader
 packaging strategy remain open.

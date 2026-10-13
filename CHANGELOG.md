@@ -77,7 +77,11 @@ describe only the current design and behavior.
   database backup or provenance-complete export.
 - Added graphical recoverable deletion and restoration with a required reason,
   exact-ID confirmation, explicit user action, and the existing transactional
-  tombstone safeguards; confirmed purge remains outside the console.
+  tombstone safeguards.
+- Added graphical memory-purge preview and confirmed purge with prior-deletion
+  enforcement, a fresh server-side eligibility check, exact-ID confirmation,
+  separate permanence and external-copy acknowledgements, final browser
+  confirmation, and the existing assertion-free receipt.
 
 ## 0.8.0 - 2026-10-12
 

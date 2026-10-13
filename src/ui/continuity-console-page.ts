@@ -79,6 +79,9 @@ aside { padding: 24px 16px; border-right: 1px solid var(--line); background: rgb
 .detail.empty { display: grid; place-items: center; text-align: center; }
 .section { padding-top: 16px; margin-top: 16px; border-top: 1px solid var(--line); }
 .evidence, .history { padding: 12px; margin: 8px 0; border-left: 3px solid var(--accent); background: #151b15; }
+.warning { padding: 12px; border-left: 3px solid var(--danger); background: #211817; color: #ffd2ca; line-height: 1.5; }
+.check { display: flex; align-items: flex-start; gap: 9px; margin-top: 12px; color: var(--muted); line-height: 1.4; }
+.check input { width: auto; margin: 3px 0 0; }
 .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 18px; }
 button.action { border: 1px solid var(--line); border-radius: 8px; padding: 9px 12px; background: #2a352a; color: inherit; cursor: pointer; }
 button.action:hover { border-color: var(--accent); }
@@ -407,6 +410,71 @@ export const continuityConsoleJavaScript = `
           await showMemory(id);
         }));
         deletionSection.append(restoreActions);
+
+        const permanentSection = node("div", undefined, "section");
+        permanentSection.append(node("h3", "Permanent purge"));
+        permanentSection.append(node("p", "Purge permanently removes this memory and linked candidate content from the active database. It cannot be undone.", "warning"));
+        const purgePanel = node("div");
+        permanentSection.append(actionButton("Preview permanent purge", async () => {
+          const preview = await api("/api/memories/" + encodeURIComponent(id) + "/purge-preview");
+          purgePanel.replaceChildren();
+          const summary = node("div", undefined, "history");
+          summary.append(node("strong", "Active-database rows affected"));
+          summary.append(node("p", "Revisions: " + preview.revisionCount + " · linked candidates: " + preview.candidateCount + " · audit events: " + preview.auditEventCount, "meta"));
+          summary.append(node("p", "Retained source record IDs: " + (preview.retainedSourceRecordIds.length ? preview.retainedSourceRecordIds.join(", ") : "None"), "meta"));
+          purgePanel.append(summary);
+          purgePanel.append(node("p", "Source records, downloaded exports, snapshots, filesystem copies, and off-device backups are not modified by this purge.", "warning"));
+
+          const purgeReason = document.createElement("textarea");
+          purgeReason.placeholder = "Permanent-purge reason";
+          purgeReason.rows = 2;
+          purgePanel.append(purgeReason);
+          const purgeConfirmation = document.createElement("input");
+          purgeConfirmation.placeholder = "Type the exact memory ID to purge";
+          purgeConfirmation.autocomplete = "off";
+          purgePanel.append(purgeConfirmation);
+
+          const permanentCheck = document.createElement("label");
+          permanentCheck.className = "check";
+          const permanentAcknowledgement = document.createElement("input");
+          permanentAcknowledgement.type = "checkbox";
+          permanentCheck.append(permanentAcknowledgement, document.createTextNode("I understand this permanently removes the memory from the active database and cannot be undone."));
+          purgePanel.append(permanentCheck);
+
+          const externalCheck = document.createElement("label");
+          externalCheck.className = "check";
+          const externalAcknowledgement = document.createElement("input");
+          externalAcknowledgement.type = "checkbox";
+          externalCheck.append(externalAcknowledgement, document.createTextNode("I understand source records and copies outside the active database are not modified."));
+          purgePanel.append(externalCheck);
+
+          const purgeActions = node("div", undefined, "actions");
+          purgeActions.append(actionButton("Permanently purge memory", async () => {
+            if (!purgeReason.value.trim()) throw new Error("A permanent-purge reason is required.");
+            if (purgeConfirmation.value.trim() !== memory.id) {
+              throw new Error("Confirmation must exactly match the memory ID.");
+            }
+            if (!permanentAcknowledgement.checked || !externalAcknowledgement.checked) {
+              throw new Error("Both permanent-purge acknowledgements are required.");
+            }
+            if (!window.confirm("Permanently purge this memory from the active database? This cannot be undone.")) return;
+            const receipt = await api("/api/memories/" + encodeURIComponent(id) + "/purge", {
+              method: "POST",
+              body: JSON.stringify({
+                reason: purgeReason.value.trim(),
+                confirmation: purgeConfirmation.value.trim(),
+                acknowledgePermanentRemoval: true,
+                acknowledgeExternalCopiesNotModified: true,
+              }),
+            });
+            setNotice("Memory purged from the active database. Receipt " + receipt.receiptId + "; retained source records: " + receipt.retainedSourceRecordCount + "; external copies were not modified.");
+            clearDetail();
+            await refreshDashboard();
+          }, true));
+          purgePanel.append(purgeActions);
+        }, true));
+        permanentSection.append(purgePanel);
+        deletionSection.append(permanentSection);
       } else {
         deletionSection.append(node("h3", "Recoverably delete this memory"));
         deletionSection.append(node("p", "Deletion removes the memory from retrieval but retains a restorable tombstone. Use a short operational reason without repeating sensitive content.", "meta"));

@@ -385,6 +385,97 @@ test("Continuity console requires same-origin explicit mutations", async () => {
     };
     assert.equal(restored.status, "active");
     assert.equal(restored.deletionReason, null);
+
+    const activePurgeAttempt = await request(application, token, {
+      ...mutation,
+      url: `/api/memories/${memoryId}/purge`,
+      headers: { ...mutation.headers, origin },
+      body: JSON.stringify({
+        reason: "Permanent privacy request.",
+        confirmation: memoryId,
+        acknowledgePermanentRemoval: true,
+        acknowledgeExternalCopiesNotModified: true,
+      }),
+    });
+    assert.equal(activePurgeAttempt.status, 409);
+
+    const secondDeletion = await request(application, token, {
+      ...mutation,
+      url: `/api/memories/${memoryId}/delete`,
+      headers: { ...mutation.headers, origin },
+      body: JSON.stringify({
+        reason: "Prepare explicit permanent removal.",
+        confirmation: memoryId,
+      }),
+    });
+    assert.equal(secondDeletion.status, 200);
+
+    const previewResponse = await request(application, token, {
+      method: "GET",
+      url: `/api/memories/${memoryId}/purge-preview`,
+    });
+    assert.equal(previewResponse.status, 200);
+    const preview = JSON.parse(previewResponse.body) as {
+      canPurge: boolean;
+      revisionCount: number;
+      candidateCount: number;
+      retainedSourceRecordIds: string[];
+      externalCopiesNotModified: boolean;
+    };
+    assert.equal(preview.canPurge, true);
+    assert.equal(preview.revisionCount, 2);
+    assert.equal(preview.candidateCount, 1);
+    assert.equal(preview.retainedSourceRecordIds.length, 1);
+    assert.equal(preview.externalCopiesNotModified, true);
+
+    const missingAcknowledgement = await request(application, token, {
+      ...mutation,
+      url: `/api/memories/${memoryId}/purge`,
+      headers: { ...mutation.headers, origin },
+      body: JSON.stringify({
+        reason: "Permanent privacy request.",
+        confirmation: memoryId,
+        acknowledgePermanentRemoval: true,
+        acknowledgeExternalCopiesNotModified: false,
+      }),
+    });
+    assert.equal(missingAcknowledgement.status, 400);
+
+    const purgeResponse = await request(application, token, {
+      ...mutation,
+      url: `/api/memories/${memoryId}/purge`,
+      headers: { ...mutation.headers, origin },
+      body: JSON.stringify({
+        reason: "Permanent privacy request.",
+        confirmation: memoryId,
+        acknowledgePermanentRemoval: true,
+        acknowledgeExternalCopiesNotModified: true,
+      }),
+    });
+    assert.equal(purgeResponse.status, 200);
+    const receipt = JSON.parse(purgeResponse.body) as {
+      memoryId: string;
+      retainedSourceRecordCount: number;
+      externalCopiesNotModified: boolean;
+    };
+    assert.equal(receipt.memoryId, memoryId);
+    assert.equal(receipt.retainedSourceRecordCount, 1);
+    assert.equal(receipt.externalCopiesNotModified, true);
+    assert.equal(purgeResponse.body.includes("Steve prefers"), false);
+
+    const purgedDetail = await request(application, token, {
+      method: "GET",
+      url: `/api/memories/${memoryId}`,
+    });
+    assert.equal(purgedDetail.status, 404);
+    const dashboardAfterPurge = await request(application, token, {
+      method: "GET",
+      url: "/api/dashboard",
+    });
+    const dashboard = JSON.parse(dashboardAfterPurge.body) as {
+      memories: unknown[];
+    };
+    assert.equal(dashboard.memories.length, 0);
   } finally {
     setup.database.close();
   }
@@ -444,6 +535,12 @@ test("Continuity console reconciles candidates only with same-persona targets", 
       }),
     });
     assert.equal(crossPersona.status, 404);
+
+    const crossPersonaPurgePreview = await request(application, token, {
+      method: "GET",
+      url: `/api/memories/${otherPersonaTarget.memory.id}/purge-preview`,
+    });
+    assert.equal(crossPersonaPurgePreview.status, 404);
 
     const resolvedResponse = await request(application, token, {
       method: "POST",

@@ -52,6 +52,14 @@ const deletionSchema = z
 const restorationSchema = z
   .object({ confirmation: z.string().trim().min(1).max(500) })
   .strict();
+const purgeSchema = z
+  .object({
+    reason: z.string().trim().min(1).max(1_000),
+    confirmation: z.string().trim().min(1).max(500),
+    acknowledgePermanentRemoval: z.literal(true),
+    acknowledgeExternalCopiesNotModified: z.literal(true),
+  })
+  .strict();
 
 class HttpError extends Error {
   public constructor(
@@ -393,6 +401,18 @@ export function createContinuityConsoleApplication(
           );
         }
 
+        const purgePreviewId = routeId(url.pathname, "/purge-preview");
+        if (
+          request.method === "GET" &&
+          purgePreviewId !== null &&
+          url.pathname.startsWith("/api/memories/")
+        ) {
+          return jsonResponse(
+            200,
+            options.control.previewMemoryPurge(personaId, purgePreviewId),
+          );
+        }
+
         if (request.method !== "POST") {
           throw new HttpError(405, "Method not allowed.");
         }
@@ -486,6 +506,33 @@ export function createContinuityConsoleApplication(
               actor: "user",
               explicitUserAction: true,
             }),
+          );
+        }
+
+        const purgeId = routeId(url.pathname, "/purge");
+        if (purgeId !== null && url.pathname.startsWith("/api/memories/")) {
+          const input = parseBody(purgeSchema, body);
+          requireExactConfirmation(input.confirmation, purgeId);
+          const preview = options.control.previewMemoryPurge(personaId, purgeId);
+          if (!preview.canPurge) {
+            throw new HttpError(
+              409,
+              "The memory must be recoverably deleted before permanent purge.",
+            );
+          }
+          return jsonResponse(
+            200,
+            options.control.purgeMemory(
+              {
+                personaId,
+                memoryId: purgeId,
+                purge: {
+                  reason: input.reason,
+                  confirmation: input.confirmation,
+                },
+              },
+              { actor: "user", explicitUserAction: true },
+            ),
           );
         }
 

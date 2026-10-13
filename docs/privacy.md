@@ -91,16 +91,24 @@ npm run privacy -- source-purge --kind file --external-id SOURCE_ID --reason "Us
 Use a short operational reason; do not repeat sensitive memory content in the
 reason because the purge receipt retains it.
 
-## Graphical recoverable deletion
+## Graphical memory privacy controls
 
-The local Continuity console exposes memory deletion and restoration, but not
-purge. Both actions require the exact memory ID in addition to an explicit
-button action; deletion also requires a short operational reason. The console
-continues to use the same service transaction and persona boundary described
-above.
+The local Continuity console exposes memory deletion, restoration, purge
+preview, and confirmed purge. Deletion and restoration require the exact memory
+ID in addition to an explicit button action; deletion also requires a short
+operational reason. Purge additionally requires prior deletion, a fresh impact
+preview, a reason, two explicit acknowledgements, and a final browser
+confirmation. The server rechecks eligibility and uses the same service
+transaction and persona boundary described above. Its response is the existing
+assertion-free purge receipt.
+
+The console does not automatically create a pre-purge backup because that would
+create a new retained copy during an erasure request. It explicitly reports that
+source records, exports, snapshots, filesystem copies, and off-device backups
+are not modified.
 
 ## Current boundary
 
 Memory and source-series deletion and purge are implemented. Standalone sources
 without an external series identity, backup-retention enforcement, bulk
-operations, and a graphical confirmed-purge flow remain separate work.
+operations, and graphical source-series privacy controls remain separate work.

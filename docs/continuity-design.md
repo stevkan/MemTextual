@@ -85,8 +85,12 @@ persona-memory JSON export with complete revision histories, plus
 exact-ID-confirmed recoverable deletion and restoration. The export is
 intentionally described as a user-memory record rather than a database backup:
 it excludes source, candidate, audit, and backup data, and downloaded copies are
-not changed by later privacy actions. Graphical confirmed purge remains separate
-because it is irreversible.
+not changed by later privacy actions. Graphical confirmed purge is implemented
+as a separately guarded flow because it is irreversible: it requires a fresh
+impact preview, prior deletion, an operational reason, exact-ID confirmation,
+separate permanent-removal and external-copy acknowledgements, and returns an
+assertion-free receipt. Phase 4's planned local user-control surface is complete;
+broader administration and source-series controls remain separate.
 
 ## Everyday data durability and recovery
 

@@ -34,10 +34,11 @@ for an available port.
   history belonging to the selected persona, including deleted memories.
 - Recoverably delete a memory with a reason and exact-ID confirmation, then
   restore it to its prior lifecycle state with another exact-ID confirmation.
+- Preview and permanently purge a deleted memory with layered irreversible-
+  action safeguards and an assertion-free receipt.
 
-The console does not expose confirmed purge. Permanent removal remains available
-through the trusted privacy CLI and is a separate interface package because it
-is irreversible.
+The trusted privacy CLI remains available for the same memory operations and
+for source-series privacy workflows.
 
 ## Persona-memory export
 
@@ -59,6 +60,23 @@ deletion. Deletion removes the memory from retrieval while preserving its
 profile, revisions, and a restorable tombstone. Restoration also requires the
 exact ID and returns the memory to its lifecycle state from immediately before
 deletion. Neither action purges source evidence, exports, snapshots, or backups.
+
+## Permanent purge
+
+Purge is shown only for a deleted memory. Before enabling the final action, the
+console fetches a fresh server-side preview showing revision, candidate, and
+audit-event counts plus the IDs of source records that will remain. The user
+must then provide a short reason, type the exact memory ID, acknowledge that the
+active-database removal is permanent, acknowledge that source records and
+external copies are not modified, and accept a final browser confirmation.
+
+The server repeats the preview immediately before purging and rejects a memory
+that is no longer eligible. A successful purge removes the memory and its linked
+candidate content from the active database and returns an assertion-free receipt.
+The UI never creates an automatic pre-purge backup because doing so would create
+another retained copy during an erasure request. Existing exports, snapshots,
+filesystem copies, off-device backups, and retained source records remain
+outside the operation and are disclosed rather than silently claimed as erased.
 
 ## Security boundary
 
