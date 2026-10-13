@@ -397,6 +397,72 @@ export class SqliteMemoryRepository implements MemoryRepository {
     return rows.map(mapRevision);
   }
 
+  public setPinned(
+    id: string,
+    pinned: boolean,
+    actor: MemoryActor,
+    explicitUserAction: boolean,
+  ): Memory {
+    this.requireExplicitUserAction(
+      actor,
+      explicitUserAction,
+      pinned ? "pin" : "unpin",
+    );
+    const transaction = this.database.transaction(() => {
+      const current = this.requireMemory(id);
+      if (current.status === "deleted") {
+        throw new Error(`Cannot change pinning for deleted memory ${id}.`);
+      }
+      if (current.isPinned === pinned) {
+        return;
+      }
+      this.database
+        .prepare(
+          `UPDATE memory_items
+           SET is_pinned = ?,
+               updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+           WHERE id = ?`,
+        )
+        .run(pinned ? 1 : 0, id);
+      this.writeAudit(id, pinned ? "pinned" : "unpinned", actor);
+    });
+    transaction();
+    return this.requireMemory(id);
+  }
+
+  public setProtected(
+    id: string,
+    protected_: boolean,
+    actor: MemoryActor,
+    explicitUserAction: boolean,
+  ): Memory {
+    this.requireExplicitUserAction(
+      actor,
+      explicitUserAction,
+      protected_ ? "protect" : "unprotect",
+    );
+    const transaction = this.database.transaction(() => {
+      const current = this.requireMemory(id);
+      if (current.status === "deleted") {
+        throw new Error(`Cannot change protection for deleted memory ${id}.`);
+      }
+      if (current.isProtected === protected_) {
+        return;
+      }
+      this.database
+        .prepare(
+          `UPDATE memory_items
+           SET is_protected = ?,
+               updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+           WHERE id = ?`,
+        )
+        .run(protected_ ? 1 : 0, id);
+      this.writeAudit(id, protected_ ? "protected" : "unprotected", actor);
+    });
+    transaction();
+    return this.requireMemory(id);
+  }
+
   public revise(
     id: string,
     input: ReviseMemoryInput,
@@ -1106,6 +1172,10 @@ export class SqliteMemoryRepository implements MemoryRepository {
     eventType:
       | "revised"
       | "retrieved"
+      | "pinned"
+      | "unpinned"
+      | "protected"
+      | "unprotected"
       | "superseded"
       | "contradicted"
       | "archived"

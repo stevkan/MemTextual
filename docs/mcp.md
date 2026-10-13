@@ -80,9 +80,10 @@ MCP. They always require an explicitly confirming user and are available
 through the trusted local `memtextual-privacy` CLI described in `privacy.md`.
 
 Continuity persona creation, ambient capture, authorized host-event capture,
-host authorization, and persona-aware retrieval are currently library-only.
-The generic MCP ingestion and retrieval tools still require caller-selected
-scope IDs and must not be presented as the Continuity persona boundary.
+host authorization, persona-aware retrieval, and the user-control service are
+currently library-only. The generic MCP ingestion and retrieval tools still
+require caller-selected scope IDs and must not be presented as the Continuity
+persona boundary.
 
 ## Example host configuration
 

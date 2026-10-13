@@ -94,6 +94,70 @@ test("protected memories require an explicit user action", () => {
   }
 });
 
+test("pinning and protection are explicit audited user controls", () => {
+  const { database, repository, service } = serviceFixture();
+
+  try {
+    assert.throws(
+      () => service.setPinned("memory_03", true),
+      /explicit user action/u,
+    );
+    assert.throws(
+      () => repository.setProtected("memory_03", true, "system", true),
+      /explicit user action/u,
+    );
+    assert.equal(
+      service.setPinned("memory_03", true, {
+        actor: "user",
+        explicitUserAction: true,
+      }).isPinned,
+      true,
+    );
+    assert.equal(
+      service.setProtected("memory_03", true, {
+        actor: "user",
+        explicitUserAction: true,
+      }).isProtected,
+      true,
+    );
+    assert.equal(
+      service.setProtected("memory_03", false, {
+        actor: "user",
+        explicitUserAction: true,
+      }).isProtected,
+      false,
+    );
+    const events = database
+      .prepare(
+        `SELECT event_type FROM audit_events
+         WHERE memory_id = 'memory_03'
+           AND event_type IN ('pinned', 'protected', 'unprotected')
+         ORDER BY occurred_at, rowid`,
+      )
+      .all() as Array<{ event_type: string }>;
+    assert.deepEqual(
+      events.map(({ event_type }) => event_type),
+      ["pinned", "protected", "unprotected"],
+    );
+
+    service.delete(
+      "memory_03",
+      { reason: "Test deleted-state protection." },
+      { actor: "user", explicitUserAction: true },
+    );
+    assert.throws(
+      () =>
+        service.setPinned("memory_03", false, {
+          actor: "user",
+          explicitUserAction: true,
+        }),
+      /deleted memory/u,
+    );
+  } finally {
+    database.close();
+  }
+});
+
 test("archive and restore control normal retrieval", () => {
   const { database, service } = serviceFixture();
 

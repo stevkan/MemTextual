@@ -19,6 +19,18 @@ export interface MemoryRepository {
   create(input: CreateMemoryInput): Memory;
   getById(id: string): Memory | null;
   getHistory(id: string): MemoryRevision[];
+  setPinned(
+    id: string,
+    pinned: boolean,
+    actor: MemoryActor,
+    explicitUserAction: boolean,
+  ): Memory;
+  setProtected(
+    id: string,
+    protected_: boolean,
+    actor: MemoryActor,
+    explicitUserAction: boolean,
+  ): Memory;
   revise(id: string, input: ReviseMemoryInput, actor: MemoryActor, allowProtected: boolean): Memory;
   archive(id: string, actor: MemoryActor, allowProtected: boolean): Memory;
   restore(id: string, actor: MemoryActor, allowProtected: boolean): Memory;

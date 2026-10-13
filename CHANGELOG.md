@@ -56,6 +56,11 @@ describe only the current design and behavior.
 - Added versioned host-event adapters, deterministic replay protection, and
   immutable successful-capture receipts tied to source and candidate
   provenance.
+- Added a persona-scoped Continuity control service for ambient review queues,
+  resolved evidence, candidate reconciliation, memory history, correction,
+  lifecycle, and privacy operations.
+- Added explicit audited pinning and protection mutations and required explicit
+  user action for every Continuity control change.
 
 ## 0.8.0 - 2026-10-12
 

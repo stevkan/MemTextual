@@ -63,6 +63,18 @@ export type {
   HostEventReceipt,
 } from "./domain/host-event.js";
 export type {
+  ContinuityCandidateEvidenceView,
+  ContinuityCandidateQueueItem,
+  ContinuityCandidateQueueQuery,
+  ContinuityCandidateResolutionRequest,
+  ContinuityCandidateReview,
+  ContinuityControlMutationContext,
+  ContinuityMemoryDeletionRequest,
+  ContinuityMemoryDetail,
+  ContinuityMemoryPurgeRequest,
+  ContinuityMemoryRevisionRequest,
+} from "./domain/continuity-control.js";
+export type {
   ContinuityUser,
   CreateContinuityUserInput,
   CreatePersonaInput,
@@ -153,6 +165,10 @@ export type { IngestionRepository } from "./repositories/ingestion-repository.js
 export type { PersonaRepository } from "./repositories/persona-repository.js";
 export type { ReviewPolicyRepository } from "./repositories/review-policy-repository.js";
 export type {
+  ContinuityCandidateBinding,
+  ContinuityControlRepository,
+} from "./repositories/continuity-control-repository.js";
+export type {
   CreateHostAuthorizationRecordInput,
   HostAuthorizationCredential,
   HostEventRepository,
@@ -165,6 +181,9 @@ export { SqlitePersonaRepository } from "./repositories/sqlite-persona-repositor
 export { SqliteReviewPolicyRepository } from "./repositories/sqlite-review-policy-repository.js";
 export { SqliteHostEventRepository } from "./repositories/sqlite-host-event-repository.js";
 export {
+  SqliteContinuityControlRepository,
+} from "./repositories/sqlite-continuity-control-repository.js";
+export {
   CandidateNotFoundError,
   ExplicitCandidateReviewRequiredError,
   ExplicitSourceMutationRequiredError,
@@ -173,6 +192,10 @@ export {
   type CandidateProposalOptions,
 } from "./services/ingestion-service.js";
 export { ContinuityMemoryService } from "./services/continuity-memory-service.js";
+export {
+  ContinuityControlService,
+  ExplicitContinuityControlActionRequiredError,
+} from "./services/continuity-control-service.js";
 export { AmbientMemoryService } from "./services/ambient-memory-service.js";
 export {
   AuthorizedHostEventCaptureService,

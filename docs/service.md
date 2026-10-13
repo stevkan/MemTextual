@@ -12,6 +12,8 @@ depend on SQLite.
 create(input: CreateMemoryInput): Memory;
 getById(id: string): Memory | null;
 getHistory(id: string): MemoryRevision[];
+setPinned(id: string, pinned: boolean, context?: MemoryMutationContext): Memory;
+setProtected(id: string, protected: boolean, context?: MemoryMutationContext): Memory;
 revise(id: string, input: ReviseMemoryInput, context?: MemoryMutationContext): Memory;
 archive(id: string, context?: MemoryMutationContext): Memory;
 restore(id: string, context?: MemoryMutationContext): Memory;
@@ -37,6 +39,10 @@ updates the FTS search document and writes a `revised` audit event in the same
 transaction.
 
 ## Protected memories
+
+Pinning, unpinning, protection, and unprotection are explicit user-control
+operations. They require `actor === "user"` and `explicitUserAction === true`,
+write audit events transactionally, and are rejected for deleted memories.
 
 A protected memory can be revised or moved through its lifecycle only when both
 conditions are true:
@@ -99,5 +105,5 @@ The following are not implemented:
 - automatic extraction;
 - hierarchical scope expansion;
 - semantic or hybrid vector ranking;
-- pin, protection, retrieval-policy, sensitivity, and scope mutation APIs;
+- retrieval-policy, sensitivity, and scope mutation APIs;
 - REST and administrative UI adapters.

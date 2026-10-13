@@ -63,6 +63,41 @@ export class MemoryService {
     return this.repository.getHistory(id);
   }
 
+  public setPinned(
+    id: string,
+    pinned: boolean,
+    context: MemoryMutationContext = {},
+  ): Memory {
+    const actor = context.actor ?? "system";
+    const explicitUserAction = this.requireExplicitUserAction(
+      pinned ? "Memory pinning" : "Memory unpinning",
+      actor,
+      context,
+    );
+    this.requireMemory(id);
+    return this.repository.setPinned(id, pinned, actor, explicitUserAction);
+  }
+
+  public setProtected(
+    id: string,
+    protected_: boolean,
+    context: MemoryMutationContext = {},
+  ): Memory {
+    const actor = context.actor ?? "system";
+    const explicitUserAction = this.requireExplicitUserAction(
+      protected_ ? "Memory protection" : "Memory unprotection",
+      actor,
+      context,
+    );
+    this.requireMemory(id);
+    return this.repository.setProtected(
+      id,
+      protected_,
+      actor,
+      explicitUserAction,
+    );
+  }
+
   public revise(
     id: string,
     input: ReviseMemoryInput,

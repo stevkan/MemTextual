@@ -30,6 +30,7 @@ The system provides:
 - persona-aware retrieval with default-deny cross-persona isolation;
 - provider-neutral ambient extraction into persona-bound review candidates;
 - strict asynchronous extraction-provider and authorized host-event adapters;
+- an explicit, persona-scoped user-control service for review and lifecycle actions;
 - explicit temporal validity, non-destructive review hints, and as-of retrieval;
 - sensitivity, retrieval, pinning, and protection controls;
 - policy-aware FTS5 retrieval and retrieval audits;
@@ -50,6 +51,7 @@ docs/mcp.md                MCP tools, configuration, and host example
 docs/ingestion.md          Source ingestion and candidate review contract
 docs/legacy-migration.md   Legacy export format and migration workflow
 docs/continuity-design.md  Continuity product plan and non-destructive contract
+docs/continuity-control.md Persona-scoped review and lifecycle control contract
 docs/personas.md           Continuity identity and persona-scope foundations
 docs/ambient-memory.md     Persona-bound ambient candidate capture contract
 docs/host-capture.md       Explicitly authorized host-event capture contract
@@ -125,6 +127,10 @@ enforced user -> persona -> relationship scope hierarchy.
 `ContinuityMemoryService` transactionally binds explicitly episodic or durable
 memories to one relationship and retrieves them by persona identity without
 accepting caller-selected scope IDs.
+`ContinuityControlService` exposes persona-bound candidate queues, resolved
+evidence, revision history, correction, pin/protect controls, lifecycle actions,
+and privacy operations. Every mutation requires an explicit user action, and
+cross-persona candidates and memory targets are rejected before delegation.
 `AmbientMemoryService` imports a recorded interaction, invokes a configured
 versioned extractor, and creates idempotent candidates bound to that persona's
 relationship and evidence. It defaults extracted claims to inferred and pending;
@@ -148,9 +154,7 @@ upgraded copy without rejecting additive schema changes.
 ## Deliberately deferred
 
 Concrete vendor extractor and host-event clients, vendor-specific legacy-export
-adapters, a trusted
-graphical candidate-review UI, semantic candidate deduplication and conflict matching,
-standalone-source deletion, backup-retention enforcement, resumable imports,
-streamable HTTP, REST API, admin UI,
-embedding provider, host-specific installers, and the broader packaging
-strategy remain open.
+adapters, a trusted graphical candidate-review UI, standalone-source deletion,
+backup-retention enforcement, resumable imports, streamable HTTP, REST API,
+admin UI, embedding provider, host-specific installers, and the broader
+packaging strategy remain open.

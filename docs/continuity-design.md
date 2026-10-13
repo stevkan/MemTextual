@@ -67,6 +67,15 @@ successful-capture receipts form the authorized host-event boundary. Concrete
 vendor clients, credentials, and event subscriptions remain deployment work;
 they are not implicitly enabled by the library.
 
+Phase 4 has started with a persona-scoped Continuity control service. It exposes
+ambient review queues with resolved evidence, candidate reconciliation,
+persona-memory listing and immutable revision history, direct correction,
+pinning, protection, lifecycle transitions, recoverable deletion, and confirmed
+purge. Every mutation requires an explicit user action, and both candidate and
+memory targets are checked against the selected persona before delegation to
+the existing policy services. The graphical interface and export workflow
+remain later Phase 4 packages.
+
 ## Everyday data durability and recovery
 
 Continuity must protect a user's memories during ordinary daily use, not only
