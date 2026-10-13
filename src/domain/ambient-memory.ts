@@ -23,6 +23,9 @@ export interface AmbientMemoryProposal {
   explicitness?: Explicitness;
   confidence?: number;
   observedAt?: string;
+  validFrom?: string;
+  validTo?: string;
+  reviewAfter?: string;
   retrievalPolicy?: RetrievalPolicy;
   sensitivity?: Sensitivity;
   isPinned?: boolean;

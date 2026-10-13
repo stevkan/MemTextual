@@ -34,6 +34,7 @@ import type {
 import type { PolicyAcceptanceAuthorization } from "../domain/review-policy.js";
 import type { IngestionRepository } from "./ingestion-repository.js";
 import type { MemoryRepository } from "./memory-repository.js";
+import { normalizeTemporalWindow } from "../temporal/temporal-relevance.js";
 
 interface SourceRow {
   id: string;
@@ -90,6 +91,9 @@ interface CandidateRow {
   explicitness: Explicitness;
   confidence: number;
   observed_at: string | null;
+  valid_from: string | null;
+  valid_to: string | null;
+  review_after: string | null;
   retrieval_policy: RetrievalPolicy;
   sensitivity: Sensitivity;
   is_pinned: 0 | 1;
@@ -708,6 +712,7 @@ export class SqliteIngestionRepository implements IngestionRepository {
   public proposeCandidate(input: ProposeMemoryCandidateInput): MemoryCandidate {
     const assertion = validateText(input.assertion, "A candidate assertion");
     const confidence = validateConfidence(input.confidence ?? 1);
+    const temporal = normalizeTemporalWindow(input);
     const externalId = input.externalId?.trim();
     if (externalId !== undefined && externalId.length === 0) {
       throw new Error("A candidate external ID cannot be empty.");
@@ -755,10 +760,11 @@ export class SqliteIngestionRepository implements IngestionRepository {
         .prepare(
           `INSERT INTO memory_candidates (
              id, external_id, memory_type, assertion, normalized_assertion, explicitness,
-             confidence, observed_at, retrieval_policy, sensitivity,
+             confidence, observed_at, valid_from, valid_to, review_after,
+             retrieval_policy, sensitivity,
              is_pinned, is_protected, scope_id, proposed_by, proposer_id,
              metadata_json
-           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         )
         .run(
           id,
@@ -769,6 +775,9 @@ export class SqliteIngestionRepository implements IngestionRepository {
           input.explicitness ?? "explicit",
           confidence,
           input.observedAt ?? null,
+          temporal.validFrom,
+          temporal.validTo,
+          temporal.reviewAfter,
           input.retrievalPolicy ?? "include",
           input.sensitivity ?? "normal",
           input.isPinned === true ? 1 : 0,
@@ -1054,6 +1063,9 @@ export class SqliteIngestionRepository implements IngestionRepository {
             explicitness: candidate.explicitness,
             confidence: candidate.confidence,
             observedAt: candidate.observedAt,
+            validFrom: candidate.validFrom,
+            validTo: candidate.validTo,
+            reviewAfter: candidate.reviewAfter,
             changeKind: "corrected",
           },
           "user",
@@ -1069,6 +1081,9 @@ export class SqliteIngestionRepository implements IngestionRepository {
             explicitness: target.explicitness,
             confidence: Math.max(target.confidence, candidate.confidence),
             observedAt: candidate.observedAt,
+            validFrom: candidate.validFrom ?? target.validFrom,
+            validTo: candidate.validTo ?? target.validTo,
+            reviewAfter: candidate.reviewAfter ?? target.reviewAfter,
             changeKind: "reaffirmed",
           },
           "user",
@@ -1145,6 +1160,11 @@ export class SqliteIngestionRepository implements IngestionRepository {
         ...(candidate.observedAt === null
           ? {}
           : { observedAt: candidate.observedAt }),
+        ...(candidate.validFrom === null ? {} : { validFrom: candidate.validFrom }),
+        ...(candidate.validTo === null ? {} : { validTo: candidate.validTo }),
+        ...(candidate.reviewAfter === null
+          ? {}
+          : { reviewAfter: candidate.reviewAfter }),
         createdBy: actor === "user" ? "user" : "system",
         retrievalPolicy: candidate.retrievalPolicy,
         sensitivity: candidate.sensitivity,
@@ -1451,6 +1471,9 @@ export class SqliteIngestionRepository implements IngestionRepository {
       explicitness: row.explicitness,
       confidence: row.confidence,
       observedAt: row.observed_at,
+      validFrom: row.valid_from,
+      validTo: row.valid_to,
+      reviewAfter: row.review_after,
       retrievalPolicy: row.retrieval_policy,
       sensitivity: row.sensitivity,
       isPinned: row.is_pinned === 1,
@@ -1523,6 +1546,11 @@ export class SqliteIngestionRepository implements IngestionRepository {
       explicitness: candidate.explicitness,
       confidence: candidate.confidence,
       ...(candidate.observedAt === null ? {} : { observedAt: candidate.observedAt }),
+      ...(candidate.validFrom === null ? {} : { validFrom: candidate.validFrom }),
+      ...(candidate.validTo === null ? {} : { validTo: candidate.validTo }),
+      ...(candidate.reviewAfter === null
+        ? {}
+        : { reviewAfter: candidate.reviewAfter }),
       createdBy: actor === "user" ? "user" : "system",
       retrievalPolicy: candidate.retrievalPolicy,
       sensitivity: candidate.sensitivity,
@@ -1608,6 +1636,7 @@ export class SqliteIngestionRepository implements IngestionRepository {
     assertion: string,
     confidence: number,
   ): boolean {
+    const temporal = normalizeTemporalWindow(input);
     const evidence = input.evidence
       .map((item) => ({
         sourceRecordId: item.sourceRecordId,
@@ -1629,6 +1658,9 @@ export class SqliteIngestionRepository implements IngestionRepository {
       explicitness: candidate.explicitness,
       confidence: candidate.confidence,
       observedAt: candidate.observedAt,
+      validFrom: candidate.validFrom,
+      validTo: candidate.validTo,
+      reviewAfter: candidate.reviewAfter,
       retrievalPolicy: candidate.retrievalPolicy,
       sensitivity: candidate.sensitivity,
       isPinned: candidate.isPinned,
@@ -1645,6 +1677,9 @@ export class SqliteIngestionRepository implements IngestionRepository {
       explicitness: input.explicitness ?? "explicit",
       confidence,
       observedAt: input.observedAt ?? null,
+      validFrom: temporal.validFrom,
+      validTo: temporal.validTo,
+      reviewAfter: temporal.reviewAfter,
       retrievalPolicy: input.retrievalPolicy ?? "include",
       sensitivity: input.sensitivity ?? "normal",
       isPinned: input.isPinned === true,

@@ -27,6 +27,11 @@ import {
   sqlPlaceholders,
   toFtsQuery,
 } from "../search/fts-query.js";
+import {
+  normalizeTemporalWindow,
+  resolveAsOf,
+  temporalState,
+} from "../temporal/temporal-relevance.js";
 import type { MemoryRepository } from "./memory-repository.js";
 
 interface MemoryRow {
@@ -44,6 +49,9 @@ interface MemoryRow {
   explicitness: Explicitness;
   confidence: number;
   observed_at: string | null;
+  valid_from: string | null;
+  valid_to: string | null;
+  review_after: string | null;
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
@@ -62,6 +70,9 @@ interface MemoryRevisionRow {
   change_kind: MemoryChangeKind;
   previous_revision_id: string | null;
   observed_at: string | null;
+  valid_from: string | null;
+  valid_to: string | null;
+  review_after: string | null;
   created_by: MemoryActor;
   created_at: string;
 }
@@ -104,6 +115,9 @@ function mapMemory(row: MemoryRow): Memory {
     explicitness: row.explicitness,
     confidence: row.confidence,
     observedAt: row.observed_at,
+    validFrom: row.valid_from,
+    validTo: row.valid_to,
+    reviewAfter: row.review_after,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     deletedAt: row.deleted_at,
@@ -129,6 +143,9 @@ function mapRevision(row: MemoryRevisionRow): MemoryRevision {
     changeKind: row.change_kind,
     previousRevisionId: row.previous_revision_id,
     observedAt: row.observed_at,
+    validFrom: row.valid_from,
+    validTo: row.valid_to,
+    reviewAfter: row.review_after,
     createdBy: row.created_by,
     createdAt: row.created_at,
   };
@@ -218,6 +235,7 @@ export class SqliteMemoryRepository implements MemoryRepository {
   public create(input: CreateMemoryInput): Memory {
     const assertion = validateAssertion(input.assertion);
     const confidence = validateConfidence(input.confidence ?? 1);
+    const temporal = normalizeTemporalWindow(input);
 
     const memoryId = randomUUID();
     const revisionId = randomUUID();
@@ -244,8 +262,9 @@ export class SqliteMemoryRepository implements MemoryRepository {
         .prepare(
           `INSERT INTO memory_revisions (
              id, memory_id, revision_number, assertion, normalized_assertion,
-             explicitness, confidence, change_kind, observed_at, created_by
-           ) VALUES (?, ?, 1, ?, ?, ?, ?, 'created', ?, ?)`,
+             explicitness, confidence, change_kind, observed_at,
+             valid_from, valid_to, review_after, created_by
+           ) VALUES (?, ?, 1, ?, ?, ?, ?, 'created', ?, ?, ?, ?, ?)`,
         )
         .run(
           revisionId,
@@ -255,6 +274,9 @@ export class SqliteMemoryRepository implements MemoryRepository {
           input.explicitness ?? "explicit",
           confidence,
           input.observedAt ?? null,
+          temporal.validFrom,
+          temporal.validTo,
+          temporal.reviewAfter,
           createdBy,
         );
 
@@ -331,6 +353,9 @@ export class SqliteMemoryRepository implements MemoryRepository {
            r.explicitness,
            r.confidence,
            r.observed_at,
+           r.valid_from,
+           r.valid_to,
+           r.review_after,
            m.created_at,
            m.updated_at,
            m.deleted_at,
@@ -361,7 +386,8 @@ export class SqliteMemoryRepository implements MemoryRepository {
         `SELECT
            id, memory_id, revision_number, assertion, normalized_assertion,
            explicitness, confidence, change_kind, previous_revision_id,
-           observed_at, created_by, created_at
+           observed_at, valid_from, valid_to, review_after,
+           created_by, created_at
          FROM memory_revisions
          WHERE memory_id = ?
          ORDER BY revision_number ASC`,
@@ -390,6 +416,15 @@ export class SqliteMemoryRepository implements MemoryRepository {
           : input.normalizedAssertion;
       const observedAt =
         input.observedAt === undefined ? current.observedAt : input.observedAt;
+      const temporal = normalizeTemporalWindow({
+        validFrom:
+          input.validFrom === undefined ? current.validFrom : input.validFrom,
+        validTo: input.validTo === undefined ? current.validTo : input.validTo,
+        reviewAfter:
+          input.reviewAfter === undefined
+            ? current.reviewAfter
+            : input.reviewAfter,
+      });
       const changeKind = input.changeKind ?? "edited";
 
       this.database
@@ -397,8 +432,8 @@ export class SqliteMemoryRepository implements MemoryRepository {
           `INSERT INTO memory_revisions (
              id, memory_id, revision_number, assertion, normalized_assertion,
              explicitness, confidence, change_kind, previous_revision_id,
-             observed_at, created_by
-           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+             observed_at, valid_from, valid_to, review_after, created_by
+           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         )
         .run(
           revisionId,
@@ -411,6 +446,9 @@ export class SqliteMemoryRepository implements MemoryRepository {
           changeKind,
           current.revisionId,
           observedAt,
+          temporal.validFrom,
+          temporal.validTo,
+          temporal.reviewAfter,
           actor,
         );
 
@@ -865,6 +903,8 @@ export class SqliteMemoryRepository implements MemoryRepository {
     const allowedSensitivities = [
       ...new Set(query.allowedSensitivities ?? ["normal"]),
     ];
+    const asOf = resolveAsOf(query.asOf);
+    const includeOutOfWindow = query.includeOutOfWindow === true;
 
     if (
       ftsQuery === null ||
@@ -879,10 +919,18 @@ export class SqliteMemoryRepository implements MemoryRepository {
       FROM memory_search_fts
       JOIN memory_search_documents d ON d.rowid = memory_search_fts.rowid
       JOIN memory_items m ON m.id = d.memory_id
+      JOIN memory_revisions r ON r.id = m.current_revision_id
       WHERE memory_search_fts MATCH ?
         AND m.status = 'active'
         AND m.retrieval_policy = 'include'
         AND m.sensitivity IN (${sqlPlaceholders(allowedSensitivities)})
+        AND (
+          ? = 1
+          OR (
+            (r.valid_from IS NULL OR julianday(r.valid_from) <= julianday(?))
+            AND (r.valid_to IS NULL OR julianday(r.valid_to) >= julianday(?))
+          )
+        )
         AND EXISTS (
           SELECT 1
           FROM memory_scopes ms
@@ -898,6 +946,9 @@ export class SqliteMemoryRepository implements MemoryRepository {
         .all(
           ftsQuery,
           ...allowedSensitivities,
+          includeOutOfWindow ? 1 : 0,
+          asOf,
+          asOf,
           ...scopeIds,
           safeLimit,
         ) as RetrievalRow[];
@@ -914,6 +965,8 @@ export class SqliteMemoryRepository implements MemoryRepository {
         this.writeAudit(row.memory_id, "retrieved", "client", {
           query: query.text,
           scopeIds,
+          asOf,
+          includeOutOfWindow,
         });
       }
 
@@ -922,7 +975,15 @@ export class SqliteMemoryRepository implements MemoryRepository {
 
     return retrievalTransaction().flatMap((row, index) => {
       const memory = this.getById(row.memory_id);
-      return memory === null ? [] : [{ memory, rank: index + 1 }];
+      return memory === null
+        ? []
+        : [
+            {
+              memory,
+              rank: index + 1,
+              ...temporalState(memory, asOf),
+            },
+          ];
     });
   }
 

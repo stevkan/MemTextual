@@ -45,6 +45,11 @@ describe only the current design and behavior.
 - Changed unassessed ambient capture to fail closed as sensitive, prevented
   classifiers from lowering declared protection, and enforced both rules in
   the database while preserving schema-11 candidate state.
+- Added normalized temporal validity windows and non-destructive review dates
+  to candidates and immutable memory revisions, preserving schema-12 data.
+- Changed core and persona retrieval to exclude out-of-window memories by
+  default while supporting explicit as-of history with temporal and review-due
+  status; expiration never mutates or deletes memory state.
 
 ## 0.8.0 - 2026-10-12
 

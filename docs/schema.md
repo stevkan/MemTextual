@@ -53,6 +53,13 @@ immutable historical assertion about that concept.
 `memory_items.current_revision_id` selects the revision used for retrieval.
 The database requires that this revision belong to the same memory item.
 
+Revisions may carry inclusive `valid_from` and `valid_to` bounds plus a
+`review_after` hint. Migration 013 adds the review hint and the corresponding
+candidate fields. It preserves existing revision bounds, leaves new candidate
+bounds open, and marks no existing row due for review. The migration fails
+without committing if it encounters invalid legacy revision bounds. Triggers
+reject invalid timestamps and reversed validity windows on subsequent writes.
+
 ### Evidence
 
 An evidence link joins a revision to a source record and says whether the
@@ -163,12 +170,19 @@ A normal retrieval candidate must:
 - have `retrieval_policy = 'include'`;
 - have a current revision;
 - match at least one allowed scope; and
-- satisfy the caller's sensitivity policy.
+- satisfy the caller's sensitivity policy; and
+- fall within the current revision's validity window at the requested time,
+  unless the caller explicitly includes out-of-window results.
 
 Pinned items affect ranking, not access control. Protected items cannot be
 automatically edited, superseded, archived, or deleted; explicit user action is
 required. `exclude` is an absolute retrieval opt-out. `manual` means the item
 is returned only when specifically requested.
+
+Temporal filtering never changes lifecycle state or deletes a row. Explicit
+out-of-window retrieval reports whether a result is `not_yet_valid`, `current`,
+or `expired`; a due review date is reported separately and does not exclude the
+memory.
 
 ## Confidence and extraction
 

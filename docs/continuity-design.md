@@ -55,8 +55,13 @@ remain pending by default; the existing user-configured review policies are the
 only automatic-acceptance path, and accepted candidates are transactionally
 profiled as persona memories. Ambient sensitivity assessment is also in place:
 classifiers are provider-neutral and versioned, classifications cannot lower
-protection, and missing classification fails closed to sensitive. Extraction
-provider adapters and temporal relevance remain later Phase 3 work packages.
+protection, and missing classification fails closed to sensitive. Explicit
+validity windows and review dates now flow from ambient proposals through
+candidates into immutable memory revisions. Default retrieval excludes memories
+that are not yet valid or have expired, while an explicit historical query can
+include them with a temporal status; expiration never deletes or changes a
+memory's lifecycle state. Extraction provider adapters and host-event capture
+remain later Phase 3 integration work.
 
 ## Everyday data durability and recovery
 

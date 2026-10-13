@@ -40,8 +40,24 @@ test("migration and seed preserve schema integrity", () => {
     const violations = database.prepare("PRAGMA foreign_key_check").all();
 
     assert.equal(memoryCount.count, 10);
-    assert.equal(migrationCount.count, 12);
+    assert.equal(migrationCount.count, 13);
     assert.deepEqual(violations, []);
+    assert.throws(
+      () =>
+        database
+          .prepare(
+            `INSERT INTO memory_candidates (
+               id, memory_type, assertion, scope_id, proposed_by,
+               valid_from, valid_to
+             ) VALUES (
+               'invalid-temporal-candidate', 'fact', 'Invalid window.',
+               'scope_memtextual', 'system',
+               '2026-10-14T00:00:00.000Z', '2026-10-13T00:00:00.000Z'
+             )`,
+          )
+          .run(),
+      /Candidate temporal bounds are invalid/,
+    );
   } finally {
     database.close();
   }
@@ -151,12 +167,20 @@ test("ambient capture migration upgrades schema 10 without changing existing dat
       title: "Existing source",
       records: [{ kind: "message", content: "Existing evidence" }],
     });
-    const candidate = ingestion.proposeCandidate({
-      assertion: "Existing candidate",
-      type: "fact",
-      scopeId: persona.relationship.scopeId,
-      evidence: [{ sourceRecordId: imported.records[0]!.id }],
-    });
+    const candidateId = "schema-10-candidate";
+    oldDatabase
+      .prepare(
+        `INSERT INTO memory_candidates (
+           id, memory_type, assertion, scope_id, proposed_by
+         ) VALUES (?, 'fact', 'Existing candidate', ?, 'system')`,
+      )
+      .run(candidateId, persona.relationship.scopeId);
+    oldDatabase
+      .prepare(
+        `INSERT INTO candidate_evidence (candidate_id, source_record_id)
+         VALUES (?, ?)`,
+      )
+      .run(candidateId, imported.records[0]!.id);
     oldDatabase.close();
 
     const upgraded = openMemTextualDatabase({
@@ -167,7 +191,7 @@ test("ambient capture migration upgrades schema 10 without changing existing dat
       assert.deepEqual(
         upgraded
           .prepare("SELECT assertion, status FROM memory_candidates WHERE id = ?")
-          .get(candidate.id),
+          .get(candidateId),
         { assertion: "Existing candidate", status: "pending" },
       );
       assert.equal(
@@ -235,14 +259,23 @@ test("ambient sensitivity migration preserves schema 11 candidates", () => {
       title: "Existing ambient source",
       records: [{ kind: "message", content: "Existing ambient evidence" }],
     });
-    const candidate = ingestion.proposeCandidate({
-      assertion: "Existing ambient candidate",
-      type: "fact",
-      scopeId: persona.relationship.scopeId,
-      evidence: [{ sourceRecordId: imported.records[0]!.id }],
-      proposedBy: "extractor",
-      proposerId: "existing.extractor",
-    });
+    const candidateId = "schema-11-candidate";
+    oldDatabase
+      .prepare(
+        `INSERT INTO memory_candidates (
+           id, memory_type, assertion, scope_id, proposed_by, proposer_id
+         ) VALUES (
+           ?, 'fact', 'Existing ambient candidate', ?, 'extractor',
+           'existing.extractor'
+         )`,
+      )
+      .run(candidateId, persona.relationship.scopeId);
+    oldDatabase
+      .prepare(
+        `INSERT INTO candidate_evidence (candidate_id, source_record_id)
+         VALUES (?, ?)`,
+      )
+      .run(candidateId, imported.records[0]!.id);
     oldDatabase
       .prepare(
         `INSERT INTO ambient_candidate_profiles (
@@ -251,7 +284,7 @@ test("ambient sensitivity migration preserves schema 11 candidates", () => {
          ) VALUES (?, ?, ?, ?, ?, 'durable', 'existing.extractor', '1')`,
       )
       .run(
-        candidate.id,
+        candidateId,
         imported.source.id,
         user.id,
         persona.persona.id,
@@ -274,7 +307,7 @@ test("ambient sensitivity migration preserves schema 11 candidates", () => {
                sensitivity_reason_codes_json AS reasons
              FROM ambient_candidate_profiles WHERE candidate_id = ?`,
           )
-          .get(candidate.id),
+          .get(candidateId),
         {
           status: "legacy_unassessed",
           declared: null,
@@ -285,6 +318,84 @@ test("ambient sensitivity migration preserves schema 11 candidates", () => {
       assert.deepEqual(
         upgraded.prepare("SELECT name FROM schema_migrations WHERE version = 12").get(),
         { name: "ambient_sensitivity_assessment_v0.9" },
+      );
+      assert.deepEqual(upgraded.prepare("PRAGMA foreign_key_check").all(), []);
+    } finally {
+      upgraded.close();
+    }
+  } finally {
+    rmSync(temporaryDirectory, { force: true, recursive: true });
+  }
+});
+
+test("temporal relevance migration preserves schema 12 candidates", () => {
+  const temporaryDirectory = mkdtempSync(join(tmpdir(), "memtextual-temporal-"));
+  const oldMigrations = join(temporaryDirectory, "old-migrations");
+  const databasePath = join(temporaryDirectory, "schema-12.db");
+  mkdirSync(oldMigrations);
+  for (const filename of [
+    "001_initial.sql",
+    "002_ingestion_candidates.sql",
+    "003_review_automation.sql",
+    "004_legacy_memory_migration.sql",
+    "005_candidate_resolution.sql",
+    "006_source_versioning.sql",
+    "007_memory_deletion_purge.sql",
+    "008_source_series_deletion_purge.sql",
+    "009_persona_foundations.sql",
+    "010_persona_memory_classes.sql",
+    "011_ambient_capture.sql",
+    "012_ambient_sensitivity.sql",
+  ]) {
+    copyFileSync(resolve("migrations", filename), join(oldMigrations, filename));
+  }
+
+  try {
+    const oldDatabase = openMemTextualDatabase({
+      filename: databasePath,
+      migrationsDirectory: oldMigrations,
+    });
+    oldDatabase
+      .prepare(
+        `INSERT INTO scopes (id, scope_kind, name)
+         VALUES ('temporal-upgrade-scope', 'project', 'Temporal upgrade')`,
+      )
+      .run();
+    oldDatabase
+      .prepare(
+        `INSERT INTO memory_candidates (
+           id, memory_type, assertion, scope_id, proposed_by, observed_at
+         ) VALUES (
+           'temporal-upgrade-candidate', 'fact', 'Preserve temporal candidate.',
+           'temporal-upgrade-scope', 'system', '2026-10-01T00:00:00.000Z'
+         )`,
+      )
+      .run();
+    oldDatabase.close();
+
+    const upgraded = openMemTextualDatabase({
+      filename: databasePath,
+      migrationsDirectory: resolve("migrations"),
+    });
+    try {
+      assert.deepEqual(
+        upgraded
+          .prepare(
+            `SELECT assertion, observed_at, valid_from, valid_to, review_after
+             FROM memory_candidates WHERE id = 'temporal-upgrade-candidate'`,
+          )
+          .get(),
+        {
+          assertion: "Preserve temporal candidate.",
+          observed_at: "2026-10-01T00:00:00.000Z",
+          valid_from: null,
+          valid_to: null,
+          review_after: null,
+        },
+      );
+      assert.deepEqual(
+        upgraded.prepare("SELECT name FROM schema_migrations WHERE version = 13").get(),
+        { name: "temporal_relevance_v0.9" },
       );
       assert.deepEqual(upgraded.prepare("PRAGMA foreign_key_check").all(), []);
     } finally {
@@ -380,6 +491,9 @@ test("review automation migration upgrades an existing candidate database", () =
       const ambientSensitivityMigration = upgraded
         .prepare("SELECT name FROM schema_migrations WHERE version = 12")
         .get() as { name: string };
+      const temporalRelevanceMigration = upgraded
+        .prepare("SELECT name FROM schema_migrations WHERE version = 13")
+        .get() as { name: string };
 
       assert.equal(candidate.assertion, "Preserve this candidate.");
       assert.equal(candidate.proposer_id, null);
@@ -407,6 +521,7 @@ test("review automation migration upgrades an existing candidate database", () =
         ambientSensitivityMigration.name,
         "ambient_sensitivity_assessment_v0.9",
       );
+      assert.equal(temporalRelevanceMigration.name, "temporal_relevance_v0.9");
       assert.deepEqual(
         upgraded
           .prepare(

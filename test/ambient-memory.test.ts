@@ -90,6 +90,8 @@ test("ambient capture creates pending, persona-isolated, idempotent candidates",
         type: "preference",
         memoryClass: "durable",
         evidence: [{ sourceRecordId: records[0]!.id }],
+        validFrom: "2026-10-01T00:00:00-07:00",
+        reviewAfter: "2026-10-10T00:00:00-07:00",
       },
     ],
   };
@@ -116,6 +118,8 @@ test("ambient capture creates pending, persona-isolated, idempotent candidates",
     assert.equal(first.candidates[0]?.status, "pending");
     assert.equal(first.candidates[0]?.explicitness, "inferred");
     assert.equal(first.candidates[0]?.sensitivity, "sensitive");
+    assert.equal(first.candidates[0]?.validFrom, "2026-10-01T07:00:00.000Z");
+    assert.equal(first.candidates[0]?.reviewAfter, "2026-10-10T07:00:00.000Z");
     assert.equal(first.candidates[0]?.scopeId, setup.skylar.relationship.scopeId);
     assert.equal(setup.continuity.listForPersona(setup.skylar.persona.id).length, 0);
     assert.equal(setup.continuity.listForPersona(setup.advisor.persona.id).length, 0);
@@ -170,6 +174,8 @@ test("ambient capture creates pending, persona-isolated, idempotent candidates",
       "durable",
     );
     assert.equal(accepted.memory.sensitivity, "sensitive");
+    assert.equal(accepted.memory.validFrom, "2026-10-01T07:00:00.000Z");
+    assert.equal(accepted.memory.reviewAfter, "2026-10-10T07:00:00.000Z");
     assert.deepEqual(
       setup.continuity.retrieve({
         personaId: setup.skylar.persona.id,

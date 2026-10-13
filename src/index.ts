@@ -28,6 +28,7 @@ export {
   type Scope,
   type ScopeKind,
   type Sensitivity,
+  type TemporalStatus,
 } from "./domain/memory.js";
 export {
   personaMemoryClasses,

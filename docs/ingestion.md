@@ -68,7 +68,10 @@ Every candidate requires:
 - one or more unique evidence links; and
 - a confidence from 0 through 1.
 
-Optional memory controls—retrieval policy, sensitivity, pinning, and protection—are stored on the candidate and copied to the accepted memory.
+Optional memory controls—retrieval policy, sensitivity, pinning, protection,
+validity bounds, and a review date—are stored on the candidate and copied to the
+accepted memory. Temporal timestamps are normalized to UTC, invalid or reversed
+windows are rejected, and omitted bounds remain open-ended.
 
 ## Review authorization
 

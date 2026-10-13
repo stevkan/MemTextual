@@ -18,6 +18,10 @@ import type {
 import type { Sensitivity } from "../domain/memory.js";
 import type { PersonaRepository } from "../repositories/persona-repository.js";
 import type { IngestionService } from "./ingestion-service.js";
+import {
+  normalizeTemporalWindow,
+  type NormalizedTemporalWindow,
+} from "../temporal/temporal-relevance.js";
 
 function requiredText(value: string, label: string): string {
   const normalized = value.trim();
@@ -50,6 +54,7 @@ function candidateExternalId(
   extractorVersion: string,
   proposal: AmbientMemoryProposal,
   sensitivityAssessment: AmbientSensitivityAssessmentContext,
+  temporal: NormalizedTemporalWindow,
 ): string {
   const evidence = proposal.evidence
     .map((item) => ({
@@ -71,6 +76,7 @@ function candidateExternalId(
         memoryClass: proposal.memoryClass,
         evidence,
         sensitivityAssessment,
+        temporal,
       }),
     )
     .digest("hex");
@@ -236,12 +242,14 @@ export class AmbientMemoryService {
         declaredSensitivity,
         sensitivityAssessment.assessedSensitivity,
       );
+      const temporal = normalizeTemporalWindow(proposal);
       const externalId = candidateExternalId(
         imported.source.id,
         this.extractorId,
         this.extractorVersion,
         proposal,
         sensitivityAssessment,
+        temporal,
       );
       return {
         proposal,
@@ -249,12 +257,20 @@ export class AmbientMemoryService {
         externalId,
         sensitivity,
         sensitivityAssessment,
+        temporal,
       };
     });
 
     let createdCandidateCount = 0;
     const candidates = prepared.map(
-      ({ proposal, evidence, externalId, sensitivity, sensitivityAssessment }) => {
+      ({
+        proposal,
+        evidence,
+        externalId,
+        sensitivity,
+        sensitivityAssessment,
+        temporal,
+      }) => {
         if (this.ingestion.getCandidateByExternalId(externalId) === null) {
           createdCandidateCount += 1;
         }
@@ -272,6 +288,11 @@ export class AmbientMemoryService {
           ...(proposal.observedAt === undefined
             ? {}
             : { observedAt: proposal.observedAt }),
+          ...(temporal.validFrom === null ? {} : { validFrom: temporal.validFrom }),
+          ...(temporal.validTo === null ? {} : { validTo: temporal.validTo }),
+          ...(temporal.reviewAfter === null
+            ? {}
+            : { reviewAfter: temporal.reviewAfter }),
           retrievalPolicy: proposal.retrievalPolicy ?? "include",
           sensitivity,
           isPinned: proposal.isPinned ?? false,

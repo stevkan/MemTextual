@@ -2,7 +2,7 @@
 
 MemTextual Continuity models the local user, each persona, and the relationship
 between that user and persona as separate durable records with separate scopes.
-These are the Phase 2 foundations. Ambient capture remains a later phase.
+These are the Phase 2 foundations used by the Phase 3 ambient-capture boundary.
 
 ## Scope hierarchy
 
@@ -62,16 +62,22 @@ Permanent memory purge removes the profile and records it in the purge receipt.
 ## Persona-aware retrieval
 
 `ContinuityMemoryService.retrieve` accepts a persona ID, search text, optional
-memory classes, allowed sensitivities, and a bounded result limit. It does not
-accept scope IDs. The repository resolves the persona's relationship internally
-and searches only active, included, profiled memories owned by that persona and
-bound to that relationship's primary scope.
+memory classes, allowed sensitivities, an optional `asOf` time,
+`includeOutOfWindow`, and a bounded result limit. It does not accept scope IDs.
+The repository resolves the persona's relationship internally and searches only
+active, included, profiled memories owned by that persona and bound to that
+relationship's primary scope.
 
 Normal sensitivity is the default. Both episodic and durable memories are
 eligible unless the caller narrows the classes. Memories belonging to another
 persona, unprofiled developer memories, excluded/manual memories, deleted or
 archived memories, and disallowed sensitivities are not returned and do not
 receive retrieval-use or audit events.
+
+Default retrieval also excludes memories that are not yet valid or have
+expired. An explicit out-of-window query returns them with a temporal status.
+Overdue review dates are reported as `reviewDue` but do not suppress results or
+change memory state.
 
 The normal default applies to retrieval and explicit core-memory creation, not
 unassessed ambient extraction. Ambient proposals without a completed

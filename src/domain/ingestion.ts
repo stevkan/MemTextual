@@ -162,6 +162,9 @@ export interface ProposeMemoryCandidateInput {
   explicitness?: Explicitness;
   confidence?: number;
   observedAt?: string;
+  validFrom?: string;
+  validTo?: string;
+  reviewAfter?: string;
   retrievalPolicy?: RetrievalPolicy;
   sensitivity?: Sensitivity;
   isPinned?: boolean;
@@ -205,6 +208,9 @@ export interface MemoryCandidate {
   explicitness: Explicitness;
   confidence: number;
   observedAt: string | null;
+  validFrom: string | null;
+  validTo: string | null;
+  reviewAfter: string | null;
   retrievalPolicy: RetrievalPolicy;
   sensitivity: Sensitivity;
   isPinned: boolean;

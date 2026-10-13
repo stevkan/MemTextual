@@ -29,10 +29,12 @@ retrieve(query: RetrievalQuery): RetrievalResult[];
 A revision creates a new immutable `memory_revisions` row and points the memory
 item at it. The previous revision remains available through `getHistory`.
 
-Omitted `normalizedAssertion`, `explicitness`, `confidence`, and `observedAt`
-values inherit from the current revision. Supplying `null` for nullable fields
-clears them. Each revision updates the FTS search document and writes a
-`revised` audit event in the same transaction.
+Omitted `normalizedAssertion`, `explicitness`, `confidence`, `observedAt`,
+`validFrom`, `validTo`, and `reviewAfter` values inherit from the current
+revision. Supplying `null` for nullable fields clears them. Temporal timestamps
+must be ISO 8601 values with a timezone and are normalized to UTC. Each revision
+updates the FTS search document and writes a `revised` audit event in the same
+transaction.
 
 ## Protected memories
 
@@ -75,15 +77,20 @@ Normal retrieval requires all of the following:
 - at least one caller-authorized scope;
 - status `active`;
 - retrieval policy `include`; and
-- sensitivity included in the caller's allowed sensitivity set.
+- sensitivity included in the caller's allowed sensitivity set; and
+- a current revision valid at `asOf`, unless `includeOutOfWindow` is explicitly
+  enabled.
 
 If no sensitivity set is supplied, only `normal` memories are eligible. Scope
 matching is exact; hierarchical scope inheritance is not implemented.
 
 Matching pinned memories sort ahead of matching unpinned memories. FTS relevance
-and update time break ties. Returned results have one-based ranks. Every result
-increments its use count, updates its last-used time, and writes a `retrieved`
-audit event in the same transaction.
+and update time break ties. Returned results have one-based ranks plus
+`temporalStatus` and `reviewDue`. `asOf` defaults to the current time. Expired
+and not-yet-valid memories remain stored and retain their lifecycle state;
+`includeOutOfWindow` supports explicit historical or review queries. Every
+result increments its use count, updates its last-used time, and writes a
+`retrieved` audit event in the same transaction.
 
 ## Current limitations
 

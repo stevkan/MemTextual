@@ -24,6 +24,7 @@ export type MemoryStatus = (typeof memoryStatuses)[number];
 export type RetrievalPolicy = "include" | "exclude" | "manual";
 export type Sensitivity = "normal" | "sensitive" | "restricted";
 export type Explicitness = "explicit" | "inferred";
+export type TemporalStatus = "current" | "not_yet_valid" | "expired";
 export type MemoryActor = "user" | "extractor" | "system" | "import";
 export type MemoryChangeKind =
   | "created"
@@ -73,6 +74,9 @@ export interface Memory {
   explicitness: Explicitness;
   confidence: number;
   observedAt: string | null;
+  validFrom: string | null;
+  validTo: string | null;
+  reviewAfter: string | null;
   createdAt: string;
   updatedAt: string;
   deletedAt: string | null;
@@ -118,6 +122,9 @@ export interface CreateMemoryInput {
   explicitness?: Explicitness;
   confidence?: number;
   observedAt?: string;
+  validFrom?: string;
+  validTo?: string;
+  reviewAfter?: string;
   createdBy?: MemoryActor;
   retrievalPolicy?: RetrievalPolicy;
   sensitivity?: Sensitivity;
@@ -136,6 +143,9 @@ export interface MemoryRevision {
   changeKind: MemoryChangeKind;
   previousRevisionId: string | null;
   observedAt: string | null;
+  validFrom: string | null;
+  validTo: string | null;
+  reviewAfter: string | null;
   createdBy: MemoryActor;
   createdAt: string;
 }
@@ -146,6 +156,9 @@ export interface ReviseMemoryInput {
   explicitness?: Explicitness;
   confidence?: number;
   observedAt?: string | null;
+  validFrom?: string | null;
+  validTo?: string | null;
+  reviewAfter?: string | null;
   sourceRecordId?: string;
   changeKind?: Exclude<MemoryChangeKind, "created" | "superseded">;
 }
@@ -159,10 +172,14 @@ export interface RetrievalQuery {
   text: string;
   scopeIds: string[];
   allowedSensitivities?: Sensitivity[];
+  asOf?: string;
+  includeOutOfWindow?: boolean;
   limit?: number;
 }
 
 export interface RetrievalResult {
   memory: Memory;
   rank: number;
+  temporalStatus: TemporalStatus;
+  reviewDue: boolean;
 }

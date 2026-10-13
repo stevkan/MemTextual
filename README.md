@@ -29,6 +29,7 @@ The system provides:
 - explicit episodic and durable persona-memory classes;
 - persona-aware retrieval with default-deny cross-persona isolation;
 - provider-neutral ambient extraction into persona-bound review candidates;
+- explicit temporal validity, non-destructive review hints, and as-of retrieval;
 - sensitivity, retrieval, pinning, and protection controls;
 - policy-aware FTS5 retrieval and retrieval audits;
 - a trusted terminal workflow for candidate review;
@@ -86,6 +87,7 @@ python -m sqlite3 memtextual.db ".read migrations/009_persona_foundations.sql"
 python -m sqlite3 memtextual.db ".read migrations/010_persona_memory_classes.sql"
 python -m sqlite3 memtextual.db ".read migrations/011_ambient_capture.sql"
 python -m sqlite3 memtextual.db ".read migrations/012_ambient_sensitivity.sql"
+python -m sqlite3 memtextual.db ".read migrations/013_temporal_relevance.sql"
 python -m sqlite3 memtextual.db ".read examples/seed-v0.1.sql"
 ```
 
@@ -126,6 +128,9 @@ relationship and evidence. It defaults extracted claims to inferred and pending;
 only explicit review or an existing user-configured policy can accept them. A
 versioned sensitivity classifier may assess proposals; absent assessment fails
 closed to sensitive, and classification can never lower declared protection.
+Explicit validity windows and review dates survive candidate acceptance;
+default retrieval excludes out-of-window memories without deleting them and
+explicit historical retrieval reports their temporal state.
 
 Before a release applies new migrations to a real database, use the safeguard
 workflow in `docs/migration-safety.md`. It creates an online SQLite backup, a

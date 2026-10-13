@@ -252,6 +252,7 @@ test("persona-aware retrieval excludes other personas and unprofiled memories", 
     const normal = setup.continuity.retrieve({
       personaId: skylar.persona.id,
       text: "oranges",
+      asOf: "2026-10-13T12:00:00.000Z",
     });
     assert.deepEqual(
       normal.map(({ personaMemory }) => personaMemory.memory.id).sort(),
@@ -308,7 +309,59 @@ test("persona-aware retrieval excludes other personas and unprofiled memories", 
       personaId: skylar.persona.id,
       relationshipId: skylar.relationship.id,
       memoryClasses: ["episodic", "durable"],
+      asOf: "2026-10-13T12:00:00.000Z",
+      includeOutOfWindow: false,
     });
+  } finally {
+    setup.database.close();
+  }
+});
+
+test("persona retrieval excludes out-of-window memories without deleting them", () => {
+  const setup = fixture();
+  try {
+    const user = setup.personas.createUser({ displayName: "Steve" });
+    const persona = setup.personas.createPersona({ userId: user.id, name: "Skylar" });
+    const current = setup.continuity.create({
+      personaId: persona.persona.id,
+      memoryClass: "durable",
+      assertion: "Schedule detail remains temporally current.",
+      type: "fact",
+      validTo: "2026-10-20T00:00:00Z",
+      reviewAfter: "2026-10-12T00:00:00Z",
+    });
+    const expired = setup.continuity.create({
+      personaId: persona.persona.id,
+      memoryClass: "episodic",
+      assertion: "Schedule detail is temporally expired.",
+      type: "fact",
+      validTo: "2026-10-12T00:00:00Z",
+    });
+
+    const active = setup.continuity.retrieve({
+      personaId: persona.persona.id,
+      text: "schedule detail temporally",
+      asOf: "2026-10-13T00:00:00Z",
+    });
+    assert.deepEqual(
+      active.map(({ personaMemory }) => personaMemory.memory.id),
+      [current.memory.id],
+    );
+    assert.equal(active[0]?.temporalStatus, "current");
+    assert.equal(active[0]?.reviewDue, true);
+
+    const all = setup.continuity.retrieve({
+      personaId: persona.persona.id,
+      text: "schedule detail temporally",
+      asOf: "2026-10-13T00:00:00Z",
+      includeOutOfWindow: true,
+    });
+    assert.equal(
+      all.find(({ personaMemory }) => personaMemory.memory.id === expired.memory.id)
+        ?.temporalStatus,
+      "expired",
+    );
+    assert.equal(setup.continuity.getById(expired.memory.id)?.memory.status, "active");
   } finally {
     setup.database.close();
   }

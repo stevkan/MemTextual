@@ -62,6 +62,10 @@ Read tools advertise read-only annotations. Lifecycle removals advertise
 destructive annotations. All tools advertise a closed-world hint because this
 server uses only the local database.
 
+`memory_retrieve` uses the current time and excludes expired or not-yet-valid
+memories. The TypeScript library currently owns explicit `asOf` and
+`includeOutOfWindow` queries; those controls are not yet exposed through MCP.
+
 ## Protected memories
 
 MCP calls use the `system` actor. They cannot assert that a user explicitly

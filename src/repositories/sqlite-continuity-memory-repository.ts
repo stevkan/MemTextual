@@ -15,6 +15,7 @@ import {
 } from "../search/fts-query.js";
 import type { ContinuityMemoryRepository } from "./continuity-memory-repository.js";
 import type { MemoryRepository } from "./memory-repository.js";
+import { resolveAsOf, temporalState } from "../temporal/temporal-relevance.js";
 
 interface PersonaMemoryContextRow {
   user_id: string;
@@ -145,6 +146,8 @@ export class SqliteContinuityMemoryRepository
     const allowedSensitivities = [
       ...new Set(query.allowedSensitivities ?? ["normal"]),
     ];
+    const asOf = resolveAsOf(query.asOf);
+    const includeOutOfWindow = query.includeOutOfWindow === true;
     if (
       memoryClasses.some(
         (memoryClass) => !personaMemoryClasses.includes(memoryClass),
@@ -168,6 +171,7 @@ export class SqliteContinuityMemoryRepository
       JOIN memory_search_documents document
         ON document.rowid = memory_search_fts.rowid
       JOIN memory_items memory ON memory.id = document.memory_id
+      JOIN memory_revisions revision ON revision.id = memory.current_revision_id
       JOIN continuity_memory_profiles profile
         ON profile.memory_id = memory.id
       JOIN continuity_relationships relationship
@@ -180,6 +184,19 @@ export class SqliteContinuityMemoryRepository
         AND memory.status = 'active'
         AND memory.retrieval_policy = 'include'
         AND memory.sensitivity IN (${sqlPlaceholders(allowedSensitivities)})
+        AND (
+          ? = 1
+          OR (
+            (
+              revision.valid_from IS NULL
+              OR julianday(revision.valid_from) <= julianday(?)
+            )
+            AND (
+              revision.valid_to IS NULL
+              OR julianday(revision.valid_to) >= julianday(?)
+            )
+          )
+        )
         AND EXISTS (
           SELECT 1
           FROM memory_scopes binding
@@ -200,6 +217,9 @@ export class SqliteContinuityMemoryRepository
           context.relationship_scope_id,
           ...memoryClasses,
           ...allowedSensitivities,
+          includeOutOfWindow ? 1 : 0,
+          asOf,
+          asOf,
           safeLimit,
         ) as ContinuityRetrievalRow[];
       const retrievedAt = new Date().toISOString();
@@ -225,6 +245,8 @@ export class SqliteContinuityMemoryRepository
               personaId: context.persona_id,
               relationshipId: context.relationship_id,
               memoryClasses,
+              asOf,
+              includeOutOfWindow,
             }),
             retrievedAt,
           );
@@ -232,10 +254,14 @@ export class SqliteContinuityMemoryRepository
       return rows;
     });
 
-    return retrieve().map((row, index) => ({
-      personaMemory: this.requireProfile(row.memory_id),
-      rank: index + 1,
-    }));
+    return retrieve().map((row, index) => {
+      const personaMemory = this.requireProfile(row.memory_id);
+      return {
+        personaMemory,
+        rank: index + 1,
+        ...temporalState(personaMemory.memory, asOf),
+      };
+    });
   }
 
   private requirePersonaContext(personaId: string): PersonaMemoryContextRow {

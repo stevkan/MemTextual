@@ -59,15 +59,30 @@ become an unprofiled Continuity memory through the supported path.
 
 Candidate external IDs are derived from the immutable source version,
 extractor ID/version, assertion, type, memory class, evidence, and sensitivity
-assessment. Reprocessing the same extraction and assessment reuses the existing
-candidate and review state. Changed source or classifier versions preserve new
-provenance rather than rewriting an earlier candidate.
+assessment, and normalized temporal fields. Reprocessing the same extraction
+and assessment reuses the existing candidate and review state. Changed source,
+classifier, or temporal values preserve new provenance rather than rewriting an
+earlier candidate.
+
+## Temporal relevance
+
+An extractor may supply `validFrom`, `validTo`, and `reviewAfter` as ISO 8601
+timestamps with a timezone. MemTextual normalizes them to UTC, rejects invalid
+timestamps and reversed validity windows, and copies them through the candidate
+into the accepted immutable revision. Database triggers guard candidate and
+revision writes, including callers outside the TypeScript service.
+
+Validity and review are separate. Normal retrieval excludes a memory before
+`validFrom` and after `validTo`. A caller may explicitly include out-of-window
+results for history or review; each result reports `current`, `not_yet_valid`,
+or `expired`. `reviewAfter` only sets `reviewDue`; it does not hide, rewrite,
+archive, or delete the memory. Validity bounds are inclusive.
 
 ## Current boundary
 
-This package defines and validates the capture contract; it does not include an
-LLM, built-in extraction or sensitivity model, rules engine, host event listener,
-temporal relevance model, background scheduler, graphical review UI, or MCP
-tool. Provider adapters must be configured by a trusted host and must use stable
-IDs and versions. Ordinary chat platforms still need an authorized integration
-to deliver interactions to this service.
+This package defines and validates the capture and explicit temporal contracts;
+it does not include an LLM, built-in extraction or sensitivity model, temporal
+inference model, rules engine, host event listener, background scheduler,
+graphical review UI, or MCP tool. Provider adapters must be configured by a
+trusted host and must use stable IDs and versions. Ordinary chat platforms
+still need an authorized integration to deliver interactions to this service.

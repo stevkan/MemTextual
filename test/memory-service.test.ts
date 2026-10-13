@@ -197,6 +197,73 @@ test("retrieval enforces scope and sensitivity and records use", () => {
   }
 });
 
+test("retrieval enforces temporal windows and reports review status", () => {
+  const { database, service } = serviceFixture();
+  try {
+    const current = service.create({
+      assertion: "Temporal fixture is currently valid.",
+      type: "fact",
+      scopeId: "scope_memtextual",
+      validFrom: "2026-10-01T00:00:00-07:00",
+      validTo: "2026-11-01T00:00:00-07:00",
+      reviewAfter: "2026-10-10T00:00:00-07:00",
+    });
+    const expired = service.create({
+      assertion: "Temporal fixture has expired.",
+      type: "fact",
+      scopeId: "scope_memtextual",
+      validTo: "2026-10-12T00:00:00-07:00",
+    });
+    const future = service.create({
+      assertion: "Temporal fixture is not active yet.",
+      type: "fact",
+      scopeId: "scope_memtextual",
+      validFrom: "2026-10-14T00:00:00-07:00",
+    });
+
+    assert.equal(current.validFrom, "2026-10-01T07:00:00.000Z");
+    const defaultResults = service.retrieve({
+      text: "temporal fixture",
+      scopeIds: ["scope_memtextual"],
+      asOf: "2026-10-13T12:00:00-07:00",
+    });
+    assert.deepEqual(
+      defaultResults.map(({ memory }) => memory.id),
+      [current.id],
+    );
+    assert.equal(defaultResults[0]?.temporalStatus, "current");
+    assert.equal(defaultResults[0]?.reviewDue, true);
+
+    const historical = service.retrieve({
+      text: "temporal fixture",
+      scopeIds: ["scope_memtextual"],
+      asOf: "2026-10-13T12:00:00-07:00",
+      includeOutOfWindow: true,
+    });
+    const states = new Map(
+      historical.map(({ memory, temporalStatus }) => [memory.id, temporalStatus]),
+    );
+    assert.equal(states.get(current.id), "current");
+    assert.equal(states.get(expired.id), "expired");
+    assert.equal(states.get(future.id), "not_yet_valid");
+
+    assert.throws(
+      () =>
+        service.create({
+          assertion: "Invalid temporal bounds.",
+          type: "fact",
+          scopeId: "scope_memtextual",
+          validFrom: "2026-10-14T00:00:00Z",
+          validTo: "2026-10-13T00:00:00Z",
+        }),
+      /validTo must not be earlier/u,
+    );
+    assert.deepEqual(database.prepare("PRAGMA foreign_key_check").all(), []);
+  } finally {
+    database.close();
+  }
+});
+
 test("superseding and contradicting memories create directional relations", () => {
   const { database, service } = serviceFixture();
 
