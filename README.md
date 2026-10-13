@@ -31,6 +31,7 @@ The system provides:
 - provider-neutral ambient extraction into persona-bound review candidates;
 - strict asynchronous extraction-provider and authorized host-event adapters;
 - an explicit, persona-scoped user-control service for review and lifecycle actions;
+- a local, persona-bound Continuity control console for review and inspection;
 - explicit temporal validity, non-destructive review hints, and as-of retrieval;
 - sensitivity, retrieval, pinning, and protection controls;
 - policy-aware FTS5 retrieval and retrieval audits;
@@ -52,6 +53,7 @@ docs/ingestion.md          Source ingestion and candidate review contract
 docs/legacy-migration.md   Legacy export format and migration workflow
 docs/continuity-design.md  Continuity product plan and non-destructive contract
 docs/continuity-control.md Persona-scoped review and lifecycle control contract
+docs/continuity-console.md Local graphical review and memory-inspection console
 docs/personas.md           Continuity identity and persona-scope foundations
 docs/ambient-memory.md     Persona-bound ambient candidate capture contract
 docs/host-capture.md       Explicitly authorized host-event capture contract
@@ -114,6 +116,7 @@ npm run policy -- list --database .\data\memtextual.db --migrations .\migrations
 npm run migrate -- --file .\legacy-memories.json --scope PROJECT_SCOPE_ID --database .\data\memtextual.db --migrations .\migrations
 npm run safeguard -- snapshot -- --database .\data\memtextual.db --output .\backups
 npm run privacy -- preview --id MEMORY_ID --database .\data\memtextual.db --migrations .\migrations
+npm run continuity -- --persona PERSONA_ID --database .\data\memtextual.db --migrations .\migrations
 ```
 
 The SQLite adapter applies pending numbered migrations when it opens a writable
@@ -131,6 +134,10 @@ accepting caller-selected scope IDs.
 evidence, revision history, correction, pin/protect controls, lifecycle actions,
 and privacy operations. Every mutation requires an explicit user action, and
 cross-persona candidates and memory targets are rejected before delegation.
+The `memtextual-continuity` CLI adds a local browser console for one selected
+persona. It uses a per-launch bearer token, binds only to `127.0.0.1`, and
+supports evidence-backed candidate acceptance or rejection plus memory history,
+pinning, protection, archive, and restore controls.
 `AmbientMemoryService` imports a recorded interaction, invokes a configured
 versioned extractor, and creates idempotent candidates bound to that persona's
 relationship and evidence. It defaults extracted claims to inferred and pending;
@@ -154,7 +161,8 @@ upgraded copy without rejecting additive schema changes.
 ## Deliberately deferred
 
 Concrete vendor extractor and host-event clients, vendor-specific legacy-export
-adapters, a trusted graphical candidate-review UI, standalone-source deletion,
+adapters, graphical correction/export/deletion workflows, standalone-source
+deletion,
 backup-retention enforcement, resumable imports, streamable HTTP, REST API,
 admin UI, embedding provider, host-specific installers, and the broader
 packaging strategy remain open.

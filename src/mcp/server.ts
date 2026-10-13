@@ -62,6 +62,11 @@ export const mcpCapabilityCatalog = [
     status: "implemented",
     interface: "cli",
   },
+  {
+    name: "continuity_control_console",
+    status: "implemented",
+    interface: "cli",
+  },
 ] as const;
 
 export const mcpToolCatalog = [

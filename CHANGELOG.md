@@ -61,6 +61,12 @@ describe only the current design and behavior.
   lifecycle, and privacy operations.
 - Added explicit audited pinning and protection mutations and required explicit
   user action for every Continuity control change.
+- Added a dependency-free local Continuity control console with a persona-bound
+  review queue, evidence and history inspection, candidate acceptance or
+  rejection, and pin, protect, archive, and restore controls.
+- Bound the console to IPv4 loopback with per-launch bearer authorization,
+  same-origin mutation checks, host validation, restrictive browser headers,
+  and a token that is delivered in and removed from the URL fragment.
 
 ## 0.8.0 - 2026-10-12
 

@@ -1,6 +1,6 @@
 # Continuity user-control service
 
-`ContinuityControlService` is the trusted library boundary for a future
+`ContinuityControlService` is the trusted library boundary for the local
 graphical Continuity interface. It composes the existing persona, ingestion,
 memory, and privacy services without weakening their policy checks.
 
@@ -37,7 +37,7 @@ another persona as a resolution or relationship target.
 
 ## Current boundary
 
-This is a library API and read model, not a graphical interface or MCP tool.
-It supplies the persona-safe backend contract for later review-queue, memory
-inspector, correction, history, export, and deletion screens. Export packaging
-and the graphical control surface remain future Phase 4 work.
+This service remains a library API and is not an MCP tool. The local Continuity
+console uses it for its review queue and memory inspector without duplicating
+policy rules. Graphical correction, export, recoverable deletion, and confirmed
+purge remain later Phase 4 packages.

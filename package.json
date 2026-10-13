@@ -9,7 +9,8 @@
     "memtextual-safeguard": "dist/src/cli/safeguard.js",
     "memtextual-privacy": "dist/src/cli/privacy.js",
     "memtextual-review": "dist/src/cli/review.js",
-    "memtextual-policy": "dist/src/cli/policy.js"
+    "memtextual-policy": "dist/src/cli/policy.js",
+    "memtextual-continuity": "dist/src/cli/continuity-console.js"
   },
   "scripts": {
     "test": "node --import tsx --test test/**/*.test.ts",
@@ -21,6 +22,7 @@
     "policy": "tsx src/cli/policy.ts",
     "safeguard": "tsx src/cli/safeguard.ts",
     "privacy": "tsx src/cli/privacy.ts",
+    "continuity": "tsx src/cli/continuity-console.ts",
     "pretest": "node scripts/check-node.mjs",
     "prebuild": "node scripts/check-node.mjs"
   },

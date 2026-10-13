@@ -206,6 +206,15 @@ export {
   type StructuredAmbientExtractorOptions,
 } from "./providers/structured-ambient-extractor.js";
 export {
+  createContinuityConsoleApplication,
+  startContinuityConsole,
+  type ContinuityConsoleApplication,
+  type ContinuityConsoleHandle,
+  type ContinuityConsoleRequest,
+  type ContinuityConsoleResponse,
+  type StartContinuityConsoleOptions,
+} from "./ui/continuity-console.js";
+export {
   createLegacyCandidateExternalId,
   LegacyMemoryMigrationService,
   parseLegacyMemoryExport,

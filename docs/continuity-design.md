@@ -67,14 +67,19 @@ successful-capture receipts form the authorized host-event boundary. Concrete
 vendor clients, credentials, and event subscriptions remain deployment work;
 they are not implicitly enabled by the library.
 
-Phase 4 has started with a persona-scoped Continuity control service. It exposes
+Phase 4 includes a persona-scoped Continuity control service. It exposes
 ambient review queues with resolved evidence, candidate reconciliation,
 persona-memory listing and immutable revision history, direct correction,
 pinning, protection, lifecycle transitions, recoverable deletion, and confirmed
 purge. Every mutation requires an explicit user action, and both candidate and
 memory targets are checked against the selected persona before delegation to
-the existing policy services. The graphical interface and export workflow
-remain later Phase 4 packages.
+the existing policy services. A first local graphical console now presents the
+pending candidate queue, resolved evidence, persona-memory list, immutable
+history, candidate acceptance or rejection, pinning, protection, archive, and
+restore. It binds to one persona and IPv4 loopback for one process lifetime,
+with a fresh bearer token delivered through a URL fragment. Graphical
+correction, reconciliation beyond create/reject, export, recoverable deletion,
+and confirmed purge remain later Phase 4 packages.
 
 ## Everyday data durability and recovery
 

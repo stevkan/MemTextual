@@ -160,6 +160,14 @@ test("server_info reports server identity, capabilities, and the discovered tool
           capabilityInterface === "cli",
       ),
     );
+    assert.ok(
+      info.capabilities.some(
+        ({ name, status, interface: capabilityInterface }) =>
+          name === "continuity_control_console" &&
+          status === "implemented" &&
+          capabilityInterface === "cli",
+      ),
+    );
     assert.equal(JSON.stringify(info).includes("databasePath"), false);
     assert.equal(JSON.stringify(info).includes("migrationsDirectory"), false);
   } finally {
