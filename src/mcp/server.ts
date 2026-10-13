@@ -43,6 +43,7 @@ export const mcpCapabilityCatalog = [
   { name: "memory_lifecycle", status: "implemented", interface: "mcp" },
   { name: "memory_retrieval", status: "implemented", interface: "mcp" },
   { name: "source_ingestion", status: "implemented", interface: "mcp" },
+  { name: "source_versioning", status: "implemented", interface: "mcp" },
   {
     name: "candidate_proposal_and_inspection",
     status: "implemented",
@@ -141,13 +142,19 @@ export const mcpToolCatalog = [
     name: "source_import",
     title: "Import a source",
     description:
-      "Atomically import an ordered source and its records. Repeated identical imports are idempotent.",
+      "Atomically import an ordered source and its records. Repeated identical imports are idempotent; changed external sources require an explicit new-version request.",
     annotations: idempotentMutationAnnotations,
   },
   {
     name: "source_list",
     title: "List imported sources",
     description: "List recent non-deleted sources and their record counts.",
+    annotations: readOnlyAnnotations,
+  },
+  {
+    name: "source_history",
+    title: "Get source version history",
+    description: "Get every retained version of one externally identified source.",
     annotations: readOnlyAnnotations,
   },
   {
@@ -188,6 +195,7 @@ export const mcpToolCatalog = [
 const ingestionToolNames = new Set<string>([
   "source_import",
   "source_list",
+  "source_history",
   "source_records",
   "source_record_get",
   "candidate_propose",
@@ -471,12 +479,14 @@ function registerIngestionTools(
     {
       title: "Import a source",
       description:
-        "Atomically import an ordered source and its records. Repeated identical imports are idempotent.",
+        "Atomically import an ordered source and its records. Repeated identical imports are idempotent; changed external sources require an explicit new-version request.",
       inputSchema: z.object({
         kind: z.enum(sourceKinds),
         title: z.string().trim().min(1),
         originUri: z.string().trim().min(1).optional(),
         externalId: z.string().trim().min(1).optional(),
+        createVersion: z.boolean().optional(),
+        versionReason: z.string().trim().min(1).optional(),
         capturedAt: z.string().trim().min(1).optional(),
         metadata: metadataSchema.optional(),
         records: z.array(
@@ -514,6 +524,21 @@ function registerIngestionTools(
       annotations: readOnlyAnnotations,
     },
     async ({ limit }) => runTool(() => service.listSources(limit)),
+  );
+
+  server.registerTool(
+    "source_history",
+    {
+      title: "Get source version history",
+      description: "Get every retained version of one externally identified source.",
+      inputSchema: z.object({
+        kind: z.enum(sourceKinds),
+        externalId: z.string().trim().min(1),
+      }),
+      annotations: readOnlyAnnotations,
+    },
+    async ({ kind, externalId }) =>
+      runTool(() => service.getSourceHistory(kind, externalId)),
   );
 
   server.registerTool(

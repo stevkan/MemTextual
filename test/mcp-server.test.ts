@@ -78,6 +78,7 @@ test("MCP server exposes the local memory tool surface", async () => {
         "scope_create",
         "scope_list",
         "server_info",
+        "source_history",
         "source_import",
         "source_list",
         "source_record_get",
@@ -122,7 +123,7 @@ test("server_info reports server identity, capabilities, and the discovered tool
 
     assert.equal(info.name, mcpServerName);
     assert.equal(info.version, mcpServerVersion);
-    assert.equal(info.tools.length, 19);
+    assert.equal(info.tools.length, 20);
     assert.deepEqual(
       info.tools.map(({ name }) => name).sort(),
       listed.tools.map(({ name }) => name).sort(),
@@ -230,6 +231,57 @@ test("MCP tools import sources and propose reviewable candidates", async () => {
     const tools = await client.listTools();
     assert.equal(tools.tools.some(({ name }) => name === "candidate_accept"), false);
     assert.equal(tools.tools.some(({ name }) => name === "candidate_reject"), false);
+  } finally {
+    await client.close();
+    await server.close();
+    database.close();
+  }
+});
+
+test("MCP source import creates explicit versions and exposes their history", async () => {
+  const { client, database, server } = await mcpFixture();
+  try {
+    const firstCall = await client.callTool({
+      name: "source_import",
+      arguments: {
+        kind: "file",
+        title: "Versioned file",
+        externalId: "file:versioned",
+        records: [{ kind: "section", content: "Version one." }],
+      },
+    });
+    const first = structuredResult<{ source: { id: string } }>(firstCall);
+    const secondCall = await client.callTool({
+      name: "source_import",
+      arguments: {
+        kind: "file",
+        title: "Versioned file",
+        externalId: "file:versioned",
+        createVersion: true,
+        versionReason: "Content changed.",
+        records: [{ kind: "section", content: "Version two." }],
+      },
+    });
+    const second = structuredResult<{
+      source: { id: string; versionNumber: number; previousSourceId: string };
+    }>(secondCall);
+    assert.equal(second.source.versionNumber, 2);
+    assert.equal(second.source.previousSourceId, first.source.id);
+
+    const historyCall = await client.callTool({
+      name: "source_history",
+      arguments: { kind: "file", externalId: "file:versioned" },
+    });
+    const history = structuredResult<Array<{ versionNumber: number; isCurrent: boolean }>>(
+      historyCall,
+    );
+    assert.deepEqual(
+      history.map(({ versionNumber, isCurrent }) => ({ versionNumber, isCurrent })),
+      [
+        { versionNumber: 1, isCurrent: false },
+        { versionNumber: 2, isCurrent: true },
+      ],
+    );
   } finally {
     await client.close();
     await server.close();
@@ -467,7 +519,7 @@ test("stdio entry point completes an MCP handshake", async () => {
     });
     const info = structuredResult<{ version: string; tools: unknown[] }>(infoCall);
     assert.equal(info.version, "0.8.0");
-    assert.equal(info.tools.length, 19);
+    assert.equal(info.tools.length, 20);
   } finally {
     await client.close();
     rmSync(temporaryDirectory, { recursive: true, force: true });

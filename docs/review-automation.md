@@ -52,8 +52,9 @@ Example `automatic_explicit` policy:
 ```
 
 A trusted source is the exact `(kind, externalId)` pair and must already exist
-when the policy is activated. Source external IDs are immutable: re-importing
-different content under the same identity is rejected.
+when the policy is activated. The external identity is stable. Re-importing
+different content is rejected unless the caller explicitly creates a new,
+immutable version in that source series.
 
 Example trusted-extractor threshold policy:
 

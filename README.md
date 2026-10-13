@@ -20,7 +20,7 @@ risky candidates pending.
 
 The system provides:
 
-- atomic, idempotent source ingestion with retained provenance;
+- atomic, idempotent source ingestion with explicit immutable version history;
 - scoped, typed memories with immutable revision history;
 - archive, restore, supersede, and contradiction lifecycles;
 - sensitivity, retrieval, pinning, and protection controls;
@@ -70,6 +70,7 @@ python -m sqlite3 memtextual.db ".read migrations/002_ingestion_candidates.sql"
 python -m sqlite3 memtextual.db ".read migrations/003_review_automation.sql"
 python -m sqlite3 memtextual.db ".read migrations/004_legacy_memory_migration.sql"
 python -m sqlite3 memtextual.db ".read migrations/005_candidate_resolution.sql"
+python -m sqlite3 memtextual.db ".read migrations/006_source_versioning.sql"
 python -m sqlite3 memtextual.db ".read examples/seed-v0.1.sql"
 ```
 
@@ -107,6 +108,6 @@ upgraded copy without rejecting additive schema changes.
 
 Automatic extraction, vendor-specific legacy-export adapters, a trusted
 graphical candidate-review UI, semantic candidate deduplication and conflict matching,
-source versioning and purge semantics, streamable HTTP, REST API, admin UI,
+source privacy purge semantics, resumable imports, streamable HTTP, REST API, admin UI,
 embedding provider, host-specific installers, and the broader packaging
 strategy remain open.

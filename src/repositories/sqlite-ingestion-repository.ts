@@ -41,6 +41,17 @@ interface SourceRow {
   metadata_json: string;
   created_at: string;
   record_count: number;
+  series_id: string | null;
+  version_number: number | null;
+  previous_source_id: string | null;
+  version_reason: string | null;
+  is_current: 0 | 1;
+}
+
+interface SourceSeriesRow {
+  id: string;
+  current_source_id: string;
+  next_version: number;
 }
 
 interface SourceRecordRow {
@@ -158,6 +169,11 @@ function mapSource(row: SourceRow): Source {
     metadata: JSON.parse(row.metadata_json) as Record<string, unknown>,
     createdAt: row.created_at,
     recordCount: row.record_count,
+    seriesId: row.series_id,
+    versionNumber: row.version_number,
+    previousSourceId: row.previous_source_id,
+    versionReason: row.version_reason,
+    isCurrent: row.is_current === 1,
   };
 }
 
@@ -199,6 +215,13 @@ export class SqliteIngestionRepository implements IngestionRepository {
     if (externalId !== undefined && externalId.length === 0) {
       throw new Error("A source external ID cannot be empty.");
     }
+    if (input.createVersion === true && externalId === undefined) {
+      throw new Error("Creating a source version requires an external ID.");
+    }
+    const versionReason = input.versionReason?.trim();
+    if (input.versionReason !== undefined && versionReason?.length === 0) {
+      throw new Error("A source version reason cannot be empty.");
+    }
 
     const canonicalRecords = input.records.map((record) => ({
       kind: record.kind,
@@ -217,8 +240,18 @@ export class SqliteIngestionRepository implements IngestionRepository {
 
     if (existing !== null) {
       if (existing.contentHash !== contentHash) {
-        throw new Error(
-          `Source ${input.kind}:${externalId} already exists with different content. Use a new external ID to preserve provenance.`,
+        if (input.createVersion !== true || externalId === undefined) {
+          throw new Error(
+            `Source ${input.kind}:${externalId} already exists with different content. Set createVersion to true to preserve both versions.`,
+          );
+        }
+        return this.createSourceVersion(
+          input,
+          title,
+          externalId,
+          contentHash,
+          existing,
+          versionReason,
         );
       }
       return {
@@ -229,45 +262,24 @@ export class SqliteIngestionRepository implements IngestionRepository {
     }
 
     const sourceId = randomUUID();
+    const seriesId = externalId === undefined ? null : randomUUID();
     const importTransaction = this.database.transaction(() => {
-      this.database
-        .prepare(
-          `INSERT INTO sources (
-             id, source_kind, title, origin_uri, external_id, content_hash,
-             captured_at, metadata_json
-           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        )
-        .run(
-          sourceId,
-          input.kind,
-          title,
-          input.originUri ?? null,
-          externalId ?? null,
-          contentHash,
-          input.capturedAt ?? null,
-          JSON.stringify(input.metadata ?? {}),
-        );
-
-      const insertRecord = this.database.prepare(
-        `INSERT INTO source_records (
-           id, source_id, ordinal, record_kind, author_role, author_name,
-           content, content_hash, occurred_at, metadata_json
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      );
-
-      for (const [ordinal, record] of input.records.entries()) {
-        insertRecord.run(
-          randomUUID(),
-          sourceId,
-          ordinal,
-          record.kind,
-          record.authorRole ?? null,
-          record.authorName ?? null,
-          record.content,
-          sha256(record.content),
-          record.occurredAt ?? null,
-          JSON.stringify(record.metadata ?? {}),
-        );
+      this.insertSource(sourceId, externalId ?? null, title, contentHash, input);
+      if (seriesId !== null && externalId !== undefined) {
+        this.database
+          .prepare(
+            `INSERT INTO source_series (
+               id, source_kind, external_id, current_source_id
+             ) VALUES (?, ?, ?, ?)`,
+          )
+          .run(seriesId, input.kind, externalId, sourceId);
+        this.database
+          .prepare(
+            `INSERT INTO source_versions (
+               source_id, series_id, version_number, version_reason
+             ) VALUES (?, ?, 1, ?)`,
+          )
+          .run(sourceId, seriesId, versionReason ?? null);
       }
     });
 
@@ -284,17 +296,35 @@ export class SqliteIngestionRepository implements IngestionRepository {
     const rows = this.database
       .prepare(
         `SELECT
-           s.id, s.source_kind, s.title, s.origin_uri, s.external_id,
+           s.id, s.source_kind, s.title, s.origin_uri,
+           COALESCE(ss.external_id, s.external_id) AS external_id,
            s.content_hash, s.captured_at, s.metadata_json, s.created_at,
-           count(r.id) AS record_count
+           count(r.id) AS record_count,
+           sv.series_id, sv.version_number, sv.previous_source_id, sv.version_reason,
+           CASE WHEN sv.source_id IS NULL OR ss.current_source_id = s.id THEN 1 ELSE 0 END AS is_current
          FROM sources s
          LEFT JOIN source_records r ON r.source_id = s.id AND r.deleted_at IS NULL
+         LEFT JOIN source_versions sv ON sv.source_id = s.id
+         LEFT JOIN source_series ss ON ss.id = sv.series_id
          WHERE s.deleted_at IS NULL
+           AND (sv.source_id IS NULL OR ss.current_source_id = s.id)
          GROUP BY s.id
          ORDER BY s.created_at DESC, s.id
          LIMIT ?`,
       )
       .all(safeLimit) as SourceRow[];
+    return rows.map(mapSource);
+  }
+
+  public getSourceHistory(kind: SourceKind, externalId: string): Source[] {
+    const normalized = validateText(externalId, "A source external ID");
+    const rows = this.database
+      .prepare(
+        `${this.sourceSelect()}
+         WHERE ss.source_kind = ? AND ss.external_id = ?
+         ORDER BY sv.version_number ASC`,
+      )
+      .all(kind, normalized) as SourceRow[];
     return rows.map(mapSource);
   }
 
@@ -750,18 +780,140 @@ export class SqliteIngestionRepository implements IngestionRepository {
     return this.requireCandidate(id);
   }
 
+  private insertSource(
+    sourceId: string,
+    storedExternalId: string | null,
+    title: string,
+    contentHash: string,
+    input: ImportSourceInput,
+  ): void {
+    this.database
+      .prepare(
+        `INSERT INTO sources (
+           id, source_kind, title, origin_uri, external_id, content_hash,
+           captured_at, metadata_json
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        sourceId,
+        input.kind,
+        title,
+        input.originUri ?? null,
+        storedExternalId,
+        contentHash,
+        input.capturedAt ?? null,
+        JSON.stringify(input.metadata ?? {}),
+      );
+
+    const insertRecord = this.database.prepare(
+      `INSERT INTO source_records (
+         id, source_id, ordinal, record_kind, author_role, author_name,
+         content, content_hash, occurred_at, metadata_json
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    );
+    for (const [ordinal, record] of input.records.entries()) {
+      insertRecord.run(
+        randomUUID(),
+        sourceId,
+        ordinal,
+        record.kind,
+        record.authorRole ?? null,
+        record.authorName ?? null,
+        record.content,
+        sha256(record.content),
+        record.occurredAt ?? null,
+        JSON.stringify(record.metadata ?? {}),
+      );
+    }
+  }
+
+  private createSourceVersion(
+    input: ImportSourceInput,
+    title: string,
+    externalId: string,
+    contentHash: string,
+    existing: Source,
+    versionReason: string | undefined,
+  ): SourceImportResult {
+    if (existing.seriesId === null || existing.versionNumber === null) {
+      throw new Error(
+        `Source ${input.kind}:${externalId} has no version series and cannot be versioned safely.`,
+      );
+    }
+
+    const series = this.database
+      .prepare(
+        `SELECT ss.id, ss.current_source_id,
+                COALESCE(max(sv.version_number), 0) + 1 AS next_version
+         FROM source_series ss
+         JOIN source_versions sv ON sv.series_id = ss.id
+         WHERE ss.id = ?
+         GROUP BY ss.id`,
+      )
+      .get(existing.seriesId) as SourceSeriesRow | undefined;
+    if (series === undefined || series.current_source_id !== existing.id) {
+      throw new Error("The source version series changed before the import completed.");
+    }
+
+    const sourceId = randomUUID();
+    const storedExternalId = `memtextual-version:${series.id}:${series.next_version}`;
+    const versionTransaction = this.database.transaction(() => {
+      this.insertSource(sourceId, storedExternalId, title, contentHash, input);
+      this.database
+        .prepare(
+          `INSERT INTO source_versions (
+             source_id, series_id, version_number, previous_source_id,
+             version_reason
+           ) VALUES (?, ?, ?, ?, ?)`,
+        )
+        .run(
+          sourceId,
+          series.id,
+          series.next_version,
+          existing.id,
+          versionReason ?? null,
+        );
+      const updated = this.database
+        .prepare(
+          `UPDATE source_series
+           SET current_source_id = ?,
+               updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+           WHERE id = ? AND current_source_id = ?`,
+        )
+        .run(sourceId, series.id, existing.id);
+      if (updated.changes !== 1) {
+        throw new Error("The source version series changed during the import.");
+      }
+    });
+    versionTransaction();
+    return {
+      source: this.requireSource(sourceId),
+      records: this.getSourceRecords(sourceId),
+      created: true,
+    };
+  }
+
   private sourceSelect(): string {
     return `SELECT
-      s.id, s.source_kind, s.title, s.origin_uri, s.external_id,
+      s.id, s.source_kind, s.title, s.origin_uri,
+      COALESCE(ss.external_id, s.external_id) AS external_id,
       s.content_hash, s.captured_at, s.metadata_json, s.created_at,
       (SELECT count(*) FROM source_records r
-       WHERE r.source_id = s.id AND r.deleted_at IS NULL) AS record_count
-      FROM sources s`;
+       WHERE r.source_id = s.id AND r.deleted_at IS NULL) AS record_count,
+      sv.series_id, sv.version_number, sv.previous_source_id, sv.version_reason,
+      CASE WHEN sv.source_id IS NULL OR ss.current_source_id = s.id THEN 1 ELSE 0 END AS is_current
+      FROM sources s
+      LEFT JOIN source_versions sv ON sv.source_id = s.id
+      LEFT JOIN source_series ss ON ss.id = sv.series_id`;
   }
 
   private findSourceByExternalId(kind: SourceKind, externalId: string): Source | null {
     const row = this.database
-      .prepare(`${this.sourceSelect()} WHERE s.source_kind = ? AND s.external_id = ?`)
+      .prepare(
+        `${this.sourceSelect()}
+         WHERE ss.source_kind = ? AND ss.external_id = ?
+           AND ss.current_source_id = s.id`,
+      )
       .get(kind, externalId) as SourceRow | undefined;
     return row === undefined ? null : mapSource(row);
   }

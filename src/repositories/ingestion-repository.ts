@@ -19,6 +19,7 @@ import type { Memory } from "../domain/memory.js";
 export interface IngestionRepository {
   importSource(input: ImportSourceInput): SourceImportResult;
   listSources(limit?: number): Source[];
+  getSourceHistory(kind: Source["kind"], externalId: string): Source[];
   getSourceRecord(id: string): SourceRecord | null;
   getSourceRecords(sourceId: string): SourceRecord[];
   proposeCandidate(input: ProposeMemoryCandidateInput): MemoryCandidate;

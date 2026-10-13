@@ -63,6 +63,10 @@ export class IngestionService {
     return this.repository.listSources(limit);
   }
 
+  public getSourceHistory(kind: Source["kind"], externalId: string): Source[] {
+    return this.repository.getSourceHistory(kind, externalId);
+  }
+
   public getSourceRecord(id: string): SourceRecord | null {
     return this.repository.getSourceRecord(id);
   }

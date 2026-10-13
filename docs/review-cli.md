@@ -62,7 +62,7 @@ The session ends with counts for accepted, rejected, skipped, and failed decisio
 
 `IngestionService.getSourceRecord` and the read-only MCP tool `source_record_get` allow inspection when a candidate contains a source-record ID without an excerpt.
 
-The MCP server exposes nineteen tools. It exposes no candidate accept or reject tool.
+The MCP server exposes twenty tools. It exposes no candidate accept or reject tool.
 
 ## Boundaries
 

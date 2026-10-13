@@ -271,6 +271,52 @@ test("trusted explicit evidence is accepted automatically with an audited policy
   }
 });
 
+test("trusted source identity applies to an explicitly created source version", () => {
+  const fixture = automationFixture();
+  try {
+    fixture.automation.setPolicy(
+      {
+        name: "Versioned trusted source",
+        mode: "automatic_explicit",
+        scopeId: fixture.project.id,
+        conditions: {
+          trustedSources: [
+            { kind: "chat", externalId: fixture.trustedImport.source.externalId! },
+          ],
+        },
+      },
+      explicitPolicyContext,
+    );
+    const updated = fixture.service.importSource({
+      kind: "chat",
+      title: "Updated trusted user conversation",
+      externalId: fixture.trustedImport.source.externalId!,
+      createVersion: true,
+      versionReason: "The user updated the source.",
+      records: [
+        {
+          kind: "message",
+          authorRole: "user",
+          content: "The user explicitly prefers concise, direct answers.",
+        },
+      ],
+    });
+
+    const candidate = fixture.service.proposeCandidate({
+      assertion: "The user explicitly prefers concise, direct answers.",
+      type: "preference",
+      scopeId: fixture.project.id,
+      evidence: [{ sourceRecordId: updated.records[0]!.id }],
+      proposedBy: "system",
+    });
+
+    assert.equal(candidate.status, "accepted");
+    assert.equal(candidate.reviewedBy, "system");
+  } finally {
+    fixture.database.close();
+  }
+});
+
 test("manual-only guardrails and untrusted provenance prevent automatic acceptance", () => {
   const fixture = automationFixture();
   try {

@@ -112,7 +112,9 @@ their current accepted or rejected states. It does not create duplicates or
 reopen reviewed candidates.
 
 Reusing a source or candidate identity with different content fails instead of
-overwriting provenance. Changed exports require a new source `externalId`.
+overwriting provenance. A changed export can use a new source `externalId`, or
+a caller outside this CLI can explicitly create the next immutable source
+version. The migration CLI does not implicitly version changed exports.
 
 ## Current limitations
 

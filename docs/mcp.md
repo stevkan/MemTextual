@@ -48,6 +48,15 @@ configuration, absolute paths are recommended.
 | `memory_restore` | Restores an unprotected archived memory. |
 | `memory_supersede` | Relates a replacement and supersedes the old memory. |
 | `memory_contradict` | Relates a contradicting memory and marks the old one contradicted. |
+| `source_import` | Imports an immutable source; changed external content requires `createVersion: true`. |
+| `source_history` | Lists all versions for a source kind and external ID. |
+| `source_list` | Lists current sources. |
+| `source_records` | Lists the ordered records retained for one source version. |
+| `source_record_get` | Gets one source record by ID. |
+| `candidate_propose` | Proposes a reviewable memory candidate from source evidence. |
+| `candidate_get` | Gets one candidate and its review state. |
+| `candidate_list` | Lists candidates, optionally filtered by review state. |
+| `server_info` | Reports server identity, capabilities, and the complete tool catalog. |
 
 Read tools advertise read-only annotations. Lifecycle removals advertise
 destructive annotations. All tools advertise a closed-world hint because this
@@ -102,7 +111,7 @@ discovered tool list.
 The tool requires no arguments and returns:
 
 - the stable server name and current server version;
-- the complete nineteen-tool catalog, including each tool's name, description,
+- the complete twenty-tool catalog, including each tool's name, description,
   and safety annotations; and
 - capability metadata distinguishing implemented features from planned
   features.

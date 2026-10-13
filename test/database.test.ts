@@ -36,7 +36,7 @@ test("migration and seed preserve schema integrity", () => {
     const violations = database.prepare("PRAGMA foreign_key_check").all();
 
     assert.equal(memoryCount.count, 10);
-    assert.equal(migrationCount.count, 5);
+    assert.equal(migrationCount.count, 6);
     assert.deepEqual(violations, []);
   } finally {
     database.close();
@@ -174,6 +174,9 @@ test("review automation migration upgrades an existing candidate database", () =
       const resolutionMigration = upgraded
         .prepare("SELECT name FROM schema_migrations WHERE version = 5")
         .get() as { name: string };
+      const sourceVersionMigration = upgraded
+        .prepare("SELECT name FROM schema_migrations WHERE version = 6")
+        .get() as { name: string };
 
       assert.equal(candidate.assertion, "Preserve this candidate.");
       assert.equal(candidate.proposer_id, null);
@@ -182,6 +185,7 @@ test("review automation migration upgrades an existing candidate database", () =
       assert.equal(migration.name, "candidate_review_automation_v0.7");
       assert.equal(legacyMigration.name, "legacy_memory_migration_v0.8");
       assert.equal(resolutionMigration.name, "candidate_resolution_v0.9");
+      assert.equal(sourceVersionMigration.name, "source_versioning_v0.9");
       assert.deepEqual(
         upgraded
           .prepare(
@@ -267,6 +271,78 @@ test("candidate resolution migration backfills completed reviews", () => {
           result_memory_id: null,
         },
       ]);
+      assert.deepEqual(upgraded.prepare("PRAGMA foreign_key_check").all(), []);
+    } finally {
+      upgraded.close();
+    }
+  } finally {
+    rmSync(temporaryDirectory, { recursive: true, force: true });
+  }
+});
+
+test("source versioning migration preserves existing external sources as version one", () => {
+  const temporaryDirectory = mkdtempSync(join(tmpdir(), "memtextual-source-version-"));
+  const oldMigrations = join(temporaryDirectory, "old-migrations");
+  const databasePath = join(temporaryDirectory, "existing.db");
+  mkdirSync(oldMigrations);
+  for (const filename of [
+    "001_initial.sql",
+    "002_ingestion_candidates.sql",
+    "003_review_automation.sql",
+    "004_legacy_memory_migration.sql",
+    "005_candidate_resolution.sql",
+  ]) {
+    copyFileSync(resolve("migrations", filename), join(oldMigrations, filename));
+  }
+
+  try {
+    const oldDatabase = openMemTextualDatabase({
+      filename: databasePath,
+      migrationsDirectory: oldMigrations,
+    });
+    oldDatabase
+      .prepare(
+        `INSERT INTO sources (
+           id, source_kind, title, external_id, content_hash, created_at
+         ) VALUES (
+           'source_existing', 'file', 'Existing source', 'file:stable',
+           'existing-hash', '2026-10-12T00:00:00.000Z'
+         )`,
+      )
+      .run();
+    oldDatabase.close();
+
+    const upgraded = openMemTextualDatabase({
+      filename: databasePath,
+      migrationsDirectory: resolve("migrations"),
+    });
+    try {
+      const version = upgraded
+        .prepare(
+          `SELECT
+             ss.external_id,
+             ss.current_source_id,
+             sv.source_id,
+             sv.version_number,
+             sv.previous_source_id
+           FROM source_series ss
+           JOIN source_versions sv ON sv.series_id = ss.id`,
+        )
+        .get() as {
+        external_id: string;
+        current_source_id: string;
+        source_id: string;
+        version_number: number;
+        previous_source_id: string | null;
+      };
+
+      assert.deepEqual(version, {
+        external_id: "file:stable",
+        current_source_id: "source_existing",
+        source_id: "source_existing",
+        version_number: 1,
+        previous_source_id: null,
+      });
       assert.deepEqual(upgraded.prepare("PRAGMA foreign_key_check").all(), []);
     } finally {
       upgraded.close();

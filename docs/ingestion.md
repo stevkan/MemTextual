@@ -21,12 +21,19 @@ Importing material does not automatically create a memory. Proposing a candidate
 - The source envelope—title, origin URI, capture time, and source metadata—is descriptive and is not part of the content hash.
 - Each record also receives a SHA-256 hash of its exact content.
 - An import with `kind` plus `externalId` is idempotent when its computed source hash matches the existing source.
-- Reusing the same `kind` plus `externalId` with different content fails. MemTextual never overwrites or silently versions source material.
+- Reusing the same `kind` plus `externalId` with different content fails unless the caller explicitly sets `createVersion: true`.
+- Explicit version creation writes a new immutable source and records its predecessor; it never overwrites prior source material.
+- A nonempty `versionReason` may be retained with the new version.
 - Without an external ID, an active source with the same kind and content hash is reused.
 - Records receive zero-based ordinals from their input array position.
 - Record content is preserved exactly. Content containing only whitespace is rejected.
 
-Changing an existing external source requires a new external ID. Explicit source-version relationships are not implemented.
+An external identity defines a source series. Its first import is version 1. A
+changed import with `createVersion: true` becomes the next version and the
+current member of that series. `listSources` returns only current sources;
+`getSourceHistory` returns every version in chronological order. Every version
+keeps its own source records, content hash, metadata, timestamps, and evidence
+relationships.
 
 ## Candidate model
 
@@ -111,6 +118,7 @@ Portable types are in `src/domain/ingestion.ts`.
 
 - `importSource`
 - `listSources`
+- `getSourceHistory`
 - `getSourceRecords`
 - `proposeCandidate`
 - `getCandidate`
@@ -123,11 +131,12 @@ Storage behavior is isolated behind `IngestionRepository`. `SqliteIngestionRepos
 
 ## MCP tools
 
-The ingestion interface adds six tools to the core memory tools:
+The ingestion interface adds seven tools to the core memory tools:
 
 | Tool | Behavior |
 |---|---|
-| `source_import` | Import or idempotently reuse a source and ordered records. |
+| `source_import` | Import or idempotently reuse a source; changed content requires explicit version creation. |
+| `source_history` | List every immutable version for one external source identity. |
 | `source_list` | List up to 100 recent active sources. |
 | `source_records` | Read one source's ordered records. |
 | `candidate_propose` | Create a pending candidate with source evidence. |
@@ -201,7 +210,7 @@ precedence, evaluation behavior, and audit contract.
 
 Current limitations include:
 
-- source version relationships and resumable imports;
+- resumable imports;
 - source deletion and privacy purge semantics;
 - an explicitly configured local or external semantic-provider adapter;
 - a graphical review interface beyond the local CLI;

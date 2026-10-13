@@ -19,6 +19,8 @@ describe only the current design and behavior.
   CLI to display matches and apply reconciliation choices.
 - Added a provider-neutral semantic matcher contract with validated, attributed,
   advisory duplicate, refinement, conflict, and related suggestions.
+- Added explicit immutable source versioning, stable source-series identities,
+  retained version reasons, current-source listing, and complete source history.
 
 ## 0.8.0 - 2026-10-12
 

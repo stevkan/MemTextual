@@ -29,6 +29,11 @@ A source identifies an imported conversation, file, manual entry, application,
 or API payload. A source record is the smallest addressable piece of that
 source, such as one chat message or one document section.
 
+When a source has an external identity, `source_series` keeps that identity
+stable and selects its current source. `source_versions` links every immutable
+source in the series by version number and predecessor. Older versions and
+their records remain addressable.
+
 Source content is not itself a memory. It is evidence from which zero or more
 memory revisions may be extracted.
 
@@ -139,5 +144,7 @@ opaque vector reference, avoiding provider lock-in.
 - Only one primary scope is allowed per memory.
 - A memory cannot relate to itself.
 - Current and previous revisions must belong to the expected memory.
+- Source-series identities and version numbers are unique, and source-version
+  predecessors cannot point to themselves.
 - FTS rows track search-document inserts, updates, and deletes.
 

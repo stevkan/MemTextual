@@ -51,6 +51,8 @@ export interface ImportSourceInput {
   title: string;
   originUri?: string;
   externalId?: string;
+  createVersion?: boolean;
+  versionReason?: string;
   capturedAt?: string;
   metadata?: Record<string, unknown>;
   records: ImportSourceRecordInput[];
@@ -67,6 +69,11 @@ export interface Source {
   metadata: Record<string, unknown>;
   createdAt: string;
   recordCount: number;
+  seriesId: string | null;
+  versionNumber: number | null;
+  previousSourceId: string | null;
+  versionReason: string | null;
+  isCurrent: boolean;
 }
 
 export interface SourceRecord {

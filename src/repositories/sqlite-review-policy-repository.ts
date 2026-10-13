@@ -164,8 +164,10 @@ export class SqliteReviewPolicyRepository implements ReviewPolicyRepository {
     sources: TrustedSourceIdentity[],
   ): TrustedSourceIdentity[] {
     const find = this.database.prepare(
-      `SELECT 1 AS present FROM sources
-       WHERE source_kind = ? AND external_id = ? AND deleted_at IS NULL`,
+      `SELECT 1 AS present
+       FROM source_series ss
+       JOIN sources s ON s.id = ss.current_source_id
+       WHERE ss.source_kind = ? AND ss.external_id = ? AND s.deleted_at IS NULL`,
     );
     return sources.filter(
       ({ kind, externalId }) =>
@@ -183,10 +185,13 @@ export class SqliteReviewPolicyRepository implements ReviewPolicyRepository {
       .prepare(
         `SELECT
            e.source_record_id, e.evidence_role, e.excerpt,
-           r.source_id, r.author_role, r.content, s.source_kind, s.external_id
+           r.source_id, r.author_role, r.content, s.source_kind,
+           COALESCE(ss.external_id, s.external_id) AS external_id
          FROM candidate_evidence e
          JOIN source_records r ON r.id = e.source_record_id
          JOIN sources s ON s.id = r.source_id
+         LEFT JOIN source_versions sv ON sv.source_id = s.id
+         LEFT JOIN source_series ss ON ss.id = sv.series_id
          WHERE e.candidate_id = ?
            AND r.deleted_at IS NULL
            AND s.deleted_at IS NULL
