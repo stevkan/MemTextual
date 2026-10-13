@@ -135,6 +135,13 @@ Portable types are in `src/domain/ingestion.ts`.
 
 Storage behavior is isolated behind `IngestionRepository`. `SqliteIngestionRepository` uses the existing `MemoryRepository` during transactional acceptance.
 
+Continuity ambient capture uses the same source and candidate boundary through
+`AmbientMemoryService`. Its provider-neutral extractor contract can propose
+episodic or durable memories only from records in the just-imported interaction.
+The service selects the persona relationship scope and defaults extracted
+claims to inferred, confidence `0.5`, and pending review. See
+`ambient-memory.md`.
+
 ## MCP tools
 
 The ingestion interface adds seven tools to the core memory tools:
@@ -220,6 +227,6 @@ Current limitations include:
 - standalone-source deletion outside an external source series;
 - an explicitly configured local or external semantic-provider adapter;
 - a graphical review interface beyond the local CLI;
-- automatic extraction-provider integration;
+- configured extractor-provider and host-event adapters;
 - source-level sensitivity and redaction; and
 - remote transport authentication and authorization.

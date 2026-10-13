@@ -5,6 +5,7 @@ import type {
   RetrievalPolicy,
   Sensitivity,
 } from "./memory.js";
+import type { PersonaMemoryClass } from "./continuity-memory.js";
 
 export const sourceKinds = ["chat", "file", "manual", "app", "api"] as const;
 export type SourceKind = (typeof sourceKinds)[number];
@@ -168,6 +169,17 @@ export interface ProposeMemoryCandidateInput {
   proposedBy?: CandidateActor;
   proposerId?: string;
   metadata?: Record<string, unknown>;
+  ambientContext?: AmbientCandidateContext;
+}
+
+export interface AmbientCandidateContext {
+  sourceId: string;
+  userId: string;
+  personaId: string;
+  relationshipId: string;
+  memoryClass: PersonaMemoryClass;
+  extractorId: string;
+  extractorVersion: string;
 }
 
 export interface MemoryCandidate {

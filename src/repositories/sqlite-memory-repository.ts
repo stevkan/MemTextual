@@ -745,6 +745,9 @@ export class SqliteMemoryRepository implements MemoryRepository {
           "SELECT count(*) AS count FROM continuity_memory_profiles WHERE memory_id = ?",
         ),
         memoryCandidates: candidateIds.length,
+        ambientCandidateProfiles: candidateRelatedCount(
+          "ambient_candidate_profiles",
+        ),
         candidateEvidence: candidateRelatedCount("candidate_evidence"),
         candidateEvents: candidateRelatedCount("candidate_events"),
         candidateResolutions: candidateRelatedCount("candidate_resolutions"),

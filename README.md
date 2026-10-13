@@ -28,6 +28,7 @@ The system provides:
 - multi-persona identity and relationship scopes with enforced ownership;
 - explicit episodic and durable persona-memory classes;
 - persona-aware retrieval with default-deny cross-persona isolation;
+- provider-neutral ambient extraction into persona-bound review candidates;
 - sensitivity, retrieval, pinning, and protection controls;
 - policy-aware FTS5 retrieval and retrieval audits;
 - a trusted terminal workflow for candidate review;
@@ -48,6 +49,7 @@ docs/ingestion.md          Source ingestion and candidate review contract
 docs/legacy-migration.md   Legacy export format and migration workflow
 docs/continuity-design.md  Continuity product plan and non-destructive contract
 docs/personas.md           Continuity identity and persona-scope foundations
+docs/ambient-memory.md     Persona-bound ambient candidate capture contract
 docs/migration-safety.md   Snapshot, upgrade-copy, and verification workflow
 docs/privacy.md            Recoverable deletion and memory-purge contract
 docs/semantic-matching.md  Provider-neutral advisory matching contract
@@ -82,6 +84,7 @@ python -m sqlite3 memtextual.db ".read migrations/007_memory_deletion_purge.sql"
 python -m sqlite3 memtextual.db ".read migrations/008_source_series_deletion_purge.sql"
 python -m sqlite3 memtextual.db ".read migrations/009_persona_foundations.sql"
 python -m sqlite3 memtextual.db ".read migrations/010_persona_memory_classes.sql"
+python -m sqlite3 memtextual.db ".read migrations/011_ambient_capture.sql"
 python -m sqlite3 memtextual.db ".read examples/seed-v0.1.sql"
 ```
 
@@ -116,6 +119,10 @@ enforced user -> persona -> relationship scope hierarchy.
 `ContinuityMemoryService` transactionally binds explicitly episodic or durable
 memories to one relationship and retrieves them by persona identity without
 accepting caller-selected scope IDs.
+`AmbientMemoryService` imports a recorded interaction, invokes a configured
+versioned extractor, and creates idempotent candidates bound to that persona's
+relationship and evidence. It defaults extracted claims to inferred and pending;
+only explicit review or an existing user-configured policy can accept them.
 
 Before a release applies new migrations to a real database, use the safeguard
 workflow in `docs/migration-safety.md`. It creates an online SQLite backup, a
@@ -124,7 +131,8 @@ upgraded copy without rejecting additive schema changes.
 
 ## Deliberately deferred
 
-Automatic extraction, vendor-specific legacy-export adapters, a trusted
+Ambient extractor provider adapters and host event capture, vendor-specific
+legacy-export adapters, a trusted
 graphical candidate-review UI, semantic candidate deduplication and conflict matching,
 standalone-source deletion, backup-retention enforcement, resumable imports,
 streamable HTTP, REST API, admin UI,

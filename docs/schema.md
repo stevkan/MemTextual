@@ -85,6 +85,13 @@ inside the repository. It then requires both the matching
 `continuity_memory_profiles` row and its primary relationship-scope binding.
 Callers cannot supply arbitrary scope IDs through this path.
 
+`ambient_candidate_profiles` records the source, extractor identity and
+version, persona relationship, and intended episodic or durable class for an
+ambiently extracted candidate. Triggers require all candidate evidence to come
+from that active source and require the candidate's scope and proposer to match
+the recorded relationship and extractor. On acceptance, a trigger creates the
+corresponding `continuity_memory_profiles` row in the same transaction.
+
 ### Entity and relationship
 
 Entities normalize people, organizations, projects, products, places, and

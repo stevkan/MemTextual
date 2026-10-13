@@ -36,6 +36,10 @@ describe only the current design and behavior.
 - Added persona-aware retrieval that resolves relationship scope internally,
   enforces class and sensitivity filters, excludes unprofiled and cross-persona
   memories, and records use only for returned results.
+- Added the provider-neutral ambient extraction contract and persona-bound,
+  evidence-constrained, idempotent candidate capture with conservative defaults.
+- Added database-enforced ambient provenance and transactional transfer of
+  accepted candidates into episodic or durable persona-memory profiles.
 
 ## 0.8.0 - 2026-10-12
 

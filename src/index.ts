@@ -38,6 +38,13 @@ export {
   type PersonaMemoryRetrievalResult,
 } from "./domain/continuity-memory.js";
 export type {
+  AmbientCaptureResult,
+  AmbientExtractionInput,
+  AmbientMemoryExtractor,
+  AmbientMemoryProposal,
+  CaptureAmbientInteractionInput,
+} from "./domain/ambient-memory.js";
+export type {
   ContinuityUser,
   CreateContinuityUserInput,
   CreatePersonaInput,
@@ -52,6 +59,7 @@ export {
   candidateResolutionKinds,
   candidateMatchKinds,
   type CandidateAcceptance,
+  type AmbientCandidateContext,
   type CandidateActor,
   type CandidateEvidence,
   type CandidateEvidenceInput,
@@ -139,6 +147,7 @@ export {
   type CandidateProposalOptions,
 } from "./services/ingestion-service.js";
 export { ContinuityMemoryService } from "./services/continuity-memory-service.js";
+export { AmbientMemoryService } from "./services/ambient-memory-service.js";
 export {
   createLegacyCandidateExternalId,
   LegacyMemoryMigrationService,

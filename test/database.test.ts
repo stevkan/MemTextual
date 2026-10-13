@@ -10,8 +10,12 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import test from "node:test";
 import {
+  IngestionService,
   openMemTextualDatabase,
+  PersonaService,
+  SqliteIngestionRepository,
   SqliteMemoryRepository,
+  SqlitePersonaRepository,
 } from "../src/index.js";
 
 function seededDatabase() {
@@ -36,7 +40,7 @@ test("migration and seed preserve schema integrity", () => {
     const violations = database.prepare("PRAGMA foreign_key_check").all();
 
     assert.equal(memoryCount.count, 10);
-    assert.equal(migrationCount.count, 10);
+    assert.equal(migrationCount.count, 11);
     assert.deepEqual(violations, []);
   } finally {
     database.close();
@@ -107,6 +111,83 @@ test("database rejects a current revision owned by another memory", () => {
     );
   } finally {
     database.close();
+  }
+});
+
+test("ambient capture migration upgrades schema 10 without changing existing data", () => {
+  const temporaryDirectory = mkdtempSync(join(tmpdir(), "memtextual-ambient-"));
+  const oldMigrations = join(temporaryDirectory, "old-migrations");
+  const databasePath = join(temporaryDirectory, "schema-10.db");
+  mkdirSync(oldMigrations);
+  for (const filename of [
+    "001_initial.sql",
+    "002_ingestion_candidates.sql",
+    "003_review_automation.sql",
+    "004_legacy_memory_migration.sql",
+    "005_candidate_resolution.sql",
+    "006_source_versioning.sql",
+    "007_memory_deletion_purge.sql",
+    "008_source_series_deletion_purge.sql",
+    "009_persona_foundations.sql",
+    "010_persona_memory_classes.sql",
+  ]) {
+    copyFileSync(resolve("migrations", filename), join(oldMigrations, filename));
+  }
+
+  try {
+    const oldDatabase = openMemTextualDatabase({
+      filename: databasePath,
+      migrationsDirectory: oldMigrations,
+    });
+    const memoryRepository = new SqliteMemoryRepository(oldDatabase);
+    const ingestion = new IngestionService(
+      new SqliteIngestionRepository(oldDatabase, memoryRepository),
+    );
+    const personas = new PersonaService(new SqlitePersonaRepository(oldDatabase));
+    const user = personas.createUser({ displayName: "Existing user" });
+    const persona = personas.createPersona({ userId: user.id, name: "Existing persona" });
+    const imported = ingestion.importSource({
+      kind: "chat",
+      title: "Existing source",
+      records: [{ kind: "message", content: "Existing evidence" }],
+    });
+    const candidate = ingestion.proposeCandidate({
+      assertion: "Existing candidate",
+      type: "fact",
+      scopeId: persona.relationship.scopeId,
+      evidence: [{ sourceRecordId: imported.records[0]!.id }],
+    });
+    oldDatabase.close();
+
+    const upgraded = openMemTextualDatabase({
+      filename: databasePath,
+      migrationsDirectory: resolve("migrations"),
+    });
+    try {
+      assert.deepEqual(
+        upgraded
+          .prepare("SELECT assertion, status FROM memory_candidates WHERE id = ?")
+          .get(candidate.id),
+        { assertion: "Existing candidate", status: "pending" },
+      );
+      assert.equal(
+        (
+          upgraded
+            .prepare("SELECT count(*) AS count FROM ambient_candidate_profiles")
+            .get() as { count: number }
+        ).count,
+        0,
+      );
+      assert.deepEqual(
+        upgraded.prepare("SELECT name FROM schema_migrations WHERE version = 11").get(),
+        { name: "ambient_candidate_capture_v0.9" },
+      );
+      assert.deepEqual(upgraded.prepare("PRAGMA foreign_key_check").all(), []);
+    } finally {
+      upgraded.close();
+    }
+  } finally {
+    rmSync(temporaryDirectory, { force: true, recursive: true });
   }
 });
 
@@ -189,6 +270,9 @@ test("review automation migration upgrades an existing candidate database", () =
       const personaMemoryClassesMigration = upgraded
         .prepare("SELECT name FROM schema_migrations WHERE version = 10")
         .get() as { name: string };
+      const ambientCaptureMigration = upgraded
+        .prepare("SELECT name FROM schema_migrations WHERE version = 11")
+        .get() as { name: string };
 
       assert.equal(candidate.assertion, "Preserve this candidate.");
       assert.equal(candidate.proposer_id, null);
@@ -207,6 +291,10 @@ test("review automation migration upgrades an existing candidate database", () =
       assert.equal(
         personaMemoryClassesMigration.name,
         "persona_memory_classes_v0.9",
+      );
+      assert.equal(
+        ambientCaptureMigration.name,
+        "ambient_candidate_capture_v0.9",
       );
       assert.deepEqual(
         upgraded

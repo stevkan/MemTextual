@@ -24,6 +24,7 @@ import type {
   SourceRecordKind,
 } from "../domain/ingestion.js";
 import { candidateResolutionKinds } from "../domain/ingestion.js";
+import { personaMemoryClasses } from "../domain/continuity-memory.js";
 import type {
   Explicitness,
   MemoryType,
@@ -634,6 +635,7 @@ export class SqliteIngestionRepository implements IngestionRepository {
           "source_series_deletion_records",
         ),
         memoryCandidates: candidateIds.length,
+        ambientCandidateProfiles: countCandidateRows("ambient_candidate_profiles"),
         candidateEvidence: countCandidateRows("candidate_evidence"),
         candidateEvents: countCandidateRows("candidate_events"),
         candidateResolutions: countCandidateRows("candidate_resolutions"),
@@ -713,6 +715,14 @@ export class SqliteIngestionRepository implements IngestionRepository {
     if (input.evidence.length === 0) {
       throw new Error("A memory candidate requires at least one evidence record.");
     }
+    if (
+      input.ambientContext !== undefined &&
+      !personaMemoryClasses.includes(input.ambientContext.memoryClass)
+    ) {
+      throw new Error(
+        `Unsupported persona memory class: ${input.ambientContext.memoryClass}.`,
+      );
+    }
 
     const evidenceKeys = new Set<string>();
     for (const evidence of input.evidence) {
@@ -726,7 +736,10 @@ export class SqliteIngestionRepository implements IngestionRepository {
     if (externalId !== undefined) {
       const existing = this.getCandidateByExternalId(externalId);
       if (existing !== null) {
-        if (!this.candidateMatchesInput(existing, input, assertion, confidence)) {
+        if (
+          !this.candidateMatchesInput(existing, input, assertion, confidence) ||
+          !this.ambientContextMatchesInput(existing.id, input)
+        ) {
           throw new Error(
             `Candidate external ID ${externalId} already exists with different content. Use a new external ID to preserve provenance.`,
           );
@@ -779,11 +792,70 @@ export class SqliteIngestionRepository implements IngestionRepository {
           evidence.excerpt ?? null,
         );
       }
+      if (input.ambientContext !== undefined) {
+        const context = input.ambientContext;
+        this.database
+          .prepare(
+            `INSERT INTO ambient_candidate_profiles (
+               candidate_id, source_id, user_id, persona_id, relationship_id,
+               memory_class, extractor_id, extractor_version
+             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          )
+          .run(
+            id,
+            context.sourceId,
+            context.userId,
+            context.personaId,
+            context.relationshipId,
+            context.memoryClass,
+            context.extractorId,
+            context.extractorVersion,
+          );
+      }
       this.writeCandidateEvent(id, "proposed", actor);
     });
 
     proposeTransaction();
     return this.requireCandidate(id);
+  }
+
+  private ambientContextMatchesInput(
+    candidateId: string,
+    input: ProposeMemoryCandidateInput,
+  ): boolean {
+    const row = this.database
+      .prepare(
+        `SELECT
+           source_id, user_id, persona_id, relationship_id, memory_class,
+           extractor_id, extractor_version
+         FROM ambient_candidate_profiles
+         WHERE candidate_id = ?`,
+      )
+      .get(candidateId) as
+      | {
+          source_id: string;
+          user_id: string;
+          persona_id: string;
+          relationship_id: string;
+          memory_class: string;
+          extractor_id: string;
+          extractor_version: string;
+        }
+      | undefined;
+    const context = input.ambientContext;
+    if (context === undefined) {
+      return row === undefined;
+    }
+    return (
+      row !== undefined &&
+      row.source_id === context.sourceId &&
+      row.user_id === context.userId &&
+      row.persona_id === context.personaId &&
+      row.relationship_id === context.relationshipId &&
+      row.memory_class === context.memoryClass &&
+      row.extractor_id === context.extractorId &&
+      row.extractor_version === context.extractorVersion
+    );
   }
 
   public getCandidate(id: string): MemoryCandidate | null {

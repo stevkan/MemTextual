@@ -42,11 +42,19 @@ explicit user-controlled shared scope.
 The first vertical slice targets one persona while retaining the multi-persona
 data model and isolation rules from the start.
 
-Phase 1 memory correctness is complete. Phase 2 now includes additive user,
+Phase 1 memory correctness is complete. Phase 2 includes additive user,
 persona, and relationship identities, an enforced namespace-scope hierarchy,
 explicit episodic-versus-durable memory classification, and a persona-aware
 retrieval path that denies cross-persona recall by default. This completes the
-planned Persona Foundations phase; ambient memory is the next phase.
+planned Persona Foundations phase.
+
+Phase 3 has started with a provider-neutral ambient capture boundary. Recorded
+interactions can now produce idempotent, evidence-backed candidates bound to
+one persona relationship and an explicit episodic or durable class. Candidates
+remain pending by default; the existing user-configured review policies are the
+only automatic-acceptance path, and accepted candidates are transactionally
+profiled as persona memories. Extraction-provider adapters, sensitive-data
+classification, and temporal relevance remain later Phase 3 work packages.
 
 ## Everyday data durability and recovery
 
