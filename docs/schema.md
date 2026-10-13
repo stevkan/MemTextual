@@ -219,6 +219,18 @@ policy, and temporal filters as lexical Continuity retrieval. It then combines
 lexical reciprocal rank with cosine similarity over a bounded candidate set.
 Only final returned memories receive use-count updates and retrieval audits.
 
+`continuity_ranking_profiles` is an append-only per-persona history. Revision 1
+is created automatically with a 0.35 lexical and 0.65 semantic blend, a 0.15
+pin boost, and a 0.05 direct-statement boost. Episodic and durable class boosts
+default to zero. Later revisions require explicit user action through the
+ranking service and an expected current revision number. Hybrid scoring applies
+the selected base blend and adds only the profile's visible pin,
+direct-statement, and memory-class boosts. Results expose those signals and the
+profile revision, which is also written to the retrieval audit.
+
+The direct-statement signal is the revision's extraction `explicitness`; it is
+not an assessment that the assertion is objectively true.
+
 ## SQLite-enforced invariants
 
 - Enum-like values and confidence ranges are checked.
@@ -226,6 +238,7 @@ Only final returned memories receive use-count updates and retrieval audits.
 - Only one primary scope is allowed per memory.
 - A memory cannot relate to itself.
 - Current and previous revisions must belong to the expected memory.
+- Persona ranking profile revisions are sequential and immutable.
 - Source-series identities and version numbers are unique, and source-version
   predecessors cannot point to themselves.
 - FTS rows track search-document inserts, updates, and deletes.

@@ -3,11 +3,13 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import test from "node:test";
-import { openMemTextualDatabase } from "../src/database/sqlite-database.js";
 import {
+  PersonaService,
+  SqlitePersonaRepository,
   createDatabaseSnapshot,
+  openMemTextualDatabase,
   verifyDatabaseAgainstManifest,
-} from "../src/safeguards/database-safeguard.js";
+} from "../src/index.js";
 
 function setup(): { databasePath: string; directory: string } {
   const directory = mkdtempSync(join(tmpdir(), "memtextual-safeguard-"));
@@ -21,6 +23,9 @@ function setup(): { databasePath: string; directory: string } {
       "INSERT INTO scopes(id, scope_kind, name, external_key) VALUES (?, 'project', ?, ?)",
     )
     .run("scope-1", "Continuity", "continuity");
+  const personas = new PersonaService(new SqlitePersonaRepository(database));
+  const user = personas.createUser({ displayName: "Steve" });
+  personas.createPersona({ userId: user.id, name: "Skylar" });
   database.close();
   return { databasePath, directory };
 }
@@ -35,15 +40,19 @@ test("snapshot creates an integrity-checked backup, manifest, and durable export
     });
 
     assert.equal(result.manifest.integrityCheck, "ok");
-    assert.equal(result.manifest.protectedTables.scopes?.rowCount, 1);
+    assert.equal(result.manifest.protectedTables.scopes?.rowCount, 4);
     assert.equal(result.manifest.protectedTables.memory_items?.rowCount, 0);
     assert.equal(result.manifest.protectedTables.memory_embeddings, undefined);
-    assert.equal(result.manifest.migrations.length, 14);
+    assert.equal(
+      result.manifest.protectedTables.continuity_ranking_profiles?.rowCount,
+      1,
+    );
+    assert.equal(result.manifest.migrations.length, 15);
 
     const export_ = JSON.parse(readFileSync(result.exportPath, "utf8")) as {
       tables: { scopes: Array<{ id: string }> };
     };
-    assert.equal(export_.tables.scopes[0]?.id, "scope-1");
+    assert.ok(export_.tables.scopes.some(({ id }) => id === "scope-1"));
 
     const verification = verifyDatabaseAgainstManifest({
       databasePath: result.backupPath,

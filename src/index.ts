@@ -46,11 +46,16 @@ export type {
   EmbeddingProviderIdentity,
   EmbeddingPurpose,
   EmbeddingRequest,
-  HybridRetrievalWeights,
   PersonaMemoryHybridRetrievalResult,
   StoreContinuityEmbeddingInput,
   StoredContinuityEmbedding,
 } from "./domain/continuity-embedding.js";
+export type {
+  PersonaRankingProfile,
+  PersonaRankingSignals,
+  RankingMutationContext,
+  UpdatePersonaRankingProfileInput,
+} from "./domain/continuity-ranking.js";
 export type {
   AmbientCaptureResult,
   AmbientExtractionInput,
@@ -177,6 +182,7 @@ export {
 export type { MemoryRepository } from "./repositories/memory-repository.js";
 export type { ContinuityMemoryRepository } from "./repositories/continuity-memory-repository.js";
 export type { ContinuityEmbeddingRepository } from "./repositories/continuity-embedding-repository.js";
+export type { ContinuityRankingRepository } from "./repositories/continuity-ranking-repository.js";
 export type { IngestionRepository } from "./repositories/ingestion-repository.js";
 export type { PersonaRepository } from "./repositories/persona-repository.js";
 export type { ReviewPolicyRepository } from "./repositories/review-policy-repository.js";
@@ -192,6 +198,7 @@ export type {
 } from "./repositories/host-event-repository.js";
 export { SqliteIngestionRepository } from "./repositories/sqlite-ingestion-repository.js";
 export { SqliteContinuityMemoryRepository } from "./repositories/sqlite-continuity-memory-repository.js";
+export { SqliteContinuityRankingRepository } from "./repositories/sqlite-continuity-ranking-repository.js";
 export { SqliteMemoryRepository } from "./repositories/sqlite-memory-repository.js";
 export { SqlitePersonaRepository } from "./repositories/sqlite-persona-repository.js";
 export { SqliteReviewPolicyRepository } from "./repositories/sqlite-review-policy-repository.js";
@@ -209,6 +216,10 @@ export {
 } from "./services/ingestion-service.js";
 export { ContinuityMemoryService } from "./services/continuity-memory-service.js";
 export { ContinuityEmbeddingService } from "./services/continuity-embedding-service.js";
+export {
+  ContinuityRankingService,
+  ExplicitRankingConfigurationRequiredError,
+} from "./services/continuity-ranking-service.js";
 export {
   ContinuityControlService,
   ExplicitContinuityControlActionRequiredError,

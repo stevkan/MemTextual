@@ -85,6 +85,9 @@ describe only the current design and behavior.
 - Added opt-in provider-neutral embedding generation and persona-safe hybrid
   retrieval with validated vectors, revision-bound derived storage, bounded
   candidate selection, and unchanged lexical retrieval defaults.
+- Added immutable per-persona ranking profiles with explicit-user configuration,
+  optimistic revision checks, explainable pin, explicit-assertion, episodic, and
+  durable boosts, retrieval audit attribution, and safeguard coverage.
 
 ## 0.8.0 - 2026-10-12
 

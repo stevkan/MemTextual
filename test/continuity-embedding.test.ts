@@ -71,7 +71,6 @@ test("hybrid retrieval finds semantic matches without lexical overlap", async ()
     const results = await setup.embeddings.retrieve({
       personaId: persona.persona.id,
       text: "car",
-      weights: { lexical: 0.2, semantic: 0.8 },
     });
 
     assert.equal(results[0]?.personaMemory.memory.id, semantic.memory.id);
@@ -242,9 +241,9 @@ test("hybrid retrieval validates persona and query before calling a provider", a
       setup.embeddings.retrieve({
         personaId: persona.persona.id,
         text: "query",
-        weights: { lexical: -1 },
+        candidateLimit: Number.NaN,
       }),
-      /weights/u,
+      /candidate limit/u,
     );
     assert.deepEqual(
       await setup.embeddings.retrieve({

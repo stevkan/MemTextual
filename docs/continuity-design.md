@@ -100,9 +100,19 @@ The opt-in hybrid path combines lexical reciprocal rank and cosine similarity
 over a bounded candidate pool while preserving the existing persona, policy,
 sensitivity, lifecycle, and temporal boundaries. The ordinary lexical path
 remains the default, and MemTextual does not select or contact an external
-embedding provider on its own. Persona-aware ranking beyond the existing pin
-tie-breaker, emotional relevance, and bounded context composition remain later
-Phase 5 work packages.
+embedding provider on its own.
+
+Persona-aware ranking now uses a separate immutable profile history for every
+persona. The default preserves the established 0.35 lexical and 0.65 semantic
+blend while making an explicit user pin and directly stated memories visible
+ranking signals. Here, directly stated follows the stored revision's
+`explicitness` field; it is not a claim that the assertion is objectively true.
+Users can explicitly revise those weights and independently
+boost episodic or durable memory for a persona; optimistic revision checks
+prevent silent overwrites. Each hybrid result explains the applied signals and
+boost, and its audit event records the profile revision. Ranking profiles are
+durable user configuration covered by database safeguards. Emotional relevance
+and bounded context composition remain later Phase 5 work packages.
 
 ## Everyday data durability and recovery
 

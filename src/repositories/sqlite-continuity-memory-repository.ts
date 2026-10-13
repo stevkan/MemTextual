@@ -8,6 +8,7 @@ import type {
   StoreContinuityEmbeddingInput,
   StoredContinuityEmbedding,
 } from "../domain/continuity-embedding.js";
+import type { PersonaRankingProfile } from "../domain/continuity-ranking.js";
 import {
   personaMemoryClasses,
   type ContinuityRetrievalQuery,
@@ -54,6 +55,8 @@ interface HybridCandidateRow {
   is_pinned: number;
   updated_at: string;
   vector_ref: string | null;
+  explicitness: "explicit" | "inferred";
+  memory_class: PersonaMemoryClass;
 }
 
 interface StoredEmbeddingRow {
@@ -122,12 +125,12 @@ function normalizeCandidateLimit(
   return Math.max(minimum, Math.min(Math.trunc(value), 1_000));
 }
 
-function resolveWeights(query: ContinuityHybridRetrievalQuery): {
+function resolveWeights(profile: PersonaRankingProfile): {
   lexical: number;
   semantic: number;
 } {
-  const lexical = query.weights?.lexical ?? 0.35;
-  const semantic = query.weights?.semantic ?? 0.65;
+  const lexical = profile.lexicalWeight;
+  const semantic = profile.semanticWeight;
   if (
     !Number.isFinite(lexical) ||
     !Number.isFinite(semantic) ||
@@ -418,7 +421,7 @@ export class SqliteContinuityMemoryRepository
     }
     const safeLimit = normalizeRetrievalLimit(query.limit);
     normalizeCandidateLimit(query.candidateLimit, safeLimit);
-    resolveWeights(query);
+    resolveWeights(this.requireRankingProfile(query.personaId));
     resolveAsOf(query.asOf);
     return memoryClasses.length > 0 && allowedSensitivities.length > 0;
   }
@@ -511,6 +514,7 @@ export class SqliteContinuityMemoryRepository
       return [];
     }
     const context = this.requirePersonaContext(query.personaId);
+    const rankingProfile = this.requireRankingProfile(query.personaId);
     const memoryClasses = [
       ...new Set(query.memoryClasses ?? personaMemoryClasses),
     ];
@@ -534,7 +538,7 @@ export class SqliteContinuityMemoryRepository
       query.candidateLimit,
       safeLimit,
     );
-    const weights = resolveWeights(query);
+    const weights = resolveWeights(rankingProfile);
     const ftsQuery = toFtsQuery(query.text) ?? "__memtextual_no_lexical_match__";
     const asOf = resolveAsOf(query.asOf);
     const includeOutOfWindow = query.includeOutOfWindow === true;
@@ -550,7 +554,9 @@ export class SqliteContinuityMemoryRepository
         lexical.relevance,
         memory.is_pinned,
         memory.updated_at,
-        embedding.vector_ref
+        embedding.vector_ref,
+        revision.explicitness,
+        profile.memory_class
       FROM memory_items memory
       JOIN memory_revisions revision ON revision.id = memory.current_revision_id
       JOIN continuity_memory_profiles profile ON profile.memory_id = memory.id
@@ -626,13 +632,27 @@ export class SqliteContinuityMemoryRepository
             ? null
             : Math.max(0, Math.min(1, (similarity + 1) / 2));
         const lexicalScore = lexicalScores.get(row.memory_id) ?? 0;
+        const rankingSignals = {
+          pinned: row.is_pinned === 1,
+          explicit: row.explicitness === "explicit",
+          memoryClass: row.memory_class,
+        };
+        const rankingBoost =
+          (rankingSignals.pinned ? rankingProfile.pinnedBoost : 0) +
+          (rankingSignals.explicit ? rankingProfile.explicitBoost : 0) +
+          (rankingSignals.memoryClass === "episodic"
+            ? rankingProfile.episodicBoost
+            : rankingProfile.durableBoost);
         return {
           ...row,
           lexicalScore,
           semanticScore,
+          rankingBoost,
+          rankingSignals,
           combinedScore:
             weights.lexical * lexicalScore +
-            weights.semantic * (semanticScore ?? 0),
+            weights.semantic * (semanticScore ?? 0) +
+            rankingBoost,
         };
       })
       .filter((row) => row.lexicalScore > 0 || row.semanticScore !== null)
@@ -674,6 +694,7 @@ export class SqliteContinuityMemoryRepository
               retrievalMode: "hybrid",
               embeddingProvider: queryEmbedding.provider,
               embeddingModel: queryEmbedding.model,
+              rankingProfileRevision: rankingProfile.revisionNumber,
             }),
             retrievedAt,
           );
@@ -688,6 +709,9 @@ export class SqliteContinuityMemoryRepository
         rank: index + 1,
         lexicalScore: row.lexicalScore,
         semanticScore: row.semanticScore,
+        rankingBoost: row.rankingBoost,
+        rankingProfileRevision: rankingProfile.revisionNumber,
+        rankingSignals: row.rankingSignals,
         combinedScore: row.combinedScore,
         ...temporalState(personaMemory.memory, asOf),
       };
@@ -713,6 +737,53 @@ export class SqliteContinuityMemoryRepository
       throw new Error(`Persona not found: ${personaId}`);
     }
     return row;
+  }
+
+  private requireRankingProfile(personaId: string): PersonaRankingProfile {
+    const row = this.database
+      .prepare(
+        `SELECT
+           id, persona_id, revision_number, lexical_weight, semantic_weight,
+           pinned_boost, explicit_boost, episodic_boost, durable_boost,
+           created_by, note, created_at
+         FROM continuity_ranking_profiles
+         WHERE persona_id = ?
+         ORDER BY revision_number DESC
+         LIMIT 1`,
+      )
+      .get(personaId) as
+      | {
+          id: string;
+          persona_id: string;
+          revision_number: number;
+          lexical_weight: number;
+          semantic_weight: number;
+          pinned_boost: number;
+          explicit_boost: number;
+          episodic_boost: number;
+          durable_boost: number;
+          created_by: "user" | "system";
+          note: string | null;
+          created_at: string;
+        }
+      | undefined;
+    if (row === undefined) {
+      throw new Error(`Persona ${personaId} has no ranking profile.`);
+    }
+    return {
+      id: row.id,
+      personaId: row.persona_id,
+      revisionNumber: row.revision_number,
+      lexicalWeight: row.lexical_weight,
+      semanticWeight: row.semantic_weight,
+      pinnedBoost: row.pinned_boost,
+      explicitBoost: row.explicit_boost,
+      episodicBoost: row.episodic_boost,
+      durableBoost: row.durable_boost,
+      createdBy: row.created_by,
+      note: row.note,
+      createdAt: row.created_at,
+    };
   }
 
   private requireProfile(memoryId: string): PersonaMemory {

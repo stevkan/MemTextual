@@ -98,12 +98,19 @@ and not-yet-valid memories remain stored and retain their lifecycle state;
 result increments its use count, updates its last-used time, and writes a
 `retrieved` audit event in the same transaction.
 
+Core `MemoryService` retrieval remains lexical. Continuity additionally offers
+an opt-in `ContinuityEmbeddingService` hybrid path and a revisioned
+`ContinuityRankingService` profile for each persona. The hybrid path preserves
+the same policy boundaries, while the profile controls lexical/semantic weights
+and explainable pin, explicitness, episodic, and durable boosts. Profile changes
+require explicit user action and an expected current revision.
+
 ## Current limitations
 
 The following are not implemented:
 
 - automatic extraction;
 - hierarchical scope expansion;
-- semantic or hybrid vector ranking;
+- semantic or hybrid vector ranking in the core `MemoryService` path;
 - retrieval-policy, sensitivity, and scope mutation APIs;
 - REST and administrative UI adapters.

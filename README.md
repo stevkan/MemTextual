@@ -95,6 +95,7 @@ python -m sqlite3 memtextual.db ".read migrations/011_ambient_capture.sql"
 python -m sqlite3 memtextual.db ".read migrations/012_ambient_sensitivity.sql"
 python -m sqlite3 memtextual.db ".read migrations/013_temporal_relevance.sql"
 python -m sqlite3 memtextual.db ".read migrations/014_authorized_host_capture.sql"
+python -m sqlite3 memtextual.db ".read migrations/015_persona_ranking.sql"
 python -m sqlite3 memtextual.db ".read examples/seed-v0.1.sql"
 ```
 
@@ -136,6 +137,11 @@ hybrid retrieval path combines lexical rank and cosine similarity while
 reapplying persona, relationship, class, sensitivity, lifecycle, policy, and
 temporal boundaries. No embedding provider is configured or contacted by
 default, and ordinary lexical retrieval is unchanged.
+`ContinuityRankingService` exposes each persona's immutable, revisioned ranking
+profile. Explicit user action can tune lexical and semantic weights plus pin,
+explicit-assertion, episodic, and durable boosts. Hybrid results report the
+applied profile revision, signals, and boost, and retrieval audits retain the
+profile revision used.
 `ContinuityControlService` exposes persona-bound candidate queues, resolved
 evidence, revision history, correction, pin/protect controls, lifecycle actions,
 and privacy operations. Every mutation requires an explicit user action, and

@@ -2,6 +2,7 @@ import type {
   ContinuityRetrievalQuery,
   PersonaMemoryRetrievalResult,
 } from "./continuity-memory.js";
+import type { PersonaRankingSignals } from "./continuity-ranking.js";
 
 export type EmbeddingPurpose = "document" | "query";
 
@@ -45,14 +46,8 @@ export interface StoredContinuityEmbedding {
   createdAt: string;
 }
 
-export interface HybridRetrievalWeights {
-  lexical: number;
-  semantic: number;
-}
-
 export interface ContinuityHybridRetrievalQuery
   extends ContinuityRetrievalQuery {
-  weights?: Partial<HybridRetrievalWeights>;
   candidateLimit?: number;
 }
 
@@ -65,5 +60,8 @@ export interface PersonaMemoryHybridRetrievalResult
   extends PersonaMemoryRetrievalResult {
   lexicalScore: number;
   semanticScore: number | null;
+  rankingBoost: number;
+  rankingProfileRevision: number;
+  rankingSignals: PersonaRankingSignals;
   combinedScore: number;
 }
