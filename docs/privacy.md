@@ -1,4 +1,4 @@
-# Recoverable deletion and memory purge
+# Recoverable deletion and privacy purge
 
 ## Safety model
 
@@ -51,6 +51,27 @@ preview and receipt therefore reports `externalCopiesNotModified: true`.
 Complete erasure requires applying the user's retention policy to those copies;
 MemTextual must not claim otherwise.
 
+## Source-series deletion and purge
+
+An externally identified source and all its immutable versions are deleted and
+restored as one series. Deletion tombstones every version and record while
+retaining their exact prior deletion states, so restoration does not revive a
+record that was already deleted for another reason. Imports cannot implicitly
+reuse or resurrect a deleted series.
+
+The source purge preview reports all versions, records, dependent memories,
+dependent candidates, and active review policies that trust the source
+identity. Purge is blocked until:
+
+- the source series has first been recoverably deleted;
+- no retained memory evidence depends on any record in the series; and
+- no active review policy trusts the source kind and external ID.
+
+Once unblocked and exactly confirmed, source purge removes the series, all
+versions and records, deletion history, and remaining candidate lineage that
+references those records. It writes an assertion-free source purge receipt.
+Inactive historical policies remain intact but cannot authorize future review.
+
 ## Trusted local CLI
 
 The MCP transport does not expose deletion or purge because it acts as the
@@ -61,6 +82,10 @@ npm run privacy -- preview --id MEMORY_ID --database .\data\memtextual.db --migr
 npm run privacy -- delete --id MEMORY_ID --reason "User requested forgetting" --confirm MEMORY_ID --database .\data\memtextual.db --migrations .\migrations
 npm run privacy -- restore --id MEMORY_ID --confirm MEMORY_ID --database .\data\memtextual.db --migrations .\migrations
 npm run privacy -- purge --id MEMORY_ID --reason "User requested permanent removal" --confirm MEMORY_ID --database .\data\memtextual.db --migrations .\migrations
+npm run privacy -- source-preview --kind file --external-id SOURCE_ID --database .\data\memtextual.db --migrations .\migrations
+npm run privacy -- source-delete --kind file --external-id SOURCE_ID --reason "User requested source deletion" --confirm SOURCE_ID --database .\data\memtextual.db --migrations .\migrations
+npm run privacy -- source-restore --kind file --external-id SOURCE_ID --confirm SOURCE_ID --database .\data\memtextual.db --migrations .\migrations
+npm run privacy -- source-purge --kind file --external-id SOURCE_ID --reason "User requested permanent source removal" --confirm SOURCE_ID --database .\data\memtextual.db --migrations .\migrations
 ```
 
 Use a short operational reason; do not repeat sensitive memory content in the
@@ -68,6 +93,6 @@ reason because the purge receipt retains it.
 
 ## Current boundary
 
-This package implements memory deletion and memory purge. Source-series
-deletion and purge, backup-retention enforcement, bulk operations, and a
-graphical confirmation flow remain separate work.
+Memory and source-series deletion and purge are implemented. Standalone sources
+without an external series identity, backup-retention enforcement, bulk
+operations, and a graphical confirmation flow remain separate work.

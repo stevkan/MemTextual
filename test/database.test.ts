@@ -36,7 +36,7 @@ test("migration and seed preserve schema integrity", () => {
     const violations = database.prepare("PRAGMA foreign_key_check").all();
 
     assert.equal(memoryCount.count, 10);
-    assert.equal(migrationCount.count, 7);
+    assert.equal(migrationCount.count, 8);
     assert.deepEqual(violations, []);
   } finally {
     database.close();
@@ -180,6 +180,9 @@ test("review automation migration upgrades an existing candidate database", () =
       const deletionPurgeMigration = upgraded
         .prepare("SELECT name FROM schema_migrations WHERE version = 7")
         .get() as { name: string };
+      const sourceDeletionPurgeMigration = upgraded
+        .prepare("SELECT name FROM schema_migrations WHERE version = 8")
+        .get() as { name: string };
 
       assert.equal(candidate.assertion, "Preserve this candidate.");
       assert.equal(candidate.proposer_id, null);
@@ -190,6 +193,10 @@ test("review automation migration upgrades an existing candidate database", () =
       assert.equal(resolutionMigration.name, "candidate_resolution_v0.9");
       assert.equal(sourceVersionMigration.name, "source_versioning_v0.9");
       assert.equal(deletionPurgeMigration.name, "memory_deletion_purge_v0.9");
+      assert.equal(
+        sourceDeletionPurgeMigration.name,
+        "source_series_deletion_purge_v0.9",
+      );
       assert.deepEqual(
         upgraded
           .prepare(
@@ -410,6 +417,81 @@ test("deletion migration records legacy tombstones without inventing a recoverab
         actor_type: "system",
         is_recoverable: 0,
         reason: "Legacy tombstone.",
+      });
+      assert.deepEqual(upgraded.prepare("PRAGMA foreign_key_check").all(), []);
+    } finally {
+      upgraded.close();
+    }
+  } finally {
+    rmSync(temporaryDirectory, { recursive: true, force: true });
+  }
+});
+
+test("source deletion migration records legacy series tombstones as unrecoverable", () => {
+  const temporaryDirectory = mkdtempSync(join(tmpdir(), "memtextual-source-delete-"));
+  const oldMigrations = join(temporaryDirectory, "old-migrations");
+  const databasePath = join(temporaryDirectory, "existing.db");
+  mkdirSync(oldMigrations);
+  for (const filename of [
+    "001_initial.sql",
+    "002_ingestion_candidates.sql",
+    "003_review_automation.sql",
+    "004_legacy_memory_migration.sql",
+    "005_candidate_resolution.sql",
+    "006_source_versioning.sql",
+    "007_memory_deletion_purge.sql",
+  ]) {
+    copyFileSync(resolve("migrations", filename), join(oldMigrations, filename));
+  }
+
+  try {
+    const oldDatabase = openMemTextualDatabase({
+      filename: databasePath,
+      migrationsDirectory: oldMigrations,
+    });
+    oldDatabase.exec(`
+      INSERT INTO sources (
+        id, source_kind, title, external_id, deleted_at
+      ) VALUES (
+        'source_legacy_deleted',
+        'file',
+        'Legacy deleted source',
+        'file:legacy-deleted',
+        '2026-10-12T00:00:00.000Z'
+      );
+      INSERT INTO source_series (
+        id, source_kind, external_id, current_source_id
+      ) VALUES (
+        'series_legacy_deleted',
+        'file',
+        'file:legacy-deleted',
+        'source_legacy_deleted'
+      );
+      INSERT INTO source_versions (
+        source_id, series_id, version_number
+      ) VALUES (
+        'source_legacy_deleted',
+        'series_legacy_deleted',
+        1
+      );
+    `);
+    oldDatabase.close();
+
+    const upgraded = openMemTextualDatabase({
+      filename: databasePath,
+      migrationsDirectory: resolve("migrations"),
+    });
+    try {
+      const event = upgraded
+        .prepare(
+          `SELECT actor_type, is_recoverable, reason
+           FROM source_series_deletion_events`,
+        )
+        .get();
+      assert.deepEqual(event, {
+        actor_type: "system",
+        is_recoverable: 0,
+        reason: "Pre-migration source deletion",
       });
       assert.deepEqual(upgraded.prepare("PRAGMA foreign_key_check").all(), []);
     } finally {

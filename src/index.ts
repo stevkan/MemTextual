@@ -49,6 +49,7 @@ export {
   type CandidateSemanticMatchProposal,
   type CandidateReviewContext,
   type CandidateStatus,
+  type DeleteSourceSeriesInput,
   type EvidenceRole,
   type ImportSourceInput,
   type ImportSourceRecordInput,
@@ -59,6 +60,11 @@ export {
   type SourceKind,
   type SourceRecord,
   type SourceRecordKind,
+  type SourceMutationContext,
+  type SourceSeriesIdentity,
+  type SourceSeriesPurgePreview,
+  type SourceSeriesPurgeReceipt,
+  type PurgeSourceSeriesInput,
 } from "./domain/ingestion.js";
 export type {
   LegacyMemoryEntry,
@@ -106,6 +112,7 @@ export { SqliteReviewPolicyRepository } from "./repositories/sqlite-review-polic
 export {
   CandidateNotFoundError,
   ExplicitCandidateReviewRequiredError,
+  ExplicitSourceMutationRequiredError,
   IngestionService,
   type CandidateAutomationProcessor,
   type CandidateProposalOptions,

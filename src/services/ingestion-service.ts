@@ -6,12 +6,18 @@ import type {
   CandidateResolutionResult,
   CandidateReviewContext,
   CandidateStatus,
+  DeleteSourceSeriesInput,
   ImportSourceInput,
   MemoryCandidate,
   ProposeMemoryCandidateInput,
   Source,
   SourceImportResult,
   SourceRecord,
+  SourceMutationContext,
+  SourceSeriesIdentity,
+  SourceSeriesPurgePreview,
+  SourceSeriesPurgeReceipt,
+  PurgeSourceSeriesInput,
 } from "../domain/ingestion.js";
 import { candidateMatchKinds } from "../domain/ingestion.js";
 import type {
@@ -48,6 +54,13 @@ export class ExplicitCandidateReviewRequiredError extends Error {
   }
 }
 
+export class ExplicitSourceMutationRequiredError extends Error {
+  public constructor(operation: string) {
+    super(`${operation} requires an explicit user action.`);
+    this.name = "ExplicitSourceMutationRequiredError";
+  }
+}
+
 export class IngestionService {
   public constructor(
     private readonly repository: IngestionRepository,
@@ -73,6 +86,41 @@ export class IngestionService {
 
   public getSourceRecords(sourceId: string): SourceRecord[] {
     return this.repository.getSourceRecords(sourceId);
+  }
+
+  public deleteSourceSeries(
+    input: DeleteSourceSeriesInput,
+    context: SourceMutationContext = {},
+  ): Source[] {
+    this.requireExplicitSourceMutation("Source-series deletion", context);
+    return this.repository.deleteSourceSeries(input, "user", true);
+  }
+
+  public restoreSourceSeries(
+    input: SourceSeriesIdentity,
+    context: SourceMutationContext = {},
+  ): Source[] {
+    this.requireExplicitSourceMutation("Source-series restoration", context);
+    return this.repository.restoreSourceSeries(input, "user", true);
+  }
+
+  public previewSourceSeriesPurge(
+    input: SourceSeriesIdentity,
+  ): SourceSeriesPurgePreview {
+    return this.repository.previewSourceSeriesPurge(input);
+  }
+
+  public purgeSourceSeries(
+    input: PurgeSourceSeriesInput,
+    context: SourceMutationContext = {},
+  ): SourceSeriesPurgeReceipt {
+    this.requireExplicitSourceMutation("Source-series purge", context);
+    if (input.confirmation !== input.externalId) {
+      throw new Error(
+        "Source-series purge confirmation must exactly match the external ID.",
+      );
+    }
+    return this.repository.purgeSourceSeries(input, "user", true);
   }
 
   public proposeCandidate(
@@ -244,6 +292,15 @@ export class IngestionService {
   private requireExplicitUserReview(context: CandidateReviewContext): void {
     if (context.actor !== "user" || context.explicitUserAction !== true) {
       throw new ExplicitCandidateReviewRequiredError();
+    }
+  }
+
+  private requireExplicitSourceMutation(
+    operation: string,
+    context: SourceMutationContext,
+  ): void {
+    if (context.actor !== "user" || context.explicitUserAction !== true) {
+      throw new ExplicitSourceMutationRequiredError(operation);
     }
   }
 }

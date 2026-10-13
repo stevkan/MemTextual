@@ -122,6 +122,10 @@ Portable types are in `src/domain/ingestion.ts`.
 - `listSources`
 - `getSourceHistory`
 - `getSourceRecords`
+- `deleteSourceSeries`
+- `restoreSourceSeries`
+- `previewSourceSeriesPurge`
+- `purgeSourceSeries`
 - `proposeCandidate`
 - `getCandidate`
 - `getCandidateByExternalId`
@@ -213,7 +217,7 @@ precedence, evaluation behavior, and audit contract.
 Current limitations include:
 
 - resumable imports;
-- source-series deletion and privacy-purge semantics;
+- standalone-source deletion outside an external source series;
 - an explicitly configured local or external semantic-provider adapter;
 - a graphical review interface beyond the local CLI;
 - automatic extraction-provider integration;

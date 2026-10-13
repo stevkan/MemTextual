@@ -123,5 +123,6 @@ version. The migration CLI does not implicitly version changed exports.
 - Acceptance always creates a new memory. Semantic duplicate detection,
   conflict matching, merging, revision, reaffirmation, contradiction, and
   supersession choices are not automated.
-- Resumable streaming imports and source-series deletion or privacy purge are
-  not implemented. Memory deletion and purge are available separately.
+- Resumable streaming imports and standalone-source deletion are not
+  implemented. Memory and external source-series deletion and purge are
+  available separately.

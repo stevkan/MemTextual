@@ -3,8 +3,11 @@
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { openMemTextualDatabase } from "../database/sqlite-database.js";
+import { sourceKinds, type SourceSeriesIdentity } from "../domain/ingestion.js";
 import { resolveMcpRuntimeConfig } from "../mcp/config.js";
+import { SqliteIngestionRepository } from "../repositories/sqlite-ingestion-repository.js";
 import { SqliteMemoryRepository } from "../repositories/sqlite-memory-repository.js";
+import { IngestionService } from "../services/ingestion-service.js";
 import { MemoryService } from "../services/memory-service.js";
 
 interface ParsedArguments {
@@ -20,6 +23,10 @@ function usage(): string {
     "  memtextual-privacy delete --id MEMORY_ID --reason TEXT --confirm MEMORY_ID",
     "  memtextual-privacy restore --id MEMORY_ID --confirm MEMORY_ID",
     "  memtextual-privacy purge --id MEMORY_ID --reason TEXT --confirm MEMORY_ID",
+    "  memtextual-privacy source-preview --kind KIND --external-id ID",
+    "  memtextual-privacy source-delete --kind KIND --external-id ID --reason TEXT --confirm ID",
+    "  memtextual-privacy source-restore --kind KIND --external-id ID --confirm ID",
+    "  memtextual-privacy source-purge --kind KIND --external-id ID --reason TEXT --confirm ID",
     "",
     "All commands also accept --database PATH and --migrations PATH.",
     "Archive is the default reversible removal. Delete is recoverable; purge is not.",
@@ -40,6 +47,8 @@ function parseArguments(argv: string[]): ParsedArguments {
     "--id",
     "--reason",
     "--confirm",
+    "--kind",
+    "--external-id",
   ]);
   for (let index = 0; index < rest.length; index += 1) {
     const option = rest[index]!;
@@ -74,6 +83,17 @@ function requireConfirmation(arguments_: ParsedArguments, id: string): void {
   }
 }
 
+function sourceIdentity(arguments_: ParsedArguments): SourceSeriesIdentity {
+  const kind = requiredValue(arguments_, "--kind");
+  if (!sourceKinds.includes(kind as (typeof sourceKinds)[number])) {
+    throw new Error(`Unsupported source kind: ${kind}.`);
+  }
+  return {
+    kind: kind as SourceSeriesIdentity["kind"],
+    externalId: requiredValue(arguments_, "--external-id"),
+  };
+}
+
 function writeJson(value: unknown): void {
   process.stdout.write(`${JSON.stringify(value, null, 2)}\n`);
 }
@@ -87,13 +107,19 @@ function main(): void {
     migrationsDirectory: config.migrationsDirectory,
   });
   try {
-    const service = new MemoryService(new SqliteMemoryRepository(database));
-    const id = requiredValue(arguments_, "--id");
+    const memoryRepository = new SqliteMemoryRepository(database);
+    const service = new MemoryService(memoryRepository);
+    const ingestionService = new IngestionService(
+      new SqliteIngestionRepository(database, memoryRepository),
+    );
     switch (arguments_.command) {
-      case "preview":
+      case "preview": {
+        const id = requiredValue(arguments_, "--id");
         writeJson(service.previewPurge(id));
         return;
-      case "delete":
+      }
+      case "delete": {
+        const id = requiredValue(arguments_, "--id");
         requireConfirmation(arguments_, id);
         writeJson(
           service.delete(
@@ -103,7 +129,9 @@ function main(): void {
           ),
         );
         return;
-      case "restore":
+      }
+      case "restore": {
+        const id = requiredValue(arguments_, "--id");
         requireConfirmation(arguments_, id);
         writeJson(
           service.restoreDeleted(id, {
@@ -112,7 +140,9 @@ function main(): void {
           }),
         );
         return;
-      case "purge":
+      }
+      case "purge": {
+        const id = requiredValue(arguments_, "--id");
         requireConfirmation(arguments_, id);
         writeJson(
           service.purge(
@@ -125,6 +155,50 @@ function main(): void {
           ),
         );
         return;
+      }
+      case "source-preview":
+        writeJson(ingestionService.previewSourceSeriesPurge(sourceIdentity(arguments_)));
+        return;
+      case "source-delete": {
+        const identity = sourceIdentity(arguments_);
+        requireConfirmation(arguments_, identity.externalId);
+        writeJson(
+          ingestionService.deleteSourceSeries(
+            {
+              ...identity,
+              reason: requiredValue(arguments_, "--reason"),
+            },
+            { actor: "user", explicitUserAction: true },
+          ),
+        );
+        return;
+      }
+      case "source-restore": {
+        const identity = sourceIdentity(arguments_);
+        requireConfirmation(arguments_, identity.externalId);
+        writeJson(
+          ingestionService.restoreSourceSeries(identity, {
+            actor: "user",
+            explicitUserAction: true,
+          }),
+        );
+        return;
+      }
+      case "source-purge": {
+        const identity = sourceIdentity(arguments_);
+        requireConfirmation(arguments_, identity.externalId);
+        writeJson(
+          ingestionService.purgeSourceSeries(
+            {
+              ...identity,
+              reason: requiredValue(arguments_, "--reason"),
+              confirmation: identity.externalId,
+            },
+            { actor: "user", explicitUserAction: true },
+          ),
+        );
+        return;
+      }
       default:
         throw new Error(`Unknown command: ${arguments_.command}\n\n${usage()}`);
     }

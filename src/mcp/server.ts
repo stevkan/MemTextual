@@ -57,6 +57,11 @@ export const mcpCapabilityCatalog = [
   },
   { name: "legacy_memory_migration", status: "implemented", interface: "cli" },
   { name: "memory_deletion_and_purge", status: "implemented", interface: "cli" },
+  {
+    name: "source_series_deletion_and_purge",
+    status: "implemented",
+    interface: "cli",
+  },
 ] as const;
 
 export const mcpToolCatalog = [

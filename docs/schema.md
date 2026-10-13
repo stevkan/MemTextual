@@ -34,6 +34,13 @@ stable and selects its current source. `source_versions` links every immutable
 source in the series by version number and predecessor. Older versions and
 their records remain addressable.
 
+Source-series deletion tombstones every version and record while
+`source_series_deletion_events` retains the exact prior deletion states needed
+for restoration. Purge is blocked by retained memory evidence or an active
+trusted-source policy, then removes the series and remaining candidate lineage
+only after exact user confirmation. `source_purge_receipts` retains no source
+content.
+
 Source content is not itself a memory. It is evidence from which zero or more
 memory revisions may be extracted.
 

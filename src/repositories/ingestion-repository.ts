@@ -6,11 +6,15 @@ import type {
   CandidateResolutionInput,
   CandidateResolutionResult,
   CandidateStatus,
+  DeleteSourceSeriesInput,
   ImportSourceInput,
   MemoryCandidate,
   ProposeMemoryCandidateInput,
   Source,
   SourceImportResult,
+  SourceSeriesIdentity,
+  SourceSeriesPurgePreview,
+  SourceSeriesPurgeReceipt,
   SourceRecord,
 } from "../domain/ingestion.js";
 import type { PolicyAcceptanceAuthorization } from "../domain/review-policy.js";
@@ -22,6 +26,22 @@ export interface IngestionRepository {
   getSourceHistory(kind: Source["kind"], externalId: string): Source[];
   getSourceRecord(id: string): SourceRecord | null;
   getSourceRecords(sourceId: string): SourceRecord[];
+  deleteSourceSeries(
+    input: DeleteSourceSeriesInput,
+    actor: CandidateActor,
+    explicitUserAction: boolean,
+  ): Source[];
+  restoreSourceSeries(
+    input: SourceSeriesIdentity,
+    actor: CandidateActor,
+    explicitUserAction: boolean,
+  ): Source[];
+  previewSourceSeriesPurge(input: SourceSeriesIdentity): SourceSeriesPurgePreview;
+  purgeSourceSeries(
+    input: SourceSeriesIdentity & { reason: string },
+    actor: CandidateActor,
+    explicitUserAction: boolean,
+  ): SourceSeriesPurgeReceipt;
   proposeCandidate(input: ProposeMemoryCandidateInput): MemoryCandidate;
   getCandidateByExternalId(externalId: string): MemoryCandidate | null;
   getCandidate(id: string): MemoryCandidate | null;

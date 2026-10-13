@@ -24,6 +24,7 @@ The system provides:
 - scoped, typed memories with immutable revision history;
 - archive, restore, supersede, and contradiction lifecycles;
 - explicitly authorized recoverable deletion and confirmed memory purge;
+- dependency-aware source-series deletion, restoration, and confirmed purge;
 - sensitivity, retrieval, pinning, and protection controls;
 - policy-aware FTS5 retrieval and retrieval audits;
 - a trusted terminal workflow for candidate review;
@@ -74,6 +75,7 @@ python -m sqlite3 memtextual.db ".read migrations/004_legacy_memory_migration.sq
 python -m sqlite3 memtextual.db ".read migrations/005_candidate_resolution.sql"
 python -m sqlite3 memtextual.db ".read migrations/006_source_versioning.sql"
 python -m sqlite3 memtextual.db ".read migrations/007_memory_deletion_purge.sql"
+python -m sqlite3 memtextual.db ".read migrations/008_source_series_deletion_purge.sql"
 python -m sqlite3 memtextual.db ".read examples/seed-v0.1.sql"
 ```
 
@@ -112,7 +114,7 @@ upgraded copy without rejecting additive schema changes.
 
 Automatic extraction, vendor-specific legacy-export adapters, a trusted
 graphical candidate-review UI, semantic candidate deduplication and conflict matching,
-source-series deletion and purge, backup-retention enforcement, resumable imports,
+standalone-source deletion, backup-retention enforcement, resumable imports,
 streamable HTTP, REST API, admin UI,
 embedding provider, host-specific installers, and the broader packaging
 strategy remain open.

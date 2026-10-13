@@ -24,6 +24,9 @@ describe only the current design and behavior.
 - Added explicitly authorized recoverable memory deletion, exact-confirmation
   purge, assertion-free purge receipts, retained-copy disclosure, and a trusted
   local privacy CLI.
+- Added reversible source-series deletion, dependency-aware purge previews,
+  retained-memory and active-policy blockers, exact-confirmation source purge,
+  and assertion-free source purge receipts.
 
 ## 0.8.0 - 2026-10-12
 

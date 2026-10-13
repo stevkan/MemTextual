@@ -10,6 +10,7 @@ import type {
   CandidateResolutionKind,
   CandidateResolutionResult,
   CandidateStatus,
+  DeleteSourceSeriesInput,
   ImportSourceInput,
   MemoryCandidate,
   ProposeMemoryCandidateInput,
@@ -17,6 +18,9 @@ import type {
   SourceImportResult,
   SourceKind,
   SourceRecord,
+  SourceSeriesIdentity,
+  SourceSeriesPurgePreview,
+  SourceSeriesPurgeReceipt,
   SourceRecordKind,
 } from "../domain/ingestion.js";
 import { candidateResolutionKinds } from "../domain/ingestion.js";
@@ -46,12 +50,19 @@ interface SourceRow {
   previous_source_id: string | null;
   version_reason: string | null;
   is_current: 0 | 1;
+  deleted_at: string | null;
+  deletion_reason: string | null;
 }
 
 interface SourceSeriesRow {
   id: string;
   current_source_id: string;
   next_version: number;
+}
+
+interface SourceSeriesLifecycleRow {
+  id: string;
+  is_deleted: 0 | 1;
 }
 
 interface SourceRecordRow {
@@ -174,6 +185,8 @@ function mapSource(row: SourceRow): Source {
     previousSourceId: row.previous_source_id,
     versionReason: row.version_reason,
     isCurrent: row.is_current === 1,
+    deletedAt: row.deleted_at,
+    deletionReason: row.deletion_reason,
   };
 }
 
@@ -239,6 +252,11 @@ export class SqliteIngestionRepository implements IngestionRepository {
         : this.findSourceByExternalId(input.kind, externalId);
 
     if (existing !== null) {
+      if (existing.deletedAt !== null) {
+        throw new Error(
+          `Source ${input.kind}:${externalId} is deleted. Restore the source series before importing it again.`,
+        );
+      }
       if (existing.contentHash !== contentHash) {
         if (input.createVersion !== true || externalId === undefined) {
           throw new Error(
@@ -298,9 +316,11 @@ export class SqliteIngestionRepository implements IngestionRepository {
         `SELECT
            s.id, s.source_kind, s.title, s.origin_uri,
            COALESCE(ss.external_id, s.external_id) AS external_id,
-           s.content_hash, s.captured_at, s.metadata_json, s.created_at,
+           s.content_hash, s.captured_at, s.metadata_json, s.created_at, s.deleted_at,
            count(r.id) AS record_count,
            sv.series_id, sv.version_number, sv.previous_source_id, sv.version_reason,
+           (SELECT sde.reason FROM source_series_deletion_events sde
+            WHERE sde.series_id = sv.series_id AND sde.restored_at IS NULL) AS deletion_reason,
            CASE WHEN sv.source_id IS NULL OR ss.current_source_id = s.id THEN 1 ELSE 0 END AS is_current
          FROM sources s
          LEFT JOIN source_records r ON r.source_id = s.id AND r.deleted_at IS NULL
@@ -326,6 +346,333 @@ export class SqliteIngestionRepository implements IngestionRepository {
       )
       .all(kind, normalized) as SourceRow[];
     return rows.map(mapSource);
+  }
+
+  public deleteSourceSeries(
+    input: DeleteSourceSeriesInput,
+    actor: CandidateActor,
+    explicitUserAction: boolean,
+  ): Source[] {
+    this.requireExplicitSourceAction(actor, explicitUserAction, "delete");
+    const externalId = validateText(input.externalId, "A source external ID");
+    const reason = validateText(input.reason, "A source deletion reason");
+    const series = this.requireSourceSeries({ kind: input.kind, externalId });
+    if (series.is_deleted === 1) {
+      throw new Error(`Source series ${input.kind}:${externalId} is already deleted.`);
+    }
+
+    const deletionTransaction = this.database.transaction(() => {
+      const eventId = randomUUID();
+      this.database
+        .prepare(
+          `INSERT INTO source_series_deletion_events (
+             id, series_id, reason, actor_type
+           ) VALUES (?, ?, ?, 'user')`,
+        )
+        .run(eventId, series.id, reason);
+
+      const sources = this.database
+        .prepare(
+          `SELECT s.id, s.deleted_at
+           FROM source_versions sv
+           JOIN sources s ON s.id = sv.source_id
+           WHERE sv.series_id = ?`,
+        )
+        .all(series.id) as Array<{ id: string; deleted_at: string | null }>;
+      const records = this.database
+        .prepare(
+          `SELECT r.id, r.deleted_at
+           FROM source_versions sv
+           JOIN source_records r ON r.source_id = sv.source_id
+           WHERE sv.series_id = ?`,
+        )
+        .all(series.id) as Array<{ id: string; deleted_at: string | null }>;
+
+      const trackSource = this.database.prepare(
+        `INSERT INTO source_series_deletion_sources (
+           deletion_event_id, source_id, previous_deleted_at
+         ) VALUES (?, ?, ?)`,
+      );
+      for (const source of sources) {
+        trackSource.run(eventId, source.id, source.deleted_at);
+      }
+      const trackRecord = this.database.prepare(
+        `INSERT INTO source_series_deletion_records (
+           deletion_event_id, source_record_id, previous_deleted_at
+         ) VALUES (?, ?, ?)`,
+      );
+      for (const record of records) {
+        trackRecord.run(eventId, record.id, record.deleted_at);
+      }
+
+      this.database
+        .prepare(
+          `UPDATE source_records
+           SET deleted_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+           WHERE source_id IN (
+             SELECT source_id FROM source_versions WHERE series_id = ?
+           )`,
+        )
+        .run(series.id);
+      this.database
+        .prepare(
+          `UPDATE sources
+           SET deleted_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+           WHERE id IN (
+             SELECT source_id FROM source_versions WHERE series_id = ?
+           )`,
+        )
+        .run(series.id);
+    });
+    deletionTransaction();
+    return this.getSourceHistory(input.kind, externalId);
+  }
+
+  public restoreSourceSeries(
+    input: SourceSeriesIdentity,
+    actor: CandidateActor,
+    explicitUserAction: boolean,
+  ): Source[] {
+    this.requireExplicitSourceAction(actor, explicitUserAction, "restore");
+    const externalId = validateText(input.externalId, "A source external ID");
+    const series = this.requireSourceSeries({ kind: input.kind, externalId });
+    const restoreTransaction = this.database.transaction(() => {
+      const event = this.database
+        .prepare(
+          `SELECT id FROM source_series_deletion_events
+           WHERE series_id = ? AND restored_at IS NULL AND is_recoverable = 1`,
+        )
+        .get(series.id) as { id: string } | undefined;
+      if (event === undefined) {
+        throw new Error(
+          `Source series ${input.kind}:${externalId} has no recoverable deletion record.`,
+        );
+      }
+      const sources = this.database
+        .prepare(
+          `SELECT source_id, previous_deleted_at
+           FROM source_series_deletion_sources WHERE deletion_event_id = ?`,
+        )
+        .all(event.id) as Array<{
+        source_id: string;
+        previous_deleted_at: string | null;
+      }>;
+      const records = this.database
+        .prepare(
+          `SELECT source_record_id, previous_deleted_at
+           FROM source_series_deletion_records WHERE deletion_event_id = ?`,
+        )
+        .all(event.id) as Array<{
+        source_record_id: string;
+        previous_deleted_at: string | null;
+      }>;
+      const restoreSource = this.database.prepare(
+        "UPDATE sources SET deleted_at = ? WHERE id = ?",
+      );
+      for (const source of sources) {
+        restoreSource.run(source.previous_deleted_at, source.source_id);
+      }
+      const restoreRecord = this.database.prepare(
+        "UPDATE source_records SET deleted_at = ? WHERE id = ?",
+      );
+      for (const record of records) {
+        restoreRecord.run(record.previous_deleted_at, record.source_record_id);
+      }
+      this.database
+        .prepare(
+          `UPDATE source_series_deletion_events
+           SET restored_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+           WHERE id = ?`,
+        )
+        .run(event.id);
+    });
+    restoreTransaction();
+    return this.getSourceHistory(input.kind, externalId);
+  }
+
+  public previewSourceSeriesPurge(
+    input: SourceSeriesIdentity,
+  ): SourceSeriesPurgePreview {
+    const externalId = validateText(input.externalId, "A source external ID");
+    const series = this.requireSourceSeries({ kind: input.kind, externalId });
+    const dependentMemoryIds = this.database
+      .prepare(
+        `SELECT DISTINCT mr.memory_id AS id
+         FROM source_versions sv
+         JOIN source_records sr ON sr.source_id = sv.source_id
+         JOIN memory_evidence me ON me.source_record_id = sr.id
+         JOIN memory_revisions mr ON mr.id = me.memory_revision_id
+         WHERE sv.series_id = ?
+         ORDER BY mr.memory_id`,
+      )
+      .all(series.id)
+      .map((row) => (row as { id: string }).id);
+    const dependentCandidateIds = this.database
+      .prepare(
+        `SELECT DISTINCT ce.candidate_id AS id
+         FROM source_versions sv
+         JOIN source_records sr ON sr.source_id = sv.source_id
+         JOIN candidate_evidence ce ON ce.source_record_id = sr.id
+         WHERE sv.series_id = ?
+         ORDER BY ce.candidate_id`,
+      )
+      .all(series.id)
+      .map((row) => (row as { id: string }).id);
+    const activeReviewPolicyIds = this.database
+      .prepare(
+        `SELECT DISTINCT rp.id
+         FROM review_policies rp, json_each(rp.conditions_json, '$.trustedSources') trusted
+         WHERE rp.is_active = 1
+           AND json_extract(trusted.value, '$.kind') = ?
+           AND json_extract(trusted.value, '$.externalId') = ?
+         ORDER BY rp.id`,
+      )
+      .all(input.kind, externalId)
+      .map((row) => (row as { id: string }).id);
+    const counts = this.database
+      .prepare(
+        `SELECT
+           count(DISTINCT sv.source_id) AS version_count,
+           count(sr.id) AS record_count
+         FROM source_versions sv
+         LEFT JOIN source_records sr ON sr.source_id = sv.source_id
+         WHERE sv.series_id = ?`,
+      )
+      .get(series.id) as { version_count: number; record_count: number };
+    const blockers: string[] = [];
+    if (series.is_deleted !== 1) {
+      blockers.push("The source series must be deleted before purge.");
+    }
+    if (dependentMemoryIds.length > 0) {
+      blockers.push("Retained memories still depend on this source series.");
+    }
+    if (activeReviewPolicyIds.length > 0) {
+      blockers.push("Active review policies still trust this source identity.");
+    }
+    return {
+      seriesId: series.id,
+      kind: input.kind,
+      externalId,
+      isDeleted: series.is_deleted === 1,
+      versionCount: counts.version_count,
+      recordCount: counts.record_count,
+      dependentMemoryIds,
+      dependentCandidateIds,
+      activeReviewPolicyIds,
+      blockers,
+      canPurge: blockers.length === 0,
+      externalCopiesNotModified: true,
+    };
+  }
+
+  public purgeSourceSeries(
+    input: SourceSeriesIdentity & { reason: string },
+    actor: CandidateActor,
+    explicitUserAction: boolean,
+  ): SourceSeriesPurgeReceipt {
+    this.requireExplicitSourceAction(actor, explicitUserAction, "purge");
+    const externalId = validateText(input.externalId, "A source external ID");
+    const reason = validateText(input.reason, "A source purge reason");
+    const identity = { kind: input.kind, externalId };
+    const preview = this.previewSourceSeriesPurge(identity);
+    if (!preview.canPurge) {
+      throw new Error(`Source series cannot be purged: ${preview.blockers.join(" ")}`);
+    }
+    const receiptId = randomUUID();
+    const purgedAt = new Date().toISOString();
+    let deletedRowCounts: Record<string, number> = {};
+    const purgeTransaction = this.database.transaction(() => {
+      const current = this.previewSourceSeriesPurge(identity);
+      if (!current.canPurge) {
+        throw new Error(`Source series cannot be purged: ${current.blockers.join(" ")}`);
+      }
+      const candidateIds = current.dependentCandidateIds;
+      const sourceRows = this.database
+        .prepare("SELECT source_id AS id FROM source_versions WHERE series_id = ?")
+        .all(current.seriesId) as Array<{ id: string }>;
+      const countCandidateRows = (table: string): number => {
+        if (candidateIds.length === 0) {
+          return 0;
+        }
+        const marks = candidateIds.map(() => "?").join(", ");
+        return (
+          this.database
+            .prepare(
+              `SELECT count(*) AS count FROM ${table} WHERE candidate_id IN (${marks})`,
+            )
+            .get(...candidateIds) as { count: number }
+        ).count;
+      };
+      const countDeletionTrackingRows = (table: string): number =>
+        (
+          this.database
+            .prepare(
+              `SELECT count(*) AS count
+               FROM ${table} tracked
+               JOIN source_series_deletion_events event
+                 ON event.id = tracked.deletion_event_id
+               WHERE event.series_id = ?`,
+            )
+            .get(current.seriesId) as { count: number }
+        ).count;
+      deletedRowCounts = {
+        sourceSeries: 1,
+        sourceVersions: sourceRows.length,
+        sources: sourceRows.length,
+        sourceRecords: current.recordCount,
+        sourceDeletionEvents: (
+          this.database
+            .prepare(
+              "SELECT count(*) AS count FROM source_series_deletion_events WHERE series_id = ?",
+            )
+            .get(current.seriesId) as { count: number }
+        ).count,
+        sourceDeletionSources: countDeletionTrackingRows(
+          "source_series_deletion_sources",
+        ),
+        sourceDeletionRecords: countDeletionTrackingRows(
+          "source_series_deletion_records",
+        ),
+        memoryCandidates: candidateIds.length,
+        candidateEvidence: countCandidateRows("candidate_evidence"),
+        candidateEvents: countCandidateRows("candidate_events"),
+        candidateResolutions: countCandidateRows("candidate_resolutions"),
+      };
+      for (const candidateId of candidateIds) {
+        this.database.prepare("DELETE FROM memory_candidates WHERE id = ?").run(candidateId);
+      }
+      this.database
+        .prepare("DELETE FROM source_versions WHERE series_id = ?")
+        .run(current.seriesId);
+      this.database.prepare("DELETE FROM source_series WHERE id = ?").run(current.seriesId);
+      for (const source of sourceRows) {
+        this.database.prepare("DELETE FROM sources WHERE id = ?").run(source.id);
+      }
+      this.database
+        .prepare(
+          `INSERT INTO source_purge_receipts (
+             id, source_kind, external_id, reason, actor_type,
+             deleted_row_counts_json, purged_at
+           ) VALUES (?, ?, ?, ?, 'user', ?, ?)`,
+        )
+        .run(
+          receiptId,
+          input.kind,
+          externalId,
+          reason,
+          JSON.stringify(deletedRowCounts),
+          purgedAt,
+        );
+    });
+    purgeTransaction();
+    return {
+      receiptId,
+      kind: input.kind,
+      externalId,
+      purgedAt,
+      deletedRowCounts,
+      externalCopiesNotModified: true,
+    };
   }
 
   public getSourceRecord(id: string): SourceRecord | null {
@@ -827,6 +1174,39 @@ export class SqliteIngestionRepository implements IngestionRepository {
     }
   }
 
+  private requireExplicitSourceAction(
+    actor: CandidateActor,
+    explicitUserAction: boolean,
+    operation: string,
+  ): void {
+    if (actor !== "user" || !explicitUserAction) {
+      throw new Error(
+        `An explicit user action is required to ${operation} a source series.`,
+      );
+    }
+  }
+
+  private requireSourceSeries(
+    input: SourceSeriesIdentity,
+  ): SourceSeriesLifecycleRow {
+    const row = this.database
+      .prepare(
+        `SELECT ss.id,
+                CASE WHEN s.deleted_at IS NOT NULL AND EXISTS (
+                  SELECT 1 FROM source_series_deletion_events sde
+                  WHERE sde.series_id = ss.id AND sde.restored_at IS NULL
+                ) THEN 1 ELSE 0 END AS is_deleted
+         FROM source_series ss
+         JOIN sources s ON s.id = ss.current_source_id
+         WHERE ss.source_kind = ? AND ss.external_id = ?`,
+      )
+      .get(input.kind, input.externalId) as SourceSeriesLifecycleRow | undefined;
+    if (row === undefined) {
+      throw new Error(`Source series not found: ${input.kind}:${input.externalId}`);
+    }
+    return row;
+  }
+
   private createSourceVersion(
     input: ImportSourceInput,
     title: string,
@@ -897,10 +1277,12 @@ export class SqliteIngestionRepository implements IngestionRepository {
     return `SELECT
       s.id, s.source_kind, s.title, s.origin_uri,
       COALESCE(ss.external_id, s.external_id) AS external_id,
-      s.content_hash, s.captured_at, s.metadata_json, s.created_at,
+      s.content_hash, s.captured_at, s.metadata_json, s.created_at, s.deleted_at,
       (SELECT count(*) FROM source_records r
        WHERE r.source_id = s.id AND r.deleted_at IS NULL) AS record_count,
       sv.series_id, sv.version_number, sv.previous_source_id, sv.version_reason,
+      (SELECT sde.reason FROM source_series_deletion_events sde
+       WHERE sde.series_id = sv.series_id AND sde.restored_at IS NULL) AS deletion_reason,
       CASE WHEN sv.source_id IS NULL OR ss.current_source_id = s.id THEN 1 ELSE 0 END AS is_current
       FROM sources s
       LEFT JOIN source_versions sv ON sv.source_id = s.id

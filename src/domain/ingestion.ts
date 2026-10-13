@@ -74,6 +74,49 @@ export interface Source {
   previousSourceId: string | null;
   versionReason: string | null;
   isCurrent: boolean;
+  deletedAt: string | null;
+  deletionReason: string | null;
+}
+
+export interface SourceMutationContext {
+  actor?: CandidateActor;
+  explicitUserAction?: boolean;
+}
+
+export interface DeleteSourceSeriesInput {
+  kind: SourceKind;
+  externalId: string;
+  reason: string;
+}
+
+export interface SourceSeriesIdentity {
+  kind: SourceKind;
+  externalId: string;
+}
+
+export interface SourceSeriesPurgePreview extends SourceSeriesIdentity {
+  seriesId: string;
+  isDeleted: boolean;
+  versionCount: number;
+  recordCount: number;
+  dependentMemoryIds: string[];
+  dependentCandidateIds: string[];
+  activeReviewPolicyIds: string[];
+  blockers: string[];
+  canPurge: boolean;
+  externalCopiesNotModified: true;
+}
+
+export interface PurgeSourceSeriesInput extends SourceSeriesIdentity {
+  reason: string;
+  confirmation: string;
+}
+
+export interface SourceSeriesPurgeReceipt extends SourceSeriesIdentity {
+  receiptId: string;
+  purgedAt: string;
+  deletedRowCounts: Record<string, number>;
+  externalCopiesNotModified: true;
 }
 
 export interface SourceRecord {
