@@ -28,6 +28,7 @@ The system provides:
 - a trusted terminal workflow for candidate review;
 - an idempotent, review-gated legacy-memory migration CLI;
 - versioned global and scope-specific review-automation policies; and
+- consistent database snapshots with durable-data preservation verification; and
 - a local stdio MCP server with capability discovery.
 
 ## Repository layout
@@ -39,6 +40,8 @@ docs/service.md            Service contract and lifecycle behavior
 docs/mcp.md                MCP tools, configuration, and host example
 docs/ingestion.md          Source ingestion and candidate review contract
 docs/legacy-migration.md   Legacy export format and migration workflow
+docs/continuity-design.md  Continuity product plan and non-destructive contract
+docs/migration-safety.md   Snapshot, upgrade-copy, and verification workflow
 docs/review-cli.md         Trusted local candidate-review workflow
 docs/review-automation.md  Configurable review-policy contract and CLI
 migrations/                Numbered SQLite schema migrations
@@ -47,6 +50,7 @@ src/database/              SQLite connection and migrations
 src/domain/                Portable TypeScript domain types
 src/mcp/                   MCP factory, configuration, and stdio entry point
 src/repositories/          Repository contracts and SQLite adapter
+src/safeguards/            Database snapshot and preservation verification
 src/services/              Policy-enforcing application services
 test/                      Schema, service, and MCP integration tests
 ```
@@ -82,6 +86,7 @@ npm run mcp -- --database .\data\memtextual.db --migrations .\migrations
 npm run review -- --database .\data\memtextual.db --migrations .\migrations
 npm run policy -- list --database .\data\memtextual.db --migrations .\migrations
 npm run migrate -- --file .\legacy-memories.json --scope PROJECT_SCOPE_ID --database .\data\memtextual.db --migrations .\migrations
+npm run safeguard -- snapshot -- --database .\data\memtextual.db --output .\backups
 ```
 
 The SQLite adapter applies pending numbered migrations when it opens a writable
@@ -89,6 +94,11 @@ database. The `MemoryService` exposes transactional creation, revision history,
 lifecycle transitions, and policy-aware retrieval. `IngestionService` adds
 source import, candidate proposal, and explicit-user review. Database-specific
 behavior remains behind repository interfaces.
+
+Before a release applies new migrations to a real database, use the safeguard
+workflow in `docs/migration-safety.md`. It creates an online SQLite backup, a
+portable durable-data export, and a deterministic manifest that can verify an
+upgraded copy without rejecting additive schema changes.
 
 ## Deliberately deferred
 

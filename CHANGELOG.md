@@ -3,6 +3,17 @@
 This file records user-visible changes to MemTextual. The files under `docs/`
 describe only the current design and behavior.
 
+## Unreleased
+
+- Preserved the validated v0.8.0 baseline in a dedicated safety branch and tag.
+- Added the initial MemTextual Continuity design and multi-persona isolation
+  direction.
+- Added consistent online database snapshots, portable durable-data exports,
+  integrity manifests, post-upgrade content verification, and verification
+  reports.
+- Added tests that permit additive schema changes while detecting deleted or
+  modified durable records.
+
 ## 0.8.0 - 2026-10-12
 
 - Added the trusted local `memtextual-migrate` CLI and a versioned JSON export

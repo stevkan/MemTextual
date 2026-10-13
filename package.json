@@ -6,6 +6,7 @@
   "bin": {
     "memtextual-mcp": "dist/src/mcp/stdio.js",
     "memtextual-migrate": "dist/src/cli/migrate.js",
+    "memtextual-safeguard": "dist/src/cli/safeguard.js",
     "memtextual-review": "dist/src/cli/review.js",
     "memtextual-policy": "dist/src/cli/policy.js"
   },
@@ -17,6 +18,7 @@
     "migrate": "tsx src/cli/migrate.ts",
     "review": "tsx src/cli/review.ts",
     "policy": "tsx src/cli/policy.ts",
+    "safeguard": "tsx src/cli/safeguard.ts",
     "pretest": "node scripts/check-node.mjs",
     "prebuild": "node scripts/check-node.mjs"
   },

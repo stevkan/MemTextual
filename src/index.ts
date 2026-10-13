@@ -116,3 +116,10 @@ export {
   MemoryService,
   ProtectedMemoryError,
 } from "./services/memory-service.js";
+export {
+  createDatabaseSnapshot,
+  verifyDatabaseAgainstManifest,
+  type DatabaseSafeguardManifest,
+  type SnapshotResult,
+  type VerificationResult,
+} from "./safeguards/database-safeguard.js";
