@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import type {
   ContinuityEmbeddingProvider,
+  ContinuityContextRetrievalAudit,
   ContinuityHybridRetrievalQuery,
   EmbeddingProviderIdentity,
   PersonaMemoryHybridRetrievalResult,
@@ -40,6 +41,24 @@ function validateVector(
   return vector;
 }
 
+function validateSelection(
+  ranked: readonly PersonaMemoryHybridRetrievalResult[],
+  selected: readonly PersonaMemoryHybridRetrievalResult[],
+): void {
+  const available = new Set(ranked);
+  const selectedMemoryIds = new Set<string>();
+  for (const result of selected) {
+    if (!available.has(result)) {
+      throw new Error("A retrieval selection must use ranked result objects.");
+    }
+    const memoryId = result.personaMemory.memory.id;
+    if (selectedMemoryIds.has(memoryId)) {
+      throw new Error("A retrieval selection may not contain duplicates.");
+    }
+    selectedMemoryIds.add(memoryId);
+  }
+}
+
 export class ContinuityEmbeddingService {
   private readonly identity: EmbeddingProviderIdentity;
 
@@ -72,19 +91,49 @@ export class ContinuityEmbeddingService {
   public async retrieve(
     query: ContinuityHybridRetrievalQuery,
   ): Promise<PersonaMemoryHybridRetrievalResult[]> {
+    return this.retrieveSelection(query, (ranked) => {
+      const results = [...ranked];
+      return { results, value: results };
+    });
+  }
+
+  public async retrieveSelection<T>(
+    query: ContinuityHybridRetrievalQuery,
+    select: (
+      ranked: readonly PersonaMemoryHybridRetrievalResult[],
+    ) => {
+      results: readonly PersonaMemoryHybridRetrievalResult[];
+      value: T;
+      contextComposition?: ContinuityContextRetrievalAudit;
+    },
+  ): Promise<T> {
     if (query.text.trim().length === 0) {
-      return [];
+      const selection = select([]);
+      validateSelection([], selection.results);
+      return selection.value;
     }
     if (!this.repository.preflightHybridRetrieval(query)) {
-      return [];
+      const selection = select([]);
+      validateSelection([], selection.results);
+      return selection.value;
     }
     const vector = validateVector(
       await this.provider.embed({ text: query.text, purpose: "query" }),
       this.identity.dimensions,
     );
-    return this.repository.retrieveHybrid(query, {
+    const queryEmbedding = {
       ...this.identity,
       vector,
-    });
+    };
+    const ranked = this.repository.retrieveHybrid(query, queryEmbedding);
+    const selection = select(ranked);
+    validateSelection(ranked, selection.results);
+    this.repository.recordHybridRetrieval(
+      query,
+      queryEmbedding,
+      selection.results,
+      selection.contextComposition,
+    );
+    return selection.value;
   }
 }

@@ -69,3 +69,11 @@ export interface PersonaMemoryHybridRetrievalResult
   rankingSignals: PersonaRankingSignals;
   combinedScore: number;
 }
+
+export interface ContinuityContextRetrievalAudit {
+  formatVersion: 1;
+  utf8Bytes: number;
+  itemCount: number;
+  maxUtf8Bytes: number;
+  maxItems: number;
+}

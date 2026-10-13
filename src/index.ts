@@ -39,6 +39,7 @@ export {
   type PersonaMemoryRetrievalResult,
 } from "./domain/continuity-memory.js";
 export type {
+  ContinuityContextRetrievalAudit,
   ContinuityEmbeddingProvider,
   ContinuityEmbeddingSource,
   ContinuityHybridRetrievalQuery,
@@ -50,6 +51,20 @@ export type {
   StoreContinuityEmbeddingInput,
   StoredContinuityEmbedding,
 } from "./domain/continuity-embedding.js";
+export {
+  continuityContextFormat,
+  continuityContextFormatVersion,
+  defaultContinuityContextMaxItems,
+  defaultContinuityContextMaxUtf8Bytes,
+  maximumContinuityContextMaxItems,
+  maximumContinuityContextMaxUtf8Bytes,
+  type ContinuityContextComposition,
+  type ContinuityContextItem,
+  type ContinuityContextLimits,
+  type ContinuityContextOmissionCounts,
+  type ContinuityContextPayload,
+  type ContinuityContextQuery,
+} from "./domain/continuity-context.js";
 export type {
   PersonaRankingProfile,
   PersonaRankingSignals,
@@ -224,6 +239,7 @@ export {
 } from "./services/ingestion-service.js";
 export { ContinuityMemoryService } from "./services/continuity-memory-service.js";
 export { ContinuityEmbeddingService } from "./services/continuity-embedding-service.js";
+export { ContinuityContextService } from "./services/continuity-context-service.js";
 export {
   ContinuityRankingService,
   ExplicitRankingConfigurationRequiredError,

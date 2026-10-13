@@ -92,6 +92,12 @@ describe only the current design and behavior.
   activation, and salience values; emotional ranking is disabled by default,
   omits raw context from audits, rejects stale revisions, and participates in
   safeguards and permanent-purge accounting.
+- Added persona-scoped bounded context composition with versioned memory-data
+  JSON, exact UTF-8 and item limits, optional episodic and durable caps, and
+  whole-item omission instead of assertion truncation.
+- Changed hybrid retrieval accounting so normal retrieval still records every
+  returned result while context composition records only memories actually
+  included in the final payload.
 
 ## 0.8.0 - 2026-10-12
 

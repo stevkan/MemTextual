@@ -2,6 +2,7 @@ import type Database from "better-sqlite3";
 import { createHash, randomUUID } from "node:crypto";
 import type {
   ContinuityEmbeddingSource,
+  ContinuityContextRetrievalAudit,
   ContinuityHybridRetrievalQuery,
   ContinuityQueryEmbedding,
   PersonaMemoryHybridRetrievalResult,
@@ -701,45 +702,6 @@ export class SqliteContinuityMemoryRepository
       )
       .slice(0, safeLimit);
 
-    const recordRetrieval = this.database.transaction(() => {
-      const retrievedAt = new Date().toISOString();
-      for (const row of ranked) {
-        this.database
-          .prepare(
-            `UPDATE memory_items
-             SET last_used_at = ?, use_count = use_count + 1
-             WHERE id = ?`,
-          )
-          .run(retrievedAt, row.memory_id);
-        this.database
-          .prepare(
-            `INSERT INTO audit_events (
-               id, memory_id, event_type, actor_type, detail_json, occurred_at
-             ) VALUES (?, ?, 'retrieved', 'client', ?, ?)`,
-          )
-          .run(
-            randomUUID(),
-            row.memory_id,
-            JSON.stringify({
-              query: query.text,
-              personaId: context.persona_id,
-              relationshipId: context.relationship_id,
-              memoryClasses,
-              asOf,
-              includeOutOfWindow,
-              retrievalMode: "hybrid",
-              embeddingProvider: queryEmbedding.provider,
-              embeddingModel: queryEmbedding.model,
-              rankingProfileRevision: rankingProfile.revisionNumber,
-              emotionalContextApplied: query.emotionalContext !== undefined,
-              emotionalProfileRevision: row.emotion_revision_number,
-            }),
-            retrievedAt,
-          );
-      }
-    });
-    recordRetrieval();
-
     return ranked.map((row, index) => {
       const personaMemory = this.requireProfile(row.memory_id);
       return {
@@ -756,6 +718,106 @@ export class SqliteContinuityMemoryRepository
         ...temporalState(personaMemory.memory, asOf),
       };
     });
+  }
+
+  public recordHybridRetrieval(
+    query: ContinuityHybridRetrievalQuery,
+    queryEmbedding: ContinuityQueryEmbedding,
+    results: readonly PersonaMemoryHybridRetrievalResult[],
+    contextComposition?: ContinuityContextRetrievalAudit,
+  ): void {
+    if (results.length === 0) {
+      return;
+    }
+    if (
+      contextComposition !== undefined &&
+      (contextComposition.formatVersion !== 1 ||
+        !Number.isSafeInteger(contextComposition.utf8Bytes) ||
+        contextComposition.utf8Bytes < 1 ||
+        !Number.isSafeInteger(contextComposition.itemCount) ||
+        contextComposition.itemCount !== results.length ||
+        !Number.isSafeInteger(contextComposition.maxUtf8Bytes) ||
+        contextComposition.maxUtf8Bytes < contextComposition.utf8Bytes ||
+        !Number.isSafeInteger(contextComposition.maxItems) ||
+        contextComposition.maxItems < results.length)
+    ) {
+      throw new Error("The context-composition retrieval audit is invalid.");
+    }
+    const context = this.requirePersonaContext(query.personaId);
+    const rankingProfile = this.requireRankingProfile(query.personaId);
+    const memoryClasses = [
+      ...new Set(query.memoryClasses ?? personaMemoryClasses),
+    ];
+    const asOf = resolveAsOf(query.asOf);
+    const includeOutOfWindow = query.includeOutOfWindow === true;
+    const seen = new Set<string>();
+    for (const result of results) {
+      const personaMemory = result.personaMemory;
+      if (
+        personaMemory.personaId !== context.persona_id ||
+        personaMemory.relationshipId !== context.relationship_id
+      ) {
+        throw new Error("A hybrid retrieval result crossed its persona boundary.");
+      }
+      if (result.rankingProfileRevision !== rankingProfile.revisionNumber) {
+        throw new Error("The ranking profile changed before retrieval was recorded.");
+      }
+      if (seen.has(personaMemory.memory.id)) {
+        throw new Error("A hybrid retrieval may not record duplicate memories.");
+      }
+      seen.add(personaMemory.memory.id);
+      const current = this.requireProfile(personaMemory.memory.id);
+      if (
+        current.memory.revisionId !== personaMemory.memory.revisionId ||
+        current.personaId !== context.persona_id ||
+        current.relationshipId !== context.relationship_id
+      ) {
+        throw new Error("A persona memory changed before retrieval was recorded.");
+      }
+    }
+
+    const recordRetrieval = this.database.transaction(() => {
+      const retrievedAt = new Date().toISOString();
+      for (const result of results) {
+        const memoryId = result.personaMemory.memory.id;
+        this.database
+          .prepare(
+            `UPDATE memory_items
+             SET last_used_at = ?, use_count = use_count + 1
+             WHERE id = ?`,
+          )
+          .run(retrievedAt, memoryId);
+        this.database
+          .prepare(
+            `INSERT INTO audit_events (
+               id, memory_id, event_type, actor_type, detail_json, occurred_at
+             ) VALUES (?, ?, 'retrieved', 'client', ?, ?)`,
+          )
+          .run(
+            randomUUID(),
+            memoryId,
+            JSON.stringify({
+              query: query.text,
+              personaId: context.persona_id,
+              relationshipId: context.relationship_id,
+              memoryClasses,
+              asOf,
+              includeOutOfWindow,
+              retrievalMode: "hybrid",
+              embeddingProvider: queryEmbedding.provider,
+              embeddingModel: queryEmbedding.model,
+              rankingProfileRevision: rankingProfile.revisionNumber,
+              emotionalContextApplied: query.emotionalContext !== undefined,
+              emotionalProfileRevision: result.emotionalProfileRevision,
+              ...(contextComposition === undefined
+                ? {}
+                : { contextComposition }),
+            }),
+            retrievedAt,
+          );
+      }
+    });
+    recordRetrieval();
   }
 
   private requirePersonaContext(personaId: string): PersonaMemoryContextRow {

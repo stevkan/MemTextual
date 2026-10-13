@@ -1,5 +1,6 @@
 import type {
   ContinuityEmbeddingSource,
+  ContinuityContextRetrievalAudit,
   ContinuityHybridRetrievalQuery,
   ContinuityQueryEmbedding,
   PersonaMemoryHybridRetrievalResult,
@@ -20,4 +21,10 @@ export interface ContinuityEmbeddingRepository {
     query: ContinuityHybridRetrievalQuery,
     queryEmbedding: ContinuityQueryEmbedding,
   ): PersonaMemoryHybridRetrievalResult[];
+  recordHybridRetrieval(
+    query: ContinuityHybridRetrievalQuery,
+    queryEmbedding: ContinuityQueryEmbedding,
+    results: readonly PersonaMemoryHybridRetrievalResult[],
+    contextComposition?: ContinuityContextRetrievalAudit,
+  ): void;
 }

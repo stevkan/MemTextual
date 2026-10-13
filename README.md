@@ -54,6 +54,7 @@ docs/legacy-migration.md   Legacy export format and migration workflow
 docs/continuity-design.md  Continuity product plan and non-destructive contract
 docs/continuity-control.md Persona-scoped review and lifecycle control contract
 docs/continuity-console.md Local graphical review and memory-inspection console
+docs/context-composition.md Bounded persona-memory context payload contract
 docs/personas.md           Continuity identity and persona-scope foundations
 docs/ambient-memory.md     Persona-bound ambient candidate capture contract
 docs/host-capture.md       Explicitly authorized host-event capture contract
@@ -150,6 +151,12 @@ the query supplies an emotional context and the persona's explicitly configured
 `emotionalWeight` is above zero. MemTextual does not infer emotion from text,
 make psychological or medical claims, or store raw query-emotion values in the
 retrieval audit.
+`ContinuityContextService` composes persona-safe hybrid results into versioned
+JSON memory-data payloads with exact UTF-8 and item limits plus optional
+episodic and durable caps. Assertions are included verbatim or omitted whole,
+and only included memories receive use counters and retrieval audits. Consumers
+must keep remembered assertions in a data boundary rather than treating them as
+higher-authority instructions.
 `ContinuityControlService` exposes persona-bound candidate queues, resolved
 evidence, revision history, correction, pin/protect controls, lifecycle actions,
 and privacy operations. Every mutation requires an explicit user action, and

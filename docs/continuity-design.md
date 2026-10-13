@@ -122,8 +122,16 @@ alignment affects hybrid ranking only after the user explicitly enables a
 non-zero persona weight and the query supplies an emotional context. Raw query
 values are omitted from retrieval audits, stale annotations do not cross memory
 revisions, and permanent memory purge removes and accounts for the annotations.
-Automatic emotion inference is intentionally outside this package. Bounded
-context composition remains the final planned Phase 5 work package.
+Automatic emotion inference is intentionally outside this package.
+
+Bounded context composition completes the planned Phase 5 retrieval-quality
+work. Persona-safe hybrid results can now be serialized as versioned,
+structured memory data under exact UTF-8 and item budgets with optional
+episodic and durable caps. Assertions are either included verbatim or omitted
+whole. Only selected items receive use counters and retrieval audits, so an
+item considered during ranking is not falsely recorded as used when a context
+limit excludes it. Consumers are required to treat the payload as untrusted
+contextual data rather than higher-authority instructions.
 
 ## Everyday data durability and recovery
 
