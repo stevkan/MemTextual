@@ -1,6 +1,7 @@
 import type {
   CandidateAcceptance,
   CandidateMatch,
+  CandidateSemanticMatcher,
   CandidateResolutionInput,
   CandidateResolutionResult,
   CandidateReviewContext,
@@ -12,6 +13,7 @@ import type {
   SourceImportResult,
   SourceRecord,
 } from "../domain/ingestion.js";
+import { candidateMatchKinds } from "../domain/ingestion.js";
 import type {
   BulkReviewResult,
   CandidateAutomationResult,
@@ -50,6 +52,7 @@ export class IngestionService {
   public constructor(
     private readonly repository: IngestionRepository,
     private readonly automation?: CandidateAutomationProcessor,
+    private readonly semanticMatcher?: CandidateSemanticMatcher,
   ) {}
 
   public importSource(input: ImportSourceInput): SourceImportResult {
@@ -100,8 +103,84 @@ export class IngestionService {
   }
 
   public findCandidateMatches(id: string, limit?: number): CandidateMatch[] {
-    this.requireCandidate(id);
-    return this.repository.findCandidateMatches(id, limit);
+    const candidate = this.requireCandidate(id);
+    const exact = this.repository.findCandidateMatches(id, limit);
+    if (this.semanticMatcher === undefined) {
+      return exact;
+    }
+    if (
+      this.semanticMatcher.id.trim().length === 0 ||
+      this.semanticMatcher.version.trim().length === 0
+    ) {
+      throw new Error("A semantic matcher requires a stable ID and version.");
+    }
+
+    const memories = this.repository.listCandidateMatchTargets(id, 500);
+    const eligible = new Map(memories.map((memory) => [memory.id, memory]));
+    const semantic = this.semanticMatcher.match({ candidate, memories }).map(
+      (proposal): CandidateMatch => {
+        const memory = eligible.get(proposal.memoryId);
+        if (memory === undefined) {
+          throw new Error(
+            `Semantic matcher ${this.semanticMatcher!.id} returned an ineligible memory.`,
+          );
+        }
+        const matchKind = proposal.matchKind as string;
+        if (
+          !candidateMatchKinds.includes(
+            matchKind as (typeof candidateMatchKinds)[number],
+          ) ||
+          matchKind === "exact_normalized"
+        ) {
+          throw new Error(
+            `Semantic matcher ${this.semanticMatcher!.id} returned an invalid match kind.`,
+          );
+        }
+        if (
+          !Number.isFinite(proposal.score) ||
+          proposal.score < 0 ||
+          proposal.score > 1
+        ) {
+          throw new Error(
+            `Semantic matcher ${this.semanticMatcher!.id} returned an invalid score.`,
+          );
+        }
+        const reason = proposal.reason.trim();
+        if (reason.length === 0) {
+          throw new Error(
+            `Semantic matcher ${this.semanticMatcher!.id} returned an empty reason.`,
+          );
+        }
+        return {
+          memory,
+          matchKind: proposal.matchKind,
+          score: proposal.score,
+          reason,
+          matcherId: this.semanticMatcher!.id,
+          matcherVersion: this.semanticMatcher!.version,
+        };
+      },
+    );
+
+    const byMemory = new Map<string, CandidateMatch>();
+    for (const match of [...semantic, ...exact]) {
+      const existing = byMemory.get(match.memory.id);
+      if (
+        existing === undefined ||
+        match.matchKind === "exact_normalized" ||
+        match.score > existing.score
+      ) {
+        byMemory.set(match.memory.id, match);
+      }
+    }
+    const safeLimit = Math.max(1, Math.min(Math.trunc(limit ?? 20), 100));
+    return [...byMemory.values()]
+      .sort(
+        (left, right) =>
+          right.score - left.score ||
+          left.memory.id.localeCompare(right.memory.id),
+      )
+      .slice(0, safeLimit);
   }
 
   public resolveCandidate(

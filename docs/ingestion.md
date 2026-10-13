@@ -84,9 +84,12 @@ target, result, actor, note, and timestamp are retained in
 
 MemTextual suggests deterministic exact matches when the candidate and an active
 memory have equivalent normalized assertions after Unicode, case, punctuation,
-and whitespace normalization. These suggestions are not treated as proof of
-semantic equivalence and never authorize automatic merging. Provider-neutral
-semantic matching remains deferred.
+and whitespace normalization. An optional provider-neutral matcher can add
+advisory semantic duplicate, refinement, conflict, or related suggestions. Core
+validation restricts providers to eligible same-type memories in the candidate
+scope and requires a valid score, reason, matcher ID, and matcher version. These
+suggestions never authorize automatic merging. No external provider adapter is
+included or enabled by default; see `semantic-matching.md`.
 
 Acceptance runs in one database transaction:
 
@@ -200,9 +203,7 @@ Current limitations include:
 
 - source version relationships and resumable imports;
 - source deletion and privacy purge semantics;
-- semantic candidate deduplication and matching to existing memories;
-- provider-neutral semantic duplicate and conflict matching beyond deterministic
-  normalized equality;
+- an explicitly configured local or external semantic-provider adapter;
 - a graphical review interface beyond the local CLI;
 - automatic extraction-provider integration;
 - source-level sensitivity and redaction; and

@@ -7,6 +7,7 @@ import {
   SqliteIngestionRepository,
   SqliteMemoryRepository,
   openMemTextualDatabase,
+  type CandidateSemanticMatcher,
 } from "../src/index.js";
 
 function fixture() {
@@ -209,6 +210,95 @@ test("invalid resolution targets roll back without reviewing the candidate", () 
     assert.equal(setup.service.getCandidate(candidate.id)?.status, "pending");
     assert.equal(setup.repository.getCandidateResolution(candidate.id), null);
     assert.equal(setup.memoryRepository.getHistory(existing.id).length, 1);
+  } finally {
+    setup.database.close();
+  }
+});
+
+test("a provider-neutral semantic matcher can suggest conflicts without changing data", () => {
+  const database = openMemTextualDatabase({
+    filename: ":memory:",
+    migrationsDirectory: resolve("migrations"),
+  });
+  const memoryRepository = new SqliteMemoryRepository(database);
+  const repository = new SqliteIngestionRepository(database, memoryRepository);
+  const scope = memoryRepository.createScope({ kind: "project", name: "Semantic" });
+  const existing = memoryRepository.create({
+    assertion: "Store all memories indefinitely.",
+    type: "decision",
+    scopeId: scope.id,
+  });
+  const matcher: CandidateSemanticMatcher = {
+    id: "test.semantic",
+    version: "1.0",
+    match: ({ candidate, memories }) => {
+      assert.equal(candidate.type, "decision");
+      assert.equal(memories.some(({ id }) => id === existing.id), true);
+      return [
+        {
+          memoryId: existing.id,
+          matchKind: "semantic_conflict",
+          score: 0.94,
+          reason: "The retention instructions are incompatible.",
+        },
+      ];
+    },
+  };
+  const service = new IngestionService(repository, undefined, matcher);
+
+  try {
+    const imported = service.importSource({
+      kind: "manual",
+      title: "Retention correction",
+      records: [{ kind: "entry", content: "Delete expired memories." }],
+    });
+    const candidate = service.proposeCandidate({
+      assertion: "Delete memories after their retention period.",
+      type: "decision",
+      scopeId: scope.id,
+      evidence: [{ sourceRecordId: imported.records[0]!.id }],
+    });
+
+    const matches = service.findCandidateMatches(candidate.id);
+    assert.equal(matches.length, 1);
+    assert.equal(matches[0]?.memory.id, existing.id);
+    assert.equal(matches[0]?.matchKind, "semantic_conflict");
+    assert.equal(matches[0]?.score, 0.94);
+    assert.equal(matches[0]?.matcherId, "test.semantic");
+    assert.equal(service.getCandidate(candidate.id)?.status, "pending");
+    assert.equal(memoryRepository.getById(existing.id)?.status, "active");
+  } finally {
+    database.close();
+  }
+});
+
+test("semantic matcher output fails closed when a target is outside the eligible scope", () => {
+  const setup = fixture();
+  const matcher: CandidateSemanticMatcher = {
+    id: "test.invalid",
+    version: "1.0",
+    match: () => [
+      {
+        memoryId: "not-eligible",
+        matchKind: "semantic_duplicate",
+        score: 0.99,
+        reason: "Invalid test proposal.",
+      },
+    ],
+  };
+  const service = new IngestionService(setup.repository, undefined, matcher);
+  try {
+    const candidate = service.proposeCandidate({
+      assertion: "Candidate assertion.",
+      type: "fact",
+      scopeId: setup.scope.id,
+      evidence: [{ sourceRecordId: setup.imported.records[0]!.id }],
+    });
+    assert.throws(
+      () => service.findCandidateMatches(candidate.id),
+      /returned an ineligible memory/u,
+    );
+    assert.equal(service.getCandidate(candidate.id)?.status, "pending");
   } finally {
     setup.database.close();
   }

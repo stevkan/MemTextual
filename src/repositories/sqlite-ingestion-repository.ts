@@ -482,6 +482,8 @@ export class SqliteIngestionRepository implements IngestionRepository {
           matchKind: "exact_normalized",
           score: 1,
           reason: "The candidate and active memory have the same normalized assertion.",
+          matcherId: "memtextual.exact-normalized",
+          matcherVersion: "1",
         });
       }
       if (matches.length >= safeLimit) {
@@ -489,6 +491,29 @@ export class SqliteIngestionRepository implements IngestionRepository {
       }
     }
     return matches;
+  }
+
+  public listCandidateMatchTargets(id: string, limit = 100) {
+    const candidate = this.requireCandidate(id);
+    const safeLimit = Math.max(1, Math.min(Math.trunc(limit), 500));
+    const rows = this.database
+      .prepare(
+        `SELECT m.id
+         FROM memory_items m
+         WHERE m.status = 'active'
+           AND m.memory_type = ?
+           AND EXISTS (
+             SELECT 1 FROM memory_scopes ms
+             WHERE ms.memory_id = m.id AND ms.scope_id = ?
+           )
+         ORDER BY m.updated_at DESC, m.id
+         LIMIT ?`,
+      )
+      .all(candidate.type, candidate.scopeId, safeLimit) as Array<{ id: string }>;
+    return rows.flatMap(({ id: memoryId }) => {
+      const memory = this.memoryRepository.getById(memoryId);
+      return memory === null ? [] : [memory];
+    });
   }
 
   public getCandidateResolution(id: string): CandidateResolution | null {

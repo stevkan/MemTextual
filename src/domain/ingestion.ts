@@ -180,9 +180,38 @@ export interface CandidateResolutionResult {
   targetMemory: Memory | null;
 }
 
+export const candidateMatchKinds = [
+  "exact_normalized",
+  "semantic_duplicate",
+  "semantic_refinement",
+  "semantic_conflict",
+  "semantic_related",
+] as const;
+export type CandidateMatchKind = (typeof candidateMatchKinds)[number];
+
 export interface CandidateMatch {
   memory: Memory;
-  matchKind: "exact_normalized";
-  score: 1;
+  matchKind: CandidateMatchKind;
+  score: number;
   reason: string;
+  matcherId: string;
+  matcherVersion: string;
+}
+
+export interface CandidateSemanticMatchProposal {
+  memoryId: string;
+  matchKind: Exclude<CandidateMatchKind, "exact_normalized">;
+  score: number;
+  reason: string;
+}
+
+export interface CandidateSemanticMatchInput {
+  candidate: MemoryCandidate;
+  memories: Memory[];
+}
+
+export interface CandidateSemanticMatcher {
+  readonly id: string;
+  readonly version: string;
+  match(input: CandidateSemanticMatchInput): CandidateSemanticMatchProposal[];
 }

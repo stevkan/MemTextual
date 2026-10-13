@@ -43,6 +43,7 @@ docs/ingestion.md          Source ingestion and candidate review contract
 docs/legacy-migration.md   Legacy export format and migration workflow
 docs/continuity-design.md  Continuity product plan and non-destructive contract
 docs/migration-safety.md   Snapshot, upgrade-copy, and verification workflow
+docs/semantic-matching.md  Provider-neutral advisory matching contract
 docs/review-cli.md         Trusted local candidate-review workflow
 docs/review-automation.md  Configurable review-policy contract and CLI
 migrations/                Numbered SQLite schema migrations

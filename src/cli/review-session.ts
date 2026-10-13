@@ -147,9 +147,13 @@ export async function reviewPendingCandidates(
     io.write(formatCandidateForReview(candidate, records));
     const matches = service.findCandidateMatches(candidate.id);
     if (matches.length > 0) {
-      io.write("Exact normalized matches:");
+      io.write("Candidate matches:");
       for (const match of matches) {
-        io.write(`  - ${match.memory.id}: ${match.memory.assertion}`);
+        io.write(
+          `  - ${match.memory.id} [${match.matchKind}; ${match.score.toFixed(3)}; ` +
+            `${match.matcherId}@${match.matcherVersion}]: ${match.memory.assertion}`,
+        );
+        io.write(`    Reason: ${match.reason}`);
       }
     }
 

@@ -14,6 +14,7 @@ import type {
   SourceRecord,
 } from "../domain/ingestion.js";
 import type { PolicyAcceptanceAuthorization } from "../domain/review-policy.js";
+import type { Memory } from "../domain/memory.js";
 
 export interface IngestionRepository {
   importSource(input: ImportSourceInput): SourceImportResult;
@@ -25,6 +26,7 @@ export interface IngestionRepository {
   getCandidate(id: string): MemoryCandidate | null;
   listCandidates(status?: CandidateStatus, limit?: number): MemoryCandidate[];
   findCandidateMatches(id: string, limit?: number): CandidateMatch[];
+  listCandidateMatchTargets(id: string, limit?: number): Memory[];
   getCandidateResolution(id: string): CandidateResolution | null;
   resolveCandidate(
     id: string,

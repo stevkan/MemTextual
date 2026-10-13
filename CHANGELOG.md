@@ -17,6 +17,8 @@ describe only the current design and behavior.
   revise, reaffirm, contradict, supersede, and ignore resolutions.
 - Added immutable candidate-resolution records and upgraded the trusted review
   CLI to display matches and apply reconciliation choices.
+- Added a provider-neutral semantic matcher contract with validated, attributed,
+  advisory duplicate, refinement, conflict, and related suggestions.
 
 ## 0.8.0 - 2026-10-12
 

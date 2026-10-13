@@ -52,8 +52,9 @@ scope. Every resolution is passed to `IngestionService` as actor `user` with
 `explicitUserAction: true`. The repository's review-state, protected-memory,
 scope, type, and transaction checks remain in force.
 
-Before prompting, the CLI lists exact normalized matches. A match is a review
-aid only: it never chooses a target or authorizes a merge automatically.
+Before prompting, the CLI lists available matches with kind, score, matcher ID,
+matcher version, and reason. A match is a review aid only: it never chooses a
+target or authorizes a merge automatically.
 
 The session ends with counts for accepted, rejected, skipped, and failed decisions. A failure affects only that candidate and does not prevent review of the remaining snapshot.
 
@@ -70,5 +71,5 @@ The MCP server exposes nineteen tools. It exposes no candidate accept or reject 
 - The CLI is intended for a trusted local terminal. It may display sensitive source content.
 - Bulk review and configurable automation are provided by the separate policy
   CLI and automation service.
-- Matching currently covers deterministic normalized equality. Broader semantic
-  duplicate and conflict analysis remains deferred.
+- Deterministic normalized equality is always available. Semantic suggestions
+  require a separately configured provider implementation.
