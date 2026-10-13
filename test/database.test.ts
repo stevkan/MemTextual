@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import type Database from "better-sqlite3";
 import {
   copyFileSync,
   mkdirSync,
@@ -25,6 +26,42 @@ function seededDatabase() {
   });
   database.exec(readFileSync(resolve("examples", "seed-v0.1.sql"), "utf8"));
   return database;
+}
+
+function insertLegacyMemory(
+  database: Database.Database,
+  input: {
+    memoryId: string;
+    revisionId: string;
+    scopeId: string;
+    assertion: string;
+  },
+): void {
+  database
+    .prepare(
+      `INSERT INTO memory_items (id, memory_type)
+       VALUES (?, 'fact')`,
+    )
+    .run(input.memoryId);
+  database
+    .prepare(
+      `INSERT INTO memory_revisions (
+         id, memory_id, revision_number, assertion, explicitness,
+         confidence, change_kind, created_by
+       ) VALUES (?, ?, 1, ?, 'explicit', 1, 'created', 'user')`,
+    )
+    .run(input.revisionId, input.memoryId, input.assertion);
+  database
+    .prepare(
+      `UPDATE memory_items SET current_revision_id = ? WHERE id = ?`,
+    )
+    .run(input.revisionId, input.memoryId);
+  database
+    .prepare(
+      `INSERT INTO memory_scopes (memory_id, scope_id, is_primary)
+       VALUES (?, ?, 1)`,
+    )
+    .run(input.memoryId, input.scopeId);
 }
 
 test("migration and seed preserve schema integrity", () => {
@@ -555,30 +592,40 @@ test("candidate resolution migration backfills completed reviews", () => {
   }
 
   try {
+    const memoryId = "backfill-memory";
+    const scopeId = "backfill-scope";
     const oldDatabase = openMemTextualDatabase({
       filename: databasePath,
       migrationsDirectory: oldMigrations,
     });
-    const repository = new SqliteMemoryRepository(oldDatabase);
-    const scope = repository.createScope({ kind: "project", name: "Backfill" });
-    const memory = repository.create({
-      assertion: "Accepted memory.",
-      type: "fact",
-      scopeId: scope.id,
-    });
-    oldDatabase
-      .prepare(
-        `INSERT INTO memory_candidates (
-           id, memory_type, assertion, scope_id, proposed_by, status,
-           reviewed_by, reviewed_at, accepted_memory_id, review_note
-         ) VALUES
-           ('accepted_candidate', 'fact', 'Accepted memory.', ?, 'system',
-            'accepted', 'user', '2026-10-12T00:00:00.000Z', ?, 'Accepted.'),
-           ('rejected_candidate', 'fact', 'Ignored memory.', ?, 'system',
-            'rejected', 'user', '2026-10-12T00:01:00.000Z', NULL, 'Ignored.')`,
-      )
-      .run(scope.id, memory.id, scope.id);
-    oldDatabase.close();
+    try {
+      oldDatabase
+        .prepare(
+          `INSERT INTO scopes (id, scope_kind, name)
+           VALUES (?, 'project', 'Backfill')`,
+        )
+        .run(scopeId);
+      insertLegacyMemory(oldDatabase, {
+        memoryId,
+        revisionId: "backfill-revision",
+        scopeId,
+        assertion: "Accepted memory.",
+      });
+      oldDatabase
+        .prepare(
+          `INSERT INTO memory_candidates (
+             id, memory_type, assertion, scope_id, proposed_by, status,
+             reviewed_by, reviewed_at, accepted_memory_id, review_note
+           ) VALUES
+             ('accepted_candidate', 'fact', 'Accepted memory.', ?, 'system',
+              'accepted', 'user', '2026-10-12T00:00:00.000Z', ?, 'Accepted.'),
+             ('rejected_candidate', 'fact', 'Ignored memory.', ?, 'system',
+              'rejected', 'user', '2026-10-12T00:01:00.000Z', NULL, 'Ignored.')`,
+        )
+        .run(scopeId, memoryId, scopeId);
+    } finally {
+      oldDatabase.close();
+    }
 
     const upgraded = openMemTextualDatabase({
       filename: databasePath,
@@ -599,7 +646,7 @@ test("candidate resolution migration backfills completed reviews", () => {
         {
           candidate_id: "accepted_candidate",
           outcome: "create",
-          result_memory_id: memory.id,
+          result_memory_id: memoryId,
         },
         {
           candidate_id: "rejected_candidate",
@@ -705,26 +752,36 @@ test("deletion migration records legacy tombstones without inventing a recoverab
   }
 
   try {
+    const memoryId = "legacy-deleted-memory";
+    const scopeId = "legacy-deletion-scope";
     const oldDatabase = openMemTextualDatabase({
       filename: databasePath,
       migrationsDirectory: oldMigrations,
     });
-    const repository = new SqliteMemoryRepository(oldDatabase);
-    const scope = repository.createScope({ kind: "project", name: "Legacy deletion" });
-    const memory = repository.create({
-      assertion: "Previously deleted memory.",
-      type: "fact",
-      scopeId: scope.id,
-    });
-    oldDatabase
-      .prepare(
-        `UPDATE memory_items
-         SET status = 'deleted', deleted_at = '2026-10-12T00:00:00.000Z',
-             deletion_reason = 'Legacy tombstone.'
-         WHERE id = ?`,
-      )
-      .run(memory.id);
-    oldDatabase.close();
+    try {
+      oldDatabase
+        .prepare(
+          `INSERT INTO scopes (id, scope_kind, name)
+           VALUES (?, 'project', 'Legacy deletion')`,
+        )
+        .run(scopeId);
+      insertLegacyMemory(oldDatabase, {
+        memoryId,
+        revisionId: "legacy-deleted-revision",
+        scopeId,
+        assertion: "Previously deleted memory.",
+      });
+      oldDatabase
+        .prepare(
+          `UPDATE memory_items
+           SET status = 'deleted', deleted_at = '2026-10-12T00:00:00.000Z',
+               deletion_reason = 'Legacy tombstone.'
+           WHERE id = ?`,
+        )
+        .run(memoryId);
+    } finally {
+      oldDatabase.close();
+    }
 
     const upgraded = openMemTextualDatabase({
       filename: databasePath,
@@ -736,7 +793,7 @@ test("deletion migration records legacy tombstones without inventing a recoverab
           `SELECT previous_status, actor_type, is_recoverable, reason
            FROM memory_deletion_events WHERE memory_id = ?`,
         )
-        .get(memory.id);
+        .get(memoryId);
       assert.deepEqual(event, {
         previous_status: "unknown",
         actor_type: "system",
