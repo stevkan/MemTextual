@@ -77,7 +77,7 @@ test("migration and seed preserve schema integrity", () => {
     const violations = database.prepare("PRAGMA foreign_key_check").all();
 
     assert.equal(memoryCount.count, 10);
-    assert.equal(migrationCount.count, 13);
+    assert.equal(migrationCount.count, 14);
     assert.deepEqual(violations, []);
     assert.throws(
       () =>
@@ -443,6 +443,88 @@ test("temporal relevance migration preserves schema 12 candidates", () => {
   }
 });
 
+test("authorized host capture migration preserves schema 13 memories", () => {
+  const temporaryDirectory = mkdtempSync(join(tmpdir(), "memtextual-host-"));
+  const oldMigrations = join(temporaryDirectory, "old-migrations");
+  const databasePath = join(temporaryDirectory, "schema-13.db");
+  mkdirSync(oldMigrations);
+  for (const filename of [
+    "001_initial.sql",
+    "002_ingestion_candidates.sql",
+    "003_review_automation.sql",
+    "004_legacy_memory_migration.sql",
+    "005_candidate_resolution.sql",
+    "006_source_versioning.sql",
+    "007_memory_deletion_purge.sql",
+    "008_source_series_deletion_purge.sql",
+    "009_persona_foundations.sql",
+    "010_persona_memory_classes.sql",
+    "011_ambient_capture.sql",
+    "012_ambient_sensitivity.sql",
+    "013_temporal_relevance.sql",
+  ]) {
+    copyFileSync(resolve("migrations", filename), join(oldMigrations, filename));
+  }
+
+  try {
+    const oldDatabase = openMemTextualDatabase({
+      filename: databasePath,
+      migrationsDirectory: oldMigrations,
+    });
+    const personas = new PersonaService(new SqlitePersonaRepository(oldDatabase));
+    const user = personas.createUser({ displayName: "Existing user" });
+    const persona = personas.createPersona({ userId: user.id, name: "Skylar" });
+    const memory = new SqliteMemoryRepository(oldDatabase).create({
+      assertion: "Preserve this pre-host-capture memory.",
+      type: "fact",
+      scopeId: persona.relationship.scopeId,
+      createdBy: "user",
+    });
+    oldDatabase.close();
+
+    const upgraded = openMemTextualDatabase({
+      filename: databasePath,
+      migrationsDirectory: resolve("migrations"),
+    });
+    try {
+      assert.deepEqual(
+        upgraded
+          .prepare(
+            `SELECT assertion FROM memory_revisions
+             WHERE id = (SELECT current_revision_id FROM memory_items WHERE id = ?)`,
+          )
+          .get(memory.id),
+        { assertion: "Preserve this pre-host-capture memory." },
+      );
+      assert.deepEqual(
+        upgraded.prepare("SELECT name FROM schema_migrations WHERE version = 14").get(),
+        { name: "authorized_host_capture_v0.9" },
+      );
+      assert.equal(
+        (
+          upgraded
+            .prepare("SELECT count(*) AS count FROM continuity_host_authorizations")
+            .get() as { count: number }
+        ).count,
+        0,
+      );
+      assert.equal(
+        (
+          upgraded
+            .prepare("SELECT count(*) AS count FROM continuity_host_events")
+            .get() as { count: number }
+        ).count,
+        0,
+      );
+      assert.deepEqual(upgraded.prepare("PRAGMA foreign_key_check").all(), []);
+    } finally {
+      upgraded.close();
+    }
+  } finally {
+    rmSync(temporaryDirectory, { force: true, recursive: true });
+  }
+});
+
 test("review automation migration upgrades an existing candidate database", () => {
   const temporaryDirectory = mkdtempSync(join(tmpdir(), "memtextual-migrate-"));
   const oldMigrations = join(temporaryDirectory, "old-migrations");
@@ -531,6 +613,9 @@ test("review automation migration upgrades an existing candidate database", () =
       const temporalRelevanceMigration = upgraded
         .prepare("SELECT name FROM schema_migrations WHERE version = 13")
         .get() as { name: string };
+      const authorizedHostCaptureMigration = upgraded
+        .prepare("SELECT name FROM schema_migrations WHERE version = 14")
+        .get() as { name: string };
 
       assert.equal(candidate.assertion, "Preserve this candidate.");
       assert.equal(candidate.proposer_id, null);
@@ -559,6 +644,10 @@ test("review automation migration upgrades an existing candidate database", () =
         "ambient_sensitivity_assessment_v0.9",
       );
       assert.equal(temporalRelevanceMigration.name, "temporal_relevance_v0.9");
+      assert.equal(
+        authorizedHostCaptureMigration.name,
+        "authorized_host_capture_v0.9",
+      );
       assert.deepEqual(
         upgraded
           .prepare(

@@ -50,6 +50,12 @@ describe only the current design and behavior.
 - Changed core and persona retrieval to exclude out-of-window memories by
   default while supporting explicit as-of history with temporal and review-due
   status; expiration never mutates or deletes memory state.
+- Added strict asynchronous structured-output extraction-provider adapters.
+- Added explicit user-issued, persona-scoped host authorizations whose bearer
+  grants are stored only as hashes and can be revoked or time-limited.
+- Added versioned host-event adapters, deterministic replay protection, and
+  immutable successful-capture receipts tied to source and candidate
+  provenance.
 
 ## 0.8.0 - 2026-10-12
 

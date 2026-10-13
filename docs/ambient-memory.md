@@ -6,6 +6,14 @@ MemTextual Continuity ambient-memory slice. A host supplies a versioned
 extractor only that source and the active persona context, validates every
 proposal, and creates reviewable memory candidates.
 
+`StructuredAmbientMemoryExtractor` adapts an asynchronous local or external
+`AmbientExtractionProvider` to that contract. Provider output may be a parsed
+object or JSON text, but must contain only a `proposals` array matching the
+strict schema. It rejects unknown fields, invalid enums, missing evidence,
+invalid confidence, and more than the configured proposal limit before any
+candidate is created. No vendor client, credentials, or network behavior is
+built in.
+
 Ambient capture does not bypass candidate review. New proposals default to
 `inferred`, confidence `0.5`, and pending status. They become memories only
 through explicit user review or an existing user-configured review policy.
@@ -80,9 +88,10 @@ archive, or delete the memory. Validity bounds are inclusive.
 
 ## Current boundary
 
-This package defines and validates the capture and explicit temporal contracts;
-it does not include an LLM, built-in extraction or sensitivity model, temporal
-inference model, rules engine, host event listener, background scheduler,
-graphical review UI, or MCP tool. Provider adapters must be configured by a
-trusted host and must use stable IDs and versions. Ordinary chat platforms
-still need an authorized integration to deliver interactions to this service.
+This package defines and validates the capture, structured-provider, and
+explicit temporal contracts. It does not include an LLM, vendor SDK, built-in
+extraction or sensitivity model, temporal inference model, background listener,
+scheduler, graphical review UI, or MCP tool. Concrete providers must be
+configured by a trusted host and use stable IDs and versions. Ordinary chat
+platforms still need an authorized integration to deliver events; see
+`host-capture.md`.

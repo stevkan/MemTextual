@@ -80,7 +80,7 @@ function fixture(
   };
 }
 
-test("ambient capture creates pending, persona-isolated, idempotent candidates", () => {
+test("ambient capture creates pending, persona-isolated, idempotent candidates", async () => {
   const extractor: AmbientMemoryExtractor = {
     id: "test.preference-extractor",
     version: "1",
@@ -113,7 +113,7 @@ test("ambient capture creates pending, persona-isolated, idempotent candidates",
   };
 
   try {
-    const first = setup.ambient.captureInteraction(input);
+    const first = await setup.ambient.captureInteraction(input);
     assert.equal(first.createdCandidateCount, 1);
     assert.equal(first.candidates[0]?.status, "pending");
     assert.equal(first.candidates[0]?.explicitness, "inferred");
@@ -156,7 +156,7 @@ test("ambient capture creates pending, persona-isolated, idempotent candidates",
       sensitivity_reason_codes_json: '["classifier_unavailable"]',
     });
 
-    const repeated = setup.ambient.captureInteraction(input);
+    const repeated = await setup.ambient.captureInteraction(input);
     assert.equal(repeated.createdCandidateCount, 0);
     assert.equal(repeated.candidates[0]?.id, first.candidates[0]?.id);
     assert.equal(setup.ingestion.listCandidates().length, 1);
@@ -189,7 +189,7 @@ test("ambient capture creates pending, persona-isolated, idempotent candidates",
   }
 });
 
-test("unassessed ambient candidates cannot be automatically accepted", () => {
+test("unassessed ambient candidates cannot be automatically accepted", async () => {
   const extractor: AmbientMemoryExtractor = {
     id: "test.unassessed-extractor",
     version: "1",
@@ -218,7 +218,7 @@ test("unassessed ambient candidates cannot be automatically accepted", () => {
       },
       { actor: "user", explicitUserAction: true },
     );
-    const result = setup.ambient.captureInteraction({
+    const result = await setup.ambient.captureInteraction({
       personaId: setup.skylar.persona.id,
       source: {
         kind: "chat",
@@ -242,7 +242,7 @@ test("unassessed ambient candidates cannot be automatically accepted", () => {
   }
 });
 
-test("an explicit user policy may accept eligible ambient candidates only", () => {
+test("an explicit user policy may accept eligible ambient candidates only", async () => {
   const extractor: AmbientMemoryExtractor = {
     id: "test.trusted-extractor",
     version: "2",
@@ -281,7 +281,7 @@ test("an explicit user policy may accept eligible ambient candidates only", () =
       { actor: "user", explicitUserAction: true },
     );
 
-    const result = setup.ambient.captureInteraction({
+    const result = await setup.ambient.captureInteraction({
       personaId: setup.skylar.persona.id,
       source: {
         kind: "chat",
@@ -321,7 +321,7 @@ test("an explicit user policy may accept eligible ambient candidates only", () =
   }
 });
 
-test("ambient capture rejects evidence outside the captured interaction", () => {
+test("ambient capture rejects evidence outside the captured interaction", async () => {
   let foreignRecordId = "";
   const extractor: AmbientMemoryExtractor = {
     id: "test.invalid-evidence",
@@ -343,8 +343,8 @@ test("ambient capture rejects evidence outside the captured interaction", () => 
       records: [{ kind: "message", content: "Other evidence" }],
     });
     foreignRecordId = other.records[0]!.id;
-    assert.throws(
-      () =>
+    await assert.rejects(
+      async () =>
         setup.ambient.captureInteraction({
           personaId: setup.skylar.persona.id,
           source: {
@@ -361,7 +361,7 @@ test("ambient capture rejects evidence outside the captured interaction", () => 
   }
 });
 
-test("sensitivity classification may raise but never lower a proposal", () => {
+test("sensitivity classification may raise but never lower a proposal", async () => {
   const extractor: AmbientMemoryExtractor = {
     id: "test.sensitivity-extractor",
     version: "1",
@@ -394,7 +394,7 @@ test("sensitivity classification may raise but never lower a proposal", () => {
   };
   const setup = fixture(extractor, false, classifier);
   try {
-    const result = setup.ambient.captureInteraction({
+    const result = await setup.ambient.captureInteraction({
       personaId: setup.skylar.persona.id,
       source: {
         kind: "chat",
@@ -443,7 +443,7 @@ test("sensitivity classification may raise but never lower a proposal", () => {
   }
 });
 
-test("invalid sensitivity assessments fail before candidate creation", () => {
+test("invalid sensitivity assessments fail before candidate creation", async () => {
   const extractor: AmbientMemoryExtractor = {
     id: "test.invalid-assessment-extractor",
     version: "1",
@@ -467,8 +467,8 @@ test("invalid sensitivity assessments fail before candidate creation", () => {
   };
   const setup = fixture(extractor, false, classifier);
   try {
-    assert.throws(
-      () =>
+    await assert.rejects(
+      async () =>
         setup.ambient.captureInteraction({
           personaId: setup.skylar.persona.id,
           source: {

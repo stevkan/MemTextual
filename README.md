@@ -29,6 +29,7 @@ The system provides:
 - explicit episodic and durable persona-memory classes;
 - persona-aware retrieval with default-deny cross-persona isolation;
 - provider-neutral ambient extraction into persona-bound review candidates;
+- strict asynchronous extraction-provider and authorized host-event adapters;
 - explicit temporal validity, non-destructive review hints, and as-of retrieval;
 - sensitivity, retrieval, pinning, and protection controls;
 - policy-aware FTS5 retrieval and retrieval audits;
@@ -51,6 +52,7 @@ docs/legacy-migration.md   Legacy export format and migration workflow
 docs/continuity-design.md  Continuity product plan and non-destructive contract
 docs/personas.md           Continuity identity and persona-scope foundations
 docs/ambient-memory.md     Persona-bound ambient candidate capture contract
+docs/host-capture.md       Explicitly authorized host-event capture contract
 docs/migration-safety.md   Snapshot, upgrade-copy, and verification workflow
 docs/privacy.md            Recoverable deletion and memory-purge contract
 docs/semantic-matching.md  Provider-neutral advisory matching contract
@@ -88,6 +90,7 @@ python -m sqlite3 memtextual.db ".read migrations/010_persona_memory_classes.sql
 python -m sqlite3 memtextual.db ".read migrations/011_ambient_capture.sql"
 python -m sqlite3 memtextual.db ".read migrations/012_ambient_sensitivity.sql"
 python -m sqlite3 memtextual.db ".read migrations/013_temporal_relevance.sql"
+python -m sqlite3 memtextual.db ".read migrations/014_authorized_host_capture.sql"
 python -m sqlite3 memtextual.db ".read examples/seed-v0.1.sql"
 ```
 
@@ -131,6 +134,11 @@ closed to sensitive, and classification can never lower declared protection.
 Explicit validity windows and review dates survive candidate acceptance;
 default retrieval excludes out-of-window memories without deleting them and
 explicit historical retrieval reports their temporal state.
+`StructuredAmbientMemoryExtractor` validates asynchronous provider output
+against a strict proposal schema. `HostAuthorizationService` and
+`AuthorizedHostEventCaptureService` add explicit persona-scoped bearer grants,
+versioned host adapters, deterministic replay protection, and immutable
+successful-capture receipts without exposing these mutations through MCP.
 
 Before a release applies new migrations to a real database, use the safeguard
 workflow in `docs/migration-safety.md`. It creates an online SQLite backup, a
@@ -139,8 +147,8 @@ upgraded copy without rejecting additive schema changes.
 
 ## Deliberately deferred
 
-Ambient extractor provider adapters and host event capture, vendor-specific
-legacy-export adapters, a trusted
+Concrete vendor extractor and host-event clients, vendor-specific legacy-export
+adapters, a trusted
 graphical candidate-review UI, semantic candidate deduplication and conflict matching,
 standalone-source deletion, backup-retention enforcement, resumable imports,
 streamable HTTP, REST API, admin UI,

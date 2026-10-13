@@ -41,6 +41,7 @@ export {
 export type {
   AmbientCaptureResult,
   AmbientExtractionInput,
+  AmbientExtractionProvider,
   AmbientMemoryExtractor,
   AmbientMemoryProposal,
   AmbientSensitivityAssessment,
@@ -48,6 +49,19 @@ export type {
   AmbientSensitivityInput,
   CaptureAmbientInteractionInput,
 } from "./domain/ambient-memory.js";
+export type {
+  AuthorizeHostInput,
+  CaptureAuthorizedHostEventInput,
+  HostAuthorization,
+  HostAuthorizationGrant,
+  HostAuthorizationMutationContext,
+  HostAuthorizationStatus,
+  HostEventAdapter,
+  HostEventAdapterInput,
+  HostEventCaptureResult,
+  HostEventEnvelope,
+  HostEventReceipt,
+} from "./domain/host-event.js";
 export type {
   ContinuityUser,
   CreateContinuityUserInput,
@@ -138,11 +152,18 @@ export type { ContinuityMemoryRepository } from "./repositories/continuity-memor
 export type { IngestionRepository } from "./repositories/ingestion-repository.js";
 export type { PersonaRepository } from "./repositories/persona-repository.js";
 export type { ReviewPolicyRepository } from "./repositories/review-policy-repository.js";
+export type {
+  CreateHostAuthorizationRecordInput,
+  HostAuthorizationCredential,
+  HostEventRepository,
+  RecordHostEventInput,
+} from "./repositories/host-event-repository.js";
 export { SqliteIngestionRepository } from "./repositories/sqlite-ingestion-repository.js";
 export { SqliteContinuityMemoryRepository } from "./repositories/sqlite-continuity-memory-repository.js";
 export { SqliteMemoryRepository } from "./repositories/sqlite-memory-repository.js";
 export { SqlitePersonaRepository } from "./repositories/sqlite-persona-repository.js";
 export { SqliteReviewPolicyRepository } from "./repositories/sqlite-review-policy-repository.js";
+export { SqliteHostEventRepository } from "./repositories/sqlite-host-event-repository.js";
 export {
   CandidateNotFoundError,
   ExplicitCandidateReviewRequiredError,
@@ -153,6 +174,14 @@ export {
 } from "./services/ingestion-service.js";
 export { ContinuityMemoryService } from "./services/continuity-memory-service.js";
 export { AmbientMemoryService } from "./services/ambient-memory-service.js";
+export {
+  AuthorizedHostEventCaptureService,
+  HostAuthorizationService,
+} from "./services/host-event-service.js";
+export {
+  StructuredAmbientMemoryExtractor,
+  type StructuredAmbientExtractorOptions,
+} from "./providers/structured-ambient-extractor.js";
 export {
   createLegacyCandidateExternalId,
   LegacyMemoryMigrationService,

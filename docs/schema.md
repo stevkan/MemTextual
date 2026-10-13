@@ -106,6 +106,15 @@ codes. A trigger requires the candidate sensitivity to be at least as protective
 as both inputs. Older schema-11 profiles remain `legacy_unassessed` rather than
 being silently reclassified during migration.
 
+Migration 014 adds `continuity_host_authorizations` and
+`continuity_host_events`. An authorization binds a hashed one-time grant to one
+user, persona relationship, host adapter, and event-kind allowlist. Identity
+fields are immutable and status may only transition from active to revoked.
+A successful host-event receipt binds one external event ID to its
+authorization, adapter version, persona relationship, active source, and
+ambient candidate IDs. Triggers reject expired or revoked authorization,
+cross-persona receipts, candidates from another source, and receipt updates.
+
 ### Entity and relationship
 
 Entities normalize people, organizations, projects, products, places, and

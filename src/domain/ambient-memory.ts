@@ -42,7 +42,15 @@ export interface AmbientExtractionInput {
 export interface AmbientMemoryExtractor {
   readonly id: string;
   readonly version: string;
-  extract(input: AmbientExtractionInput): AmbientMemoryProposal[];
+  extract(
+    input: AmbientExtractionInput,
+  ): AmbientMemoryProposal[] | Promise<AmbientMemoryProposal[]>;
+}
+
+export interface AmbientExtractionProvider {
+  readonly id: string;
+  readonly version: string;
+  extract(input: AmbientExtractionInput): unknown | Promise<unknown>;
 }
 
 export interface AmbientSensitivityAssessment {
@@ -59,7 +67,9 @@ export interface AmbientSensitivityInput extends AmbientExtractionInput {
 export interface AmbientSensitivityClassifier {
   readonly id: string;
   readonly version: string;
-  classify(input: AmbientSensitivityInput): AmbientSensitivityAssessment;
+  classify(
+    input: AmbientSensitivityInput,
+  ): AmbientSensitivityAssessment | Promise<AmbientSensitivityAssessment>;
 }
 
 export interface CaptureAmbientInteractionInput {

@@ -48,7 +48,7 @@ explicit episodic-versus-durable memory classification, and a persona-aware
 retrieval path that denies cross-persona recall by default. This completes the
 planned Persona Foundations phase.
 
-Phase 3 has started with a provider-neutral ambient capture boundary. Recorded
+Phase 3 now includes a provider-neutral ambient capture boundary. Recorded
 interactions can now produce idempotent, evidence-backed candidates bound to
 one persona relationship and an explicit episodic or durable class. Candidates
 remain pending by default; the existing user-configured review policies are the
@@ -60,8 +60,12 @@ validity windows and review dates now flow from ambient proposals through
 candidates into immutable memory revisions. Default retrieval excludes memories
 that are not yet valid or have expired, while an explicit historical query can
 include them with a temporal status; expiration never deletes or changes a
-memory's lifecycle state. Extraction provider adapters and host-event capture
-remain later Phase 3 integration work.
+memory's lifecycle state. A strict structured-output adapter now supports
+asynchronous extraction providers, while explicit persona-scoped host grants,
+versioned event adapters, deterministic replay protection, and immutable
+successful-capture receipts form the authorized host-event boundary. Concrete
+vendor clients, credentials, and event subscriptions remain deployment work;
+they are not implicitly enabled by the library.
 
 ## Everyday data durability and recovery
 

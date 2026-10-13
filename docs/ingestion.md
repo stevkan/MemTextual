@@ -147,6 +147,11 @@ sensitivity classifier may assess each proposal; without one, the candidate
 fails closed to sensitive. Classification can raise but never lower an
 extractor-declared sensitivity. See `ambient-memory.md`.
 
+Authorized applications may deliver events through a versioned
+`HostEventAdapter` only after an explicit user creates a persona-scoped grant.
+Successful captures receive immutable, replay-protected receipts; unauthorized
+events are rejected before adapter execution. See `host-capture.md`.
+
 ## MCP tools
 
 The ingestion interface adds seven tools to the core memory tools:
@@ -232,6 +237,6 @@ Current limitations include:
 - standalone-source deletion outside an external source series;
 - an explicitly configured local or external semantic-provider adapter;
 - a graphical review interface beyond the local CLI;
-- configured extractor-provider and host-event adapters;
+- concrete vendor extraction providers and host-event adapters;
 - source-level sensitivity and redaction; and
 - remote transport authentication and authorization.
