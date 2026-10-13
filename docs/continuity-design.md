@@ -42,6 +42,11 @@ explicit user-controlled shared scope.
 The first vertical slice targets one persona while retaining the multi-persona
 data model and isolation rules from the start.
 
+Phase 1 memory correctness is complete. Phase 2 begins with additive user,
+persona, and relationship identities plus an enforced namespace-scope
+hierarchy. Episodic-versus-durable classification and persona-aware retrieval
+remain subsequent Phase 2 packages.
+
 ## Everyday data durability and recovery
 
 Continuity must protect a user's memories during ordinary daily use, not only

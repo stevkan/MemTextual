@@ -36,7 +36,7 @@ test("migration and seed preserve schema integrity", () => {
     const violations = database.prepare("PRAGMA foreign_key_check").all();
 
     assert.equal(memoryCount.count, 10);
-    assert.equal(migrationCount.count, 8);
+    assert.equal(migrationCount.count, 9);
     assert.deepEqual(violations, []);
   } finally {
     database.close();
@@ -183,6 +183,9 @@ test("review automation migration upgrades an existing candidate database", () =
       const sourceDeletionPurgeMigration = upgraded
         .prepare("SELECT name FROM schema_migrations WHERE version = 8")
         .get() as { name: string };
+      const personaFoundationsMigration = upgraded
+        .prepare("SELECT name FROM schema_migrations WHERE version = 9")
+        .get() as { name: string };
 
       assert.equal(candidate.assertion, "Preserve this candidate.");
       assert.equal(candidate.proposer_id, null);
@@ -197,6 +200,7 @@ test("review automation migration upgrades an existing candidate database", () =
         sourceDeletionPurgeMigration.name,
         "source_series_deletion_purge_v0.9",
       );
+      assert.equal(personaFoundationsMigration.name, "persona_foundations_v0.9");
       assert.deepEqual(
         upgraded
           .prepare(

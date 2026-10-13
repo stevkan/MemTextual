@@ -29,6 +29,15 @@ export {
   type ScopeKind,
   type Sensitivity,
 } from "./domain/memory.js";
+export type {
+  ContinuityUser,
+  CreateContinuityUserInput,
+  CreatePersonaInput,
+  Persona,
+  PersonaContext,
+  PersonaMetadata,
+  PersonaRelationship,
+} from "./domain/persona.js";
 export {
   sourceKinds,
   sourceRecordKinds,
@@ -105,9 +114,11 @@ export {
 } from "./mcp/server.js";
 export type { MemoryRepository } from "./repositories/memory-repository.js";
 export type { IngestionRepository } from "./repositories/ingestion-repository.js";
+export type { PersonaRepository } from "./repositories/persona-repository.js";
 export type { ReviewPolicyRepository } from "./repositories/review-policy-repository.js";
 export { SqliteIngestionRepository } from "./repositories/sqlite-ingestion-repository.js";
 export { SqliteMemoryRepository } from "./repositories/sqlite-memory-repository.js";
+export { SqlitePersonaRepository } from "./repositories/sqlite-persona-repository.js";
 export { SqliteReviewPolicyRepository } from "./repositories/sqlite-review-policy-repository.js";
 export {
   CandidateNotFoundError,
@@ -127,6 +138,7 @@ export {
   ExplicitPolicyConfigurationRequiredError,
   ReviewAutomationService,
 } from "./services/review-automation-service.js";
+export { PersonaService } from "./services/persona-service.js";
 export {
   formatCandidateForReview,
   reviewPendingCandidates,

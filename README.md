@@ -25,6 +25,7 @@ The system provides:
 - archive, restore, supersede, and contradiction lifecycles;
 - explicitly authorized recoverable deletion and confirmed memory purge;
 - dependency-aware source-series deletion, restoration, and confirmed purge;
+- multi-persona identity and relationship scopes with enforced ownership;
 - sensitivity, retrieval, pinning, and protection controls;
 - policy-aware FTS5 retrieval and retrieval audits;
 - a trusted terminal workflow for candidate review;
@@ -44,6 +45,7 @@ docs/mcp.md                MCP tools, configuration, and host example
 docs/ingestion.md          Source ingestion and candidate review contract
 docs/legacy-migration.md   Legacy export format and migration workflow
 docs/continuity-design.md  Continuity product plan and non-destructive contract
+docs/personas.md           Continuity identity and persona-scope foundations
 docs/migration-safety.md   Snapshot, upgrade-copy, and verification workflow
 docs/privacy.md            Recoverable deletion and memory-purge contract
 docs/semantic-matching.md  Provider-neutral advisory matching contract
@@ -76,6 +78,7 @@ python -m sqlite3 memtextual.db ".read migrations/005_candidate_resolution.sql"
 python -m sqlite3 memtextual.db ".read migrations/006_source_versioning.sql"
 python -m sqlite3 memtextual.db ".read migrations/007_memory_deletion_purge.sql"
 python -m sqlite3 memtextual.db ".read migrations/008_source_series_deletion_purge.sql"
+python -m sqlite3 memtextual.db ".read migrations/009_persona_foundations.sql"
 python -m sqlite3 memtextual.db ".read examples/seed-v0.1.sql"
 ```
 
@@ -104,6 +107,10 @@ database. The `MemoryService` exposes transactional creation, revision history,
 lifecycle transitions, and policy-aware retrieval. `IngestionService` adds
 source import, candidate proposal, and explicit-user review. Database-specific
 behavior remains behind repository interfaces.
+
+`PersonaService` creates Continuity users and multiple personas with an
+enforced user -> persona -> relationship scope hierarchy. Persona-aware memory
+classification and retrieval are the next Phase 2 package.
 
 Before a release applies new migrations to a real database, use the safeguard
 workflow in `docs/migration-safety.md`. It creates an online SQLite backup, a

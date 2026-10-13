@@ -66,6 +66,13 @@ Scopes form a hierarchy. The built-in kinds are `global`, `project`,
 `conversation`, and `namespace`. A memory can belong to several scopes, with
 one marked primary.
 
+Continuity uses additive identity tables rather than changing the original
+scope kinds. `continuity_users` binds a local user to a root namespace scope.
+Each `continuity_personas` row owns a namespace child of that user scope, and
+its `continuity_relationships` row owns a namespace child of the persona scope.
+Triggers enforce this topology and make bound ownership and scope identities
+immutable. Different personas never share a relationship scope by default.
+
 ### Entity and relationship
 
 Entities normalize people, organizations, projects, products, places, and

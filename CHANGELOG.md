@@ -27,6 +27,9 @@ describe only the current design and behavior.
 - Added reversible source-series deletion, dependency-aware purge previews,
   retained-memory and active-policy blockers, exact-confirmation source purge,
   and assertion-free source purge receipts.
+- Added Continuity user identities, multiple personas per user, one relationship
+  context per persona, transactional scope creation, and database-enforced
+  user-to-persona-to-relationship scope ownership.
 
 ## 0.8.0 - 2026-10-12
 
