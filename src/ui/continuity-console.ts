@@ -7,7 +7,6 @@ import {
 } from "node:http";
 import type { AddressInfo } from "node:net";
 import { z } from "zod";
-import { candidateResolutionKinds } from "../domain/ingestion.js";
 import type { PersonaContext } from "../domain/persona.js";
 import type { ContinuityControlService } from "../services/continuity-control-service.js";
 import {
@@ -19,13 +18,21 @@ import {
 const loopbackHost = "127.0.0.1";
 const maximumBodyBytes = 64 * 1024;
 
-const reviewSchema = z
-  .object({
-    outcome: z.enum(candidateResolutionKinds),
-    targetMemoryId: z.string().trim().min(1).max(500).optional(),
-    note: z.string().max(10_000).optional(),
-  })
-  .strict();
+const reviewSchema = z.discriminatedUnion("outcome", [
+  z
+    .object({
+      outcome: z.enum(["create", "ignore"]),
+      note: z.string().max(10_000).optional(),
+    })
+    .strict(),
+  z
+    .object({
+      outcome: z.enum(["revise", "reaffirm", "contradict", "supersede"]),
+      targetMemoryId: z.string().trim().min(1).max(500),
+      note: z.string().max(10_000).optional(),
+    })
+    .strict(),
+]);
 
 const noteSchema = z
   .object({ note: z.string().max(10_000).optional() })
@@ -33,6 +40,9 @@ const noteSchema = z
 
 const booleanValueSchema = z.object({ value: z.boolean() }).strict();
 const emptySchema = z.object({}).strict();
+const correctionSchema = z
+  .object({ assertion: z.string().trim().min(1).max(50_000) })
+  .strict();
 
 class HttpError extends Error {
   public constructor(
@@ -348,12 +358,13 @@ export function createContinuityConsoleApplication(
               {
                 personaId,
                 candidateId: reviewId,
-                resolution: {
-                  outcome: input.outcome,
-                  ...(input.targetMemoryId === undefined
-                    ? {}
-                    : { targetMemoryId: input.targetMemoryId }),
-                },
+                resolution:
+                  "targetMemoryId" in input
+                    ? {
+                        outcome: input.outcome,
+                        targetMemoryId: input.targetMemoryId,
+                      }
+                    : { outcome: input.outcome },
               },
               {
                 actor: "user",
@@ -373,6 +384,26 @@ export function createContinuityConsoleApplication(
               explicitUserAction: true,
               ...(input.note === undefined ? {} : { note: input.note }),
             }),
+          );
+        }
+
+        const correctionId = routeId(url.pathname, "/correct");
+        if (correctionId !== null && url.pathname.startsWith("/api/memories/")) {
+          const input = parseBody(correctionSchema, body);
+          return jsonResponse(
+            200,
+            options.control.reviseMemory(
+              {
+                personaId,
+                memoryId: correctionId,
+                revision: {
+                  assertion: input.assertion,
+                  normalizedAssertion: null,
+                  changeKind: "corrected",
+                },
+              },
+              { actor: "user", explicitUserAction: true },
+            ),
           );
         }
 

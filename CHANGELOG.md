@@ -67,6 +67,11 @@ describe only the current design and behavior.
 - Bound the console to IPv4 loopback with per-launch bearer authorization,
   same-origin mutation checks, host validation, restrictive browser headers,
   and a token that is delivered in and removed from the URL fragment.
+- Added graphical candidate match inspection and explicit revise, reaffirm,
+  contradict, supersede, and ignore reconciliation controls with same-persona
+  target enforcement.
+- Added graphical direct correction that creates an immutable corrected revision
+  and clears stale normalized text while preserving prior revision history.
 
 ## 0.8.0 - 2026-10-12
 

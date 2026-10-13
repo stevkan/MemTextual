@@ -76,10 +76,12 @@ memory targets are checked against the selected persona before delegation to
 the existing policy services. A first local graphical console now presents the
 pending candidate queue, resolved evidence, persona-memory list, immutable
 history, candidate acceptance or rejection, pinning, protection, archive, and
-restore. It binds to one persona and IPv4 loopback for one process lifetime,
-with a fresh bearer token delivered through a URL fragment. Graphical
-correction, reconciliation beyond create/reject, export, recoverable deletion,
-and confirmed purge remain later Phase 4 packages.
+restore. It now also displays match suggestions, supports explicit revise,
+reaffirm, contradict, supersede, and ignore outcomes against persona-validated
+targets, and creates immutable direct-correction revisions. It binds to one
+persona and IPv4 loopback for one process lifetime, with a fresh bearer token
+delivered through a URL fragment. Export, recoverable deletion, and confirmed
+purge remain later Phase 4 packages.
 
 ## Everyday data durability and recovery
 

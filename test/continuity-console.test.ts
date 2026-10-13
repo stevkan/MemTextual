@@ -279,6 +279,123 @@ test("Continuity console requires same-origin explicit mutations", async () => {
     assert.equal(detail.personaMemory.memory.isPinned, true);
     assert.equal(detail.personaMemory.memory.isProtected, true);
     assert.equal(detail.history.length, 1);
+
+    const correctionResponse = await request(application, token, {
+      ...mutation,
+      url: `/api/memories/${memoryId}/correct`,
+      headers: { ...mutation.headers, origin },
+      body: JSON.stringify({ assertion: "Steve prefers concise, direct answers." }),
+    });
+    assert.equal(correctionResponse.status, 200);
+    const corrected = JSON.parse(correctionResponse.body) as {
+      assertion: string;
+      normalizedAssertion: string | null;
+      revisionNumber: number;
+    };
+    assert.equal(corrected.assertion, "Steve prefers concise, direct answers.");
+    assert.equal(corrected.normalizedAssertion, null);
+    assert.equal(corrected.revisionNumber, 2);
+
+    const correctedDetailResponse = await request(application, token, {
+      method: "GET",
+      url: `/api/memories/${memoryId}`,
+    });
+    const correctedDetail = JSON.parse(correctedDetailResponse.body) as {
+      history: Array<{ assertion: string; changeKind: string }>;
+    };
+    assert.deepEqual(
+      correctedDetail.history.map(({ assertion, changeKind }) => ({
+        assertion,
+        changeKind,
+      })),
+      [
+        { assertion: "Steve prefers direct answers.", changeKind: "created" },
+        {
+          assertion: "Steve prefers concise, direct answers.",
+          changeKind: "corrected",
+        },
+      ],
+    );
+  } finally {
+    setup.database.close();
+  }
+});
+
+test("Continuity console reconciles candidates only with same-persona targets", async () => {
+  const setup = fixture();
+  const token = "r".repeat(32);
+  const explicitUserAction = { actor: "user" as const, explicitUserAction: true };
+  try {
+    const target = setup.control.createMemory(
+      {
+        personaId: setup.skylar.persona.id,
+        memoryClass: "durable",
+        assertion: "Steve prefers direct answers.",
+        type: "preference",
+        normalizedAssertion: "direct answers",
+      },
+      explicitUserAction,
+    );
+    const otherPersonaTarget = setup.control.createMemory(
+      {
+        personaId: setup.advisor.persona.id,
+        memoryClass: "durable",
+        assertion: "Advisor-only memory.",
+        type: "fact",
+      },
+      explicitUserAction,
+    );
+    const captured = await capture(
+      setup,
+      setup.skylar.persona.id,
+      "Steve prefers concise, direct answers.",
+    );
+    const candidateId = captured.candidates[0]!.id;
+    const application = createContinuityConsoleApplication(
+      { control: setup.control, personaContext: setup.skylar },
+      token,
+    );
+    const headers = { "content-type": "application/json", origin };
+
+    const missingTarget = await request(application, token, {
+      method: "POST",
+      url: `/api/candidates/${candidateId}/resolve`,
+      headers,
+      body: JSON.stringify({ outcome: "revise" }),
+    });
+    assert.equal(missingTarget.status, 400);
+
+    const crossPersona = await request(application, token, {
+      method: "POST",
+      url: `/api/candidates/${candidateId}/resolve`,
+      headers,
+      body: JSON.stringify({
+        outcome: "revise",
+        targetMemoryId: otherPersonaTarget.memory.id,
+      }),
+    });
+    assert.equal(crossPersona.status, 404);
+
+    const resolvedResponse = await request(application, token, {
+      method: "POST",
+      url: `/api/candidates/${candidateId}/resolve`,
+      headers,
+      body: JSON.stringify({
+        outcome: "revise",
+        targetMemoryId: target.memory.id,
+        note: "User selected the existing preference.",
+      }),
+    });
+    assert.equal(resolvedResponse.status, 200);
+    const resolved = JSON.parse(resolvedResponse.body) as {
+      memory: { id: string; assertion: string; revisionNumber: number } | null;
+      resolution: { outcome: string; targetMemoryId: string | null };
+    };
+    assert.equal(resolved.memory?.id, target.memory.id);
+    assert.equal(resolved.memory?.assertion, "Steve prefers concise, direct answers.");
+    assert.equal(resolved.memory?.revisionNumber, 2);
+    assert.equal(resolved.resolution.outcome, "revise");
+    assert.equal(resolved.resolution.targetMemoryId, target.memory.id);
   } finally {
     setup.database.close();
   }

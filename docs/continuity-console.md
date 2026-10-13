@@ -22,12 +22,16 @@ for an available port.
 ## Current controls
 
 - Inspect the selected persona's pending candidates and their retained evidence.
-- Accept a candidate as a new memory or reject it, with an optional review note.
+- Inspect exact or semantic match suggestions for a candidate.
+- Accept, reject, or ignore a candidate, with an optional review note.
+- Reconcile a candidate with a selected active persona memory by revising,
+  reaffirming, contradicting, or superseding it.
 - Inspect persona memories and immutable revision history.
+- Correct an active memory by creating a new immutable revision while retaining
+  its earlier wording in history.
 - Pin or unpin, protect or unprotect, archive, and restore a memory.
 
-The first console package does not yet expose candidate reconciliation with an
-existing memory, direct correction, export, recoverable deletion, or confirmed
+The console does not yet expose export, recoverable deletion, or confirmed
 purge. Those operations remain available through their existing trusted library
 or CLI boundaries where implemented.
 

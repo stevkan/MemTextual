@@ -135,6 +135,10 @@ export const continuityConsoleJavaScript = `
     listPanel.replaceChildren();
     const heading = node("h2", state.view === "candidates" ? "Pending review" : "Persona memories");
     listPanel.append(heading);
+    if (!state.dashboard) {
+      listPanel.append(node("p", "Loading local data…", "empty"));
+      return;
+    }
     const items = state.view === "candidates" ? state.dashboard.candidates : state.dashboard.memories;
     if (items.length === 0) {
       listPanel.append(node("p", state.view === "candidates" ? "No pending candidates." : "No stored memories.", "empty"));
@@ -142,7 +146,7 @@ export const continuityConsoleJavaScript = `
     }
     items.forEach((item) => {
       const candidate = item.candidate;
-      const profile = item.personaMemory;
+      const profile = candidate ? null : item;
       const memory = profile ? profile.memory : null;
       const button = node("button", undefined, "item");
       button.type = "button";
@@ -198,16 +202,77 @@ export const continuityConsoleJavaScript = `
         evidenceSection.append(card);
       });
       detailPanel.append(evidenceSection);
+
+      const matchesSection = node("div", undefined, "section");
+      matchesSection.append(node("h3", "Suggested matches"));
+      if (review.matches.length === 0) {
+        matchesSection.append(node("p", "No exact or semantic match was suggested.", "empty"));
+      } else {
+        review.matches.forEach((match) => {
+          const card = node("div", undefined, "history");
+          card.append(node("strong", match.memory.assertion));
+          card.append(node("p", match.matchKind + " · score " + match.score + " · " + match.reason, "meta"));
+          matchesSection.append(card);
+        });
+      }
+      detailPanel.append(matchesSection);
+
+      const reconcileSection = node("div", undefined, "section");
+      reconcileSection.append(node("h3", "Reconcile with an existing memory"));
+      const target = document.createElement("select");
+      const placeholder = document.createElement("option");
+      placeholder.value = "";
+      placeholder.textContent = "Select an active memory";
+      target.append(placeholder);
+      state.dashboard.memories
+        .filter((profile) => profile.memory.status === "active")
+        .forEach((profile) => {
+          const option = document.createElement("option");
+          option.value = profile.memory.id;
+          const suggested = review.matches.some((match) => match.memory.id === profile.memory.id);
+          option.textContent = (suggested ? "Suggested: " : "") + profile.memory.assertion;
+          target.append(option);
+        });
+      reconcileSection.append(target);
       const note = document.createElement("textarea");
       note.placeholder = "Optional review note";
       note.rows = 3;
-      detailPanel.append(note);
+      reconcileSection.append(note);
       const actions = node("div", undefined, "actions");
-      actions.append(actionButton("Accept as new memory", async () => {
-        await api("/api/candidates/" + encodeURIComponent(id) + "/resolve", { method: "POST", body: JSON.stringify({ outcome: "create", note: note.value }) });
-        setNotice("Candidate accepted.");
+      async function completeResolution(outcome, targetMemoryId) {
+        await api("/api/candidates/" + encodeURIComponent(id) + "/resolve", {
+          method: "POST",
+          body: JSON.stringify({ outcome, ...(targetMemoryId ? { targetMemoryId } : {}), note: note.value }),
+        });
+        setNotice("Candidate resolved as " + outcome + ".");
         clearDetail();
         await refreshDashboard();
+      }
+      function selectedTarget() {
+        if (!target.value) throw new Error("Select an active memory first.");
+        return target.value;
+      }
+      actions.append(actionButton("Accept as new memory", async () => {
+        await completeResolution("create");
+      }));
+      actions.append(actionButton("Revise selected", async () => {
+        await completeResolution("revise", selectedTarget());
+      }));
+      actions.append(actionButton("Reaffirm selected", async () => {
+        await completeResolution("reaffirm", selectedTarget());
+      }));
+      actions.append(actionButton("Contradict selected", async () => {
+        const targetMemoryId = selectedTarget();
+        if (!window.confirm("Mark the selected memory contradicted and create this candidate as its replacement?")) return;
+        await completeResolution("contradict", targetMemoryId);
+      }, true));
+      actions.append(actionButton("Supersede selected", async () => {
+        const targetMemoryId = selectedTarget();
+        if (!window.confirm("Mark the selected memory superseded and create this candidate as its replacement?")) return;
+        await completeResolution("supersede", targetMemoryId);
+      }, true));
+      actions.append(actionButton("Ignore candidate", async () => {
+        await completeResolution("ignore");
       }));
       actions.append(actionButton("Reject", async () => {
         await api("/api/candidates/" + encodeURIComponent(id) + "/reject", { method: "POST", body: JSON.stringify({ note: note.value }) });
@@ -215,7 +280,8 @@ export const continuityConsoleJavaScript = `
         clearDetail();
         await refreshDashboard();
       }, true));
-      detailPanel.append(actions);
+      reconcileSection.append(actions);
+      detailPanel.append(reconcileSection);
     } catch (error) { setNotice(error.message, true); }
   }
 
@@ -236,6 +302,31 @@ export const continuityConsoleJavaScript = `
         historySection.append(card);
       });
       detailPanel.append(historySection);
+
+      if (memory.status === "active") {
+        const correctionSection = node("div", undefined, "section");
+        correctionSection.append(node("h3", "Correct this memory"));
+        correctionSection.append(node("p", "Saving creates a new immutable revision. Earlier wording remains in history.", "meta"));
+        const correction = document.createElement("textarea");
+        correction.value = memory.assertion;
+        correction.rows = 5;
+        correctionSection.append(correction);
+        const correctionActions = node("div", undefined, "actions");
+        correctionActions.append(actionButton("Save correction", async () => {
+          const assertion = correction.value.trim();
+          if (!assertion) throw new Error("A corrected assertion is required.");
+          if (assertion === memory.assertion) throw new Error("Change the assertion before saving.");
+          await api("/api/memories/" + encodeURIComponent(id) + "/correct", {
+            method: "POST",
+            body: JSON.stringify({ assertion }),
+          });
+          setNotice("Memory corrected with a new revision.");
+          await refreshDashboard();
+          await showMemory(id);
+        }));
+        correctionSection.append(correctionActions);
+        detailPanel.append(correctionSection);
+      }
       const actions = node("div", undefined, "actions");
       actions.append(actionButton(memory.isPinned ? "Unpin" : "Pin", async () => {
         await api("/api/memories/" + encodeURIComponent(id) + "/pin", { method: "POST", body: JSON.stringify({ value: !memory.isPinned }) });

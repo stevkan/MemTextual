@@ -39,5 +39,6 @@ another persona as a resolution or relationship target.
 
 This service remains a library API and is not an MCP tool. The local Continuity
 console uses it for its review queue and memory inspector without duplicating
-policy rules. Graphical correction, export, recoverable deletion, and confirmed
-purge remain later Phase 4 packages.
+policy rules. The console exposes candidate reconciliation and direct correction
+through this boundary. Export, recoverable deletion, and confirmed purge remain
+later Phase 4 packages.
