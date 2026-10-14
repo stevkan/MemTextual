@@ -39,8 +39,10 @@ explicit user-controlled shared scope.
 6. **Operational resilience:** automatic backups, integrity monitoring,
    retention and recovery controls, and optional encrypted off-device
    redundancy for everyday use.
-7. **Distribution:** authenticated streamable HTTP, ChatGPT integration,
-   installers, and separately packaged Developer and Continuity editions.
+7. **Distribution:** proprietary-first licensing, authenticated streamable HTTP,
+   ChatGPT integration, installers, and separately packaged Developer and
+   Continuity editions. Opening selected components later remains an explicit
+   owner decision rather than a release prerequisite.
 8. **Expansion:** legacy adapters, administration, and a public REST interface.
 
 ## Platform delivery strategy
@@ -66,6 +68,16 @@ validation. The current support matrix and release gates are recorded in
 
 The first vertical slice targets one persona while retaining the multi-persona
 data model and isolation rules from the start.
+
+## Distribution ownership
+
+MemTextual Developer and MemTextual Continuity use a proprietary-first release
+strategy. The source package remains private and unlicensed for redistribution;
+public application binaries will require separately approved proprietary terms.
+The build and packaging tools do not invent the legal owner, EULA, privacy
+terms, patent position, trademark rights, or third-party notices. Those release
+inputs must be explicitly established before public distribution. The complete
+policy and release gates are recorded in `docs/proprietary-distribution.md`.
 
 Phase 1 memory correctness is complete. Phase 2 includes additive user,
 persona, and relationship identities, an enforced namespace-scope hierarchy,

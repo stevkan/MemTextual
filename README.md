@@ -66,6 +66,7 @@ docs/ingestion.md          Source ingestion and candidate review contract
 docs/legacy-migration.md   Legacy export format and migration workflow
 docs/continuity-design.md  Continuity product plan and non-destructive contract
 docs/platform-support.md   Edition names, portability boundary, and release gates
+docs/proprietary-distribution.md Proprietary-first release and IP safeguards
 docs/windows-host-integration.md Windows identity, ACL, and task safeguards
 docs/windows-continuity-deployment.md Windows deployment layout and installer CLI
 docs/windows-continuity-bundle.md Signed Windows bundle verification and staging
@@ -272,4 +273,5 @@ adapters, graphical source-series privacy workflows, standalone-source deletion,
 additional cloud destination adapters, resumable imports, streamable HTTP,
 REST API, admin UI, concrete vendor embedding provider, concrete host capture
 integrations, Authenticode and MSI/MSIX release packaging, additional secure
-credential-store providers, and the broader distribution strategy remain open.
+credential-store providers, final proprietary legal terms, and public-release
+validation remain open.

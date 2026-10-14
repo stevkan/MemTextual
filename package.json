@@ -2,6 +2,7 @@
   "name": "memtextual",
   "version": "0.8.0",
   "description": "Local-first persistent memory for AI agents",
+  "license": "UNLICENSED",
   "main": "dist/src/index.js",
   "bin": {
     "memtextual-mcp": "dist/src/mcp/stdio.js",

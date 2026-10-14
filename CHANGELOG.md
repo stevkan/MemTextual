@@ -5,6 +5,10 @@ describe only the current design and behavior.
 
 ## Unreleased
 
+- Adopted a proprietary-first distribution baseline. Package metadata now
+  combines npm's publication block with `UNLICENSED`; public application
+  packaging continues to require separately approved proprietary terms and
+  does not infer an owner, EULA, or other legal rights.
 - Added a Windows x64 Continuity directory-bundle builder and verifier. It
   validates the pinned runtime, includes its license plus explicit application
   terms, selects production dependencies from lockfile version 3, rejects

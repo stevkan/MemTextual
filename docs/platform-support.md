@@ -19,6 +19,10 @@ platform releases do not require a redesign. Passing core CI does not by itself
 mean that a Continuity installer or unattended host integration is supported on
 that operating system.
 
+All editions currently follow the proprietary-first distribution policy in
+`docs/proprietary-distribution.md`. Platform support does not grant source-code
+or redistribution rights.
+
 | Area | Windows | macOS | Linux |
 | --- | --- | --- | --- |
 | Core TypeScript, SQLite, migrations, and tests | CI gate configured | CI gate configured | CI gate configured |
