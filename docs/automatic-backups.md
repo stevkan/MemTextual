@@ -115,6 +115,44 @@ cleanup or its receipt fails, the command reports a warning and any retained
 rollback directory for review; the independently verified pre-restore recovery
 point remains in the configured backup destination.
 
-This package does not encrypt off-device copies or install a system schedule.
-Those remain separate Phase 6 controls because each needs explicit destination
-or credential choices.
+## Encrypted off-device replication
+
+MemTextual can copy one verified local recovery point into an authenticated,
+encrypted package at an explicitly selected destination. The destination may be
+a removable drive, network share, or user-configured synchronized directory;
+MemTextual does not infer whether it is physically separate and does not select
+or contact a cloud provider.
+
+The key must be exactly 32 random bytes encoded as canonical base64 in a named
+environment variable. `--key-env` passes only that variable's name. The key
+value is never accepted as a command-line argument, written into the package,
+included in output, or stored by MemTextual. `--key-id` is a non-secret label
+used to identify which externally retained key is required for recovery.
+
+```powershell
+npm run safeguard -- offsite-export --database .\data\memtextual.db --source D:\MemTextualBackups --destination E:\MemTextualOffsite --snapshot memtextual-2026-10-12T12-00-00-000Z --key-env MEMTEXTUAL_OFFSITE_KEY --key-id recovery-key-2026
+npm run safeguard -- offsite-verify --package E:\MemTextualOffsite\OFFSITE_PACKAGE_DIRECTORY --key-env MEMTEXTUAL_OFFSITE_KEY
+```
+
+Each package encrypts the SQLite recovery point, its safeguard manifest, and
+its durable-data export with AES-256-GCM. HKDF-SHA-256 derives a separate key
+for each file from the externally supplied master key and a random package
+salt; every file receives a fresh nonce and authenticated package metadata.
+The plaintext master key and memory artifacts are never written to the package.
+The outer replication manifest contains only recovery metadata, cryptographic
+parameters, file sizes, and hashes.
+
+Creation holds the local database's shared safeguard lock and refuses corrupt,
+partial, mismatched, or changed recovery points. Files are streamed rather than
+loaded as one in-memory archive. Before success is reported, MemTextual decrypts
+the entire package into a disposable directory, validates every ciphertext and
+plaintext hash, and reruns database integrity and durable-table verification.
+The disposable plaintext is then removed and an append-only verification report
+is retained with the package. Wrong keys and modified ciphertext fail
+authentication.
+
+The recovery key must be backed up separately from both the active database and
+the encrypted packages. Losing it makes the packages unrecoverable. This
+package does not upload data, install a system schedule, or materialize a
+plaintext local recovery point from an off-device package; those require
+separate explicit destination and recovery choices.

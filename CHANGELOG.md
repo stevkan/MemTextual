@@ -121,6 +121,12 @@ describe only the current design and behavior.
 - Live restore creates and verifies a pre-restore recovery point, stages and
   verifies the replacement, preserves database sidecars, rolls back activation
   failures, and records planned, completed, and cleanup evidence.
+- Added provider-neutral encrypted replication to an explicitly selected
+  destination using streamed AES-256-GCM, per-file HKDF-SHA-256 keys, fresh
+  nonces, and authenticated package metadata.
+- Encrypted packages are decrypt-verified in a disposable directory before
+  success; wrong keys, altered ciphertext, unsafe destinations, and unverified
+  local recovery points fail closed without storing the master key.
 
 ## 0.8.0 - 2026-10-12
 

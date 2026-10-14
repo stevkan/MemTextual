@@ -201,8 +201,14 @@ than triggering fallback. Guided live restore now adds an exact preview-bound
 confirmation, a newly verified pre-restore recovery point, busy-database check,
 verified staging and activation, automatic failure rollback, interruption
 records, and append-only completion and cleanup reports. All writers must be
-stopped before activation. Encrypted off-device copies remain a subsequent
-Phase 6 package.
+stopped before activation. Provider-neutral encrypted replication can now write
+a verified recovery point to an explicit removable, network, or synchronized
+destination without choosing or contacting a cloud provider. It streams the
+database, safeguard manifest, and durable export through AES-256-GCM with
+per-file HKDF-derived keys, authenticates package metadata, and verifies the
+completed package through disposable decryption. The 32-byte master key remains
+external and must be retained separately. Plaintext package import and concrete
+cloud destination adapters remain subsequent explicit packages.
 
 ## Non-destructive migration contract
 

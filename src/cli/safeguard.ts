@@ -23,6 +23,10 @@ import {
   applyGuidedRestore,
   previewGuidedRestore,
 } from "../safeguards/guided-restore.js";
+import {
+  createEncryptedReplication,
+  verifyEncryptedReplication,
+} from "../safeguards/encrypted-replication.js";
 
 function usage(): string {
   return [
@@ -37,6 +41,8 @@ function usage(): string {
     "  memtextual-safeguard restore-drill-status --database PATH --output DIRECTORY --interval-hours HOURS",
     "  memtextual-safeguard restore-preview --database PATH --output DIRECTORY --snapshot DIRECTORY",
     "  memtextual-safeguard restore-apply --database PATH --output DIRECTORY --snapshot DIRECTORY --confirm TOKEN",
+    "  memtextual-safeguard offsite-export --database PATH --source DIRECTORY --destination DIRECTORY --snapshot DIRECTORY --key-env NAME --key-id ID",
+    "  memtextual-safeguard offsite-verify --package DIRECTORY --key-env NAME",
   ].join("\n");
 }
 
@@ -73,6 +79,30 @@ function optionValue(arguments_: string[], name: string): string {
     throw new Error(`Missing required ${name} option.\n\n${usage()}`);
   }
   return value;
+}
+
+function encryptionKey(arguments_: string[]): Buffer {
+  const environmentName = optionValue(arguments_, "--key-env");
+  if (!/^[A-Za-z_][A-Za-z0-9_]*$/u.test(environmentName)) {
+    throw new Error("--key-env must name one environment variable.");
+  }
+  const encoded = process.env[environmentName]?.trim();
+  if (encoded === undefined || encoded.length === 0) {
+    throw new Error(`Encryption key environment variable is not set: ${environmentName}.`);
+  }
+  if (!/^[A-Za-z0-9+/]+={0,2}$/u.test(encoded)) {
+    throw new Error(
+      `Encryption key environment variable must contain canonical base64: ${environmentName}.`,
+    );
+  }
+  const key = Buffer.from(encoded, "base64");
+  if (key.length !== 32 || key.toString("base64") !== encoded) {
+    key.fill(0);
+    throw new Error(
+      `Encryption key environment variable must encode exactly 32 bytes: ${environmentName}.`,
+    );
+  }
+  return key;
 }
 
 async function main(arguments_: string[]): Promise<void> {
@@ -213,6 +243,40 @@ async function main(arguments_: string[]): Promise<void> {
       snapshotDirectory: optionValue(arguments_, "--snapshot"),
     });
     console.log(JSON.stringify(result, null, 2));
+    return;
+  }
+
+  if (command === "offsite-export") {
+    const key = encryptionKey(arguments_);
+    try {
+      const result = await createEncryptedReplication({
+        databasePath: resolve(optionValue(arguments_, "--database")),
+        destinationDirectory: resolve(
+          optionValue(arguments_, "--destination"),
+        ),
+        keyId: optionValue(arguments_, "--key-id"),
+        masterKey: key,
+        snapshotDirectory: optionValue(arguments_, "--snapshot"),
+        sourceBackupDirectory: resolve(optionValue(arguments_, "--source")),
+      });
+      console.log(JSON.stringify(result, null, 2));
+    } finally {
+      key.fill(0);
+    }
+    return;
+  }
+
+  if (command === "offsite-verify") {
+    const key = encryptionKey(arguments_);
+    try {
+      const result = await verifyEncryptedReplication({
+        masterKey: key,
+        packageDirectory: resolve(optionValue(arguments_, "--package")),
+      });
+      console.log(JSON.stringify(result, null, 2));
+    } finally {
+      key.fill(0);
+    }
     return;
   }
 

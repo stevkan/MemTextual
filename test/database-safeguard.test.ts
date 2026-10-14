@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { randomBytes } from "node:crypto";
 import {
   existsSync,
   mkdirSync,
@@ -17,6 +18,7 @@ import {
   applyGuidedRestore,
   applyBackupRetention,
   createDatabaseSnapshot,
+  createEncryptedReplication,
   databaseSafeguardIdentity,
   getAutomaticBackupStatus,
   getRestoreDrillStatus,
@@ -25,6 +27,7 @@ import {
   previewBackupRetention,
   runAutomaticBackupIfDue,
   runRestoreDrillIfDue,
+  verifyEncryptedReplication,
   verifyDatabaseAgainstManifest,
 } from "../src/index.js";
 
@@ -827,5 +830,140 @@ test("guided restore leaves the live database unchanged and records a busy failu
     );
   } finally {
     rmSync(fixture.directory, { force: true, recursive: true });
+  }
+});
+
+test("encrypted replication creates and decrypt-verifies an authenticated package", async () => {
+  const fixture = setup();
+  const destinationDirectory = mkdtempSync(
+    join(tmpdir(), "memtextual-offsite-destination-"),
+  );
+  const key = randomBytes(32);
+  try {
+    const sourceBackupDirectory = join(fixture.directory, "backups");
+    const snapshot = await createDatabaseSnapshot({
+      databasePath: fixture.databasePath,
+      outputDirectory: sourceBackupDirectory,
+      now: new Date("2026-10-12T12:00:00.000Z"),
+    });
+    const result = await createEncryptedReplication({
+      databasePath: fixture.databasePath,
+      destinationDirectory,
+      keyId: "recovery-key-2026",
+      masterKey: key,
+      now: new Date("2026-10-14T12:00:00.000Z"),
+      snapshotDirectory: basename(dirname(snapshot.backupPath)),
+      sourceBackupDirectory,
+    });
+
+    assert.equal(result.manifest.algorithm, "aes-256-gcm");
+    assert.equal(result.manifest.kdf, "hkdf-sha256");
+    assert.equal(result.manifest.files.length, 3);
+    assert.equal(result.verification.passed, true);
+    assert.equal(result.verification.fileCount, 3);
+    assert.equal(existsSync(result.verification.reportPath), true);
+    assert.equal(existsSync(join(result.packageDirectory, "memtextual.db")), false);
+    assert.equal(
+      existsSync(join(result.packageDirectory, "durable-data-export.json")),
+      false,
+    );
+    assert.equal(
+      readFileSync(result.manifestPath, "utf8").includes(key.toString("base64")),
+      false,
+    );
+    assert.notEqual(
+      readFileSync(join(result.packageDirectory, "database.enc"))
+        .subarray(0, 16)
+        .toString("utf8"),
+      "SQLite format 3\u0000",
+    );
+
+    const verifiedAgain = await verifyEncryptedReplication({
+      masterKey: key,
+      now: new Date("2026-10-14T13:00:00.000Z"),
+      packageDirectory: result.packageDirectory,
+    });
+    assert.equal(verifiedAgain.checkedTables, result.verification.checkedTables);
+
+    await assert.rejects(
+      verifyEncryptedReplication({
+        masterKey: randomBytes(32),
+        packageDirectory: result.packageDirectory,
+      }),
+      /authenticate|authentication|unsupported state/iu,
+    );
+    const encryptedDatabasePath = join(result.packageDirectory, "database.enc");
+    const tampered = readFileSync(encryptedDatabasePath);
+    const tamperedIndex = Math.floor(tampered.length / 2);
+    tampered[tamperedIndex] = (tampered[tamperedIndex] ?? 0) ^ 1;
+    writeFileSync(encryptedDatabasePath, tampered);
+    await assert.rejects(
+      verifyEncryptedReplication({
+        masterKey: key,
+        packageDirectory: result.packageDirectory,
+      }),
+      /authenticate|authentication|unsupported state/iu,
+    );
+  } finally {
+    key.fill(0);
+    rmSync(fixture.directory, { force: true, recursive: true });
+    rmSync(destinationDirectory, { force: true, recursive: true });
+  }
+});
+
+test("encrypted replication rejects unsafe destinations, keys, locks, and snapshots", async () => {
+  const fixture = setup();
+  const destinationDirectory = mkdtempSync(
+    join(tmpdir(), "memtextual-offsite-destination-"),
+  );
+  const key = randomBytes(32);
+  try {
+    const sourceBackupDirectory = join(fixture.directory, "backups");
+    const snapshot = await createDatabaseSnapshot({
+      databasePath: fixture.databasePath,
+      outputDirectory: sourceBackupDirectory,
+      now: new Date("2026-10-12T12:00:00.000Z"),
+    });
+    const options = {
+      databasePath: fixture.databasePath,
+      destinationDirectory,
+      keyId: "recovery-key-2026",
+      masterKey: key,
+      now: new Date("2026-10-14T12:00:00.000Z"),
+      snapshotDirectory: basename(dirname(snapshot.backupPath)),
+      sourceBackupDirectory,
+    } as const;
+
+    await assert.rejects(
+      createEncryptedReplication({
+        ...options,
+        destinationDirectory: sourceBackupDirectory,
+      }),
+      /must not overlap/u,
+    );
+    await assert.rejects(
+      createEncryptedReplication({ ...options, masterKey: randomBytes(31) }),
+      /exactly 32 bytes/u,
+    );
+    const lockPath = join(
+      sourceBackupDirectory,
+      `automatic-backup-${databaseSafeguardIdentity(fixture.databasePath).slice(0, 16)}.lock`,
+    );
+    writeFileSync(lockPath, "held", "utf8");
+    await assert.rejects(
+      createEncryptedReplication(options),
+      /operation is in progress/u,
+    );
+    rmSync(lockPath);
+
+    writeFileSync(snapshot.backupPath, "corrupted", "utf8");
+    await assert.rejects(
+      createEncryptedReplication(options),
+      /protected and not verifiable/u,
+    );
+  } finally {
+    key.fill(0);
+    rmSync(fixture.directory, { force: true, recursive: true });
+    rmSync(destinationDirectory, { force: true, recursive: true });
   }
 });

@@ -351,3 +351,15 @@ export {
   type GuidedRestoreReport,
   type GuidedRestoreResult,
 } from "./safeguards/guided-restore.js";
+export {
+  createEncryptedReplication,
+  encryptedReplicationManifestFormatVersion,
+  encryptedReplicationVerificationFormatVersion,
+  verifyEncryptedReplication,
+  type CreateEncryptedReplicationOptions,
+  type CreateEncryptedReplicationResult,
+  type EncryptedReplicationFile,
+  type EncryptedReplicationManifest,
+  type EncryptedReplicationVerification,
+  type VerifyEncryptedReplicationOptions,
+} from "./safeguards/encrypted-replication.js";
