@@ -25,7 +25,10 @@ export interface WindowsHostOperations {
     definition: HostScheduleDefinition,
     identityName: string,
   ): Promise<WindowsManagedScheduleState>;
-  protectPaths(paths: readonly string[], identityName: string): Promise<void>;
+  protectPaths(
+    paths: readonly WindowsProtectedPath[],
+    identityName: string,
+  ): Promise<void>;
   provisionIdentity(
     request: HostServiceIdentityRequest,
   ): Promise<HostServiceIdentityState>;
@@ -36,8 +39,13 @@ export interface WindowsHostOperations {
 export interface WindowsHostIntegrationConfiguration {
   formatVersion: typeof windowsHostIntegrationPlanFormatVersion;
   identity: HostServiceIdentityRequest;
-  protectedPaths: readonly string[];
+  protectedPaths: readonly WindowsProtectedPath[];
   schedules: readonly HostScheduleDefinition[];
+}
+
+export interface WindowsProtectedPath {
+  access: "modify" | "read";
+  path: string;
 }
 
 export interface WindowsHostInstallationPreview {
@@ -47,7 +55,7 @@ export interface WindowsHostInstallationPreview {
   formatVersion: typeof windowsHostIntegrationPlanFormatVersion;
   identityWillBeProvisioned: boolean;
   operation: "install";
-  pathsWillBeProtected: readonly string[];
+  pathsWillBeProtected: readonly WindowsProtectedPath[];
   schedulesWillBeInstalled: readonly string[];
 }
 
@@ -55,7 +63,7 @@ export interface WindowsHostRemovalPreview {
   confirmation: string;
   currentIdentity: HostServiceIdentityState;
   currentSchedules: readonly WindowsManagedScheduleState[];
-  dataPathsPreserved: readonly string[];
+  dataPathsPreserved: readonly WindowsProtectedPath[];
   formatVersion: typeof windowsHostIntegrationPlanFormatVersion;
   identityWillBeRemoved: boolean;
   operation: "remove";
@@ -66,13 +74,13 @@ export interface WindowsHostInstallationResult {
   identity: HostServiceIdentityState;
   installedSchedules: readonly WindowsManagedScheduleState[];
   operation: "install";
-  protectedPaths: readonly string[];
+  protectedPaths: readonly WindowsProtectedPath[];
 }
 
 export interface WindowsHostRemovalResult {
   identity: HostServiceIdentityState;
   operation: "remove";
-  preservedDataPaths: readonly string[];
+  preservedDataPaths: readonly WindowsProtectedPath[];
   removedSchedules: readonly WindowsManagedScheduleState[];
 }
 
@@ -162,10 +170,10 @@ function validateSchedule(
   if (
     !Number.isSafeInteger(definition.intervalMinutes) ||
     definition.intervalMinutes < 5 ||
-    definition.intervalMinutes > 525_600
+    definition.intervalMinutes > 1_440
   ) {
     throw new Error(
-      "Windows schedule intervalMinutes must be an integer from 5 through 525600.",
+      "Windows schedule intervalMinutes must be an integer from 5 through 1440.",
     );
   }
   return {
@@ -184,15 +192,20 @@ function validateConfiguration(
     );
   }
   const identity = validateIdentityRequest(configuration.identity);
-  const protectedPaths = configuration.protectedPaths.map((path) => {
-    if (!win32.isAbsolute(path)) {
+  const protectedPaths = configuration.protectedPaths.map((entry) => {
+    if (
+      typeof entry !== "object" ||
+      entry === null ||
+      (entry.access !== "read" && entry.access !== "modify") ||
+      !win32.isAbsolute(entry.path)
+    ) {
       throw new Error("Windows protected paths must be absolute.");
     }
-    return win32.resolve(path);
+    return { access: entry.access, path: win32.resolve(entry.path) };
   });
   if (
     protectedPaths.length === 0 ||
-    new Set(protectedPaths.map((path) => path.toLowerCase())).size !==
+    new Set(protectedPaths.map(({ path }) => path.toLowerCase())).size !==
       protectedPaths.length
   ) {
     throw new Error("Windows protected paths must be non-empty and unique.");

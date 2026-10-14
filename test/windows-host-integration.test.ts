@@ -13,6 +13,7 @@ import {
   type WindowsHostIntegrationConfiguration,
   type WindowsHostOperations,
   type WindowsManagedScheduleState,
+  type WindowsProtectedPath,
 } from "../src/index.js";
 
 class FakeWindowsHostOperations implements WindowsHostOperations {
@@ -58,7 +59,7 @@ class FakeWindowsHostOperations implements WindowsHostOperations {
   }
 
   async protectPaths(
-    paths: readonly string[],
+    paths: readonly WindowsProtectedPath[],
     identityName: string,
   ): Promise<void> {
     this.calls.push(`protect:${identityName}:${paths.length}`);
@@ -134,8 +135,14 @@ const configuration: WindowsHostIntegrationConfiguration = {
     purpose: "Run MemTextual Continuity backup and encrypted replication tasks.",
   },
   protectedPaths: [
-    "C:\\ProgramData\\MemTextual\\credentials",
-    "C:\\ProgramData\\MemTextual\\recovery-key.dpapi",
+    {
+      access: "read",
+      path: "C:\\ProgramData\\MemTextual\\credentials",
+    },
+    {
+      access: "read",
+      path: "C:\\ProgramData\\MemTextual\\recovery-key.dpapi",
+    },
   ],
   schedules: [backupSchedule, replicationSchedule],
 };

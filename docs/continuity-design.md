@@ -267,9 +267,13 @@ operation boundary, while install and removal orchestration use exact fresh
 confirmations bound to current host state. Existing unmanaged accounts or
 tasks are never adopted or removed, partial installation rolls back resources
 created by that attempt, and removal preserves all data and credential paths.
-The next Windows package is the elevated PowerShell executor for account
-creation, ACL application, secret transfer through standard input, and task
-registration; no host mutation is performed by the orchestration layer alone.
+The elevated PowerShell executor now implements account creation, random
+password generation, DPAPI-protected account and task secrets, explicit
+read-or-modify ACL application, and limited password-logon task registration.
+Its bounded TypeScript bridge keeps secrets off command lines and validates all
+executor responses. The next Windows package is the user-facing elevated
+installer CLI and final deployment layout; no host change occurs merely by
+importing or configuring the orchestration layer.
 
 ## Non-destructive migration contract
 

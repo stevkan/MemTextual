@@ -36,9 +36,18 @@ export {
   type WindowsHostIntegrationConfiguration,
   type WindowsHostOperations,
   type WindowsManagedScheduleState,
+  type WindowsProtectedPath,
   type WindowsHostRemovalPreview,
   type WindowsHostRemovalResult,
 } from "./platform/windows-host-integration.js";
+export {
+  WindowsPowerShellHostOperations,
+  createWindowsPowerShellBridge,
+  type WindowsPowerShellBridge,
+  type WindowsPowerShellBridgeOptions,
+  type WindowsPowerShellHostAction,
+  type WindowsPowerShellHostOperationsOptions,
+} from "./platform/windows-powershell-host-operations.js";
 export {
   memoryStatuses,
   memoryTypes,

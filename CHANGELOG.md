@@ -25,8 +25,16 @@ describe only the current design and behavior.
   behind an injectable privileged-operation boundary. Installation and removal
   now require fresh preview-bound confirmation, refuse unmanaged identities or
   tasks, roll back newly created host resources after failure, and preserve all
-  data and credential paths during removal. The elevated PowerShell executor
-  remains a separate installer package.
+  data and credential paths during removal. Privileged execution remains
+  isolated from the orchestration and requires an explicit confirmed apply.
+- Added the elevated Windows PowerShell executor and bounded TypeScript bridge.
+  The executor generates the local-account password internally, protects
+  account and scheduled environment secrets with machine-scoped DPAPI, applies
+  explicit read-or-modify ACLs, registers limited password-logon tasks, and
+  verifies hashed ownership manifests before inspection or removal. Requests
+  and secret values travel through standard input rather than command-line
+  arguments. The end-user installer CLI and application-file deployment remain
+  separate work.
 - Preserved the validated v0.8.0 baseline in a dedicated safety branch and tag.
 - Added the initial MemTextual Continuity design and multi-persona isolation
   direction.
