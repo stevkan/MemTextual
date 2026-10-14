@@ -133,11 +133,18 @@ used to identify which externally retained key is required for recovery.
 
 ```powershell
 npm run safeguard -- offsite-export --database .\data\memtextual.db --source D:\MemTextualBackups --destination E:\MemTextualOffsite --snapshot memtextual-2026-10-12T12-00-00-000Z --key-env MEMTEXTUAL_OFFSITE_KEY --key-id recovery-key-2026
-npm run safeguard -- offsite-run-if-due --database .\data\memtextual.db --source D:\MemTextualBackups --destination E:\MemTextualOffsite --interval-hours 24 --key-env MEMTEXTUAL_OFFSITE_KEY --key-id recovery-key-2026
-npm run safeguard -- offsite-status --database .\data\memtextual.db --source D:\MemTextualBackups --destination E:\MemTextualOffsite --interval-hours 24
+npm run safeguard -- offsite-run-if-due --database .\data\memtextual.db --source D:\MemTextualBackups --adapter local-directory --destination E:\MemTextualOffsite --interval-hours 24 --key-env MEMTEXTUAL_OFFSITE_KEY --key-id recovery-key-2026
+npm run safeguard -- offsite-status --database .\data\memtextual.db --source D:\MemTextualBackups --adapter local-directory --destination E:\MemTextualOffsite --interval-hours 24
 npm run safeguard -- offsite-verify --package E:\MemTextualOffsite\OFFSITE_PACKAGE_DIRECTORY --key-env MEMTEXTUAL_OFFSITE_KEY
 npm run safeguard -- offsite-import --database .\data\memtextual.db --package E:\MemTextualOffsite\OFFSITE_PACKAGE_DIRECTORY --destination D:\MemTextualBackups --key-env MEMTEXTUAL_OFFSITE_KEY
 ```
+
+For scheduler-managed configuration, put the adapter and absolute destination
+in the versioned, secret-free JSON format documented in
+`replication-destinations.md`, then replace `--adapter ... --destination ...`
+with `--destination-config PATH`. Unknown adapters or configuration properties
+fail before replication begins. `--destination` alone remains a compatibility
+shorthand for `local-directory` and never selects a cloud provider.
 
 Each package encrypts the SQLite recovery point, its safeguard manifest, and
 its durable-data export with AES-256-GCM. HKDF-SHA-256 derives a separate key

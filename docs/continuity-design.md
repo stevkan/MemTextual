@@ -222,7 +222,10 @@ returned evidence fails validation. The included local-directory adapter is the
 reference implementation. Scheduled local-directory replication now uses the
 contract with disposable encrypted staging, publication receipts, final-copy
 decryption and verification, and rollback if publication, verification, or
-state recording fails.
+state recording fails. Scheduler configuration now explicitly selects the
+adapter through command options or a strict versioned file that rejects unknown
+providers and credential fields. Version-1 local-directory health state remains
+readable while new state records the selected adapter ID and version.
 
 ## Non-destructive migration contract
 

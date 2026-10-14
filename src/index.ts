@@ -389,3 +389,11 @@ export {
   type ReplicationDestinationPublishResult,
   type ReplicationDestinationReceipt,
 } from "./safeguards/replication-destination.js";
+export {
+  createConfiguredReplicationDestinationAdapter,
+  loadReplicationDestinationConfiguration,
+  parseReplicationDestinationConfiguration,
+  replicationDestinationConfigFormatVersion,
+  type LocalDirectoryReplicationDestinationConfiguration,
+  type ReplicationDestinationConfiguration,
+} from "./safeguards/replication-destination-config.js";

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import {
   existsSync,
@@ -18,6 +19,7 @@ import {
   applyGuidedRestore,
   applyBackupRetention,
   createLocalDirectoryReplicationAdapter,
+  createConfiguredReplicationDestinationAdapter,
   createDatabaseSnapshot,
   createEncryptedReplication,
   databaseSafeguardIdentity,
@@ -25,9 +27,11 @@ import {
   getOffsiteReplicationStatus,
   getRestoreDrillStatus,
   importEncryptedReplication,
+  loadReplicationDestinationConfiguration,
   openMemTextualDatabase,
   previewGuidedRestore,
   previewBackupRetention,
+  parseReplicationDestinationConfiguration,
   publishReplicationPackage,
   runAutomaticBackupIfDue,
   runOffsiteReplicationIfDue,
@@ -1193,6 +1197,9 @@ test("scheduled off-device replication creates verified packages and reports app
     });
     assert.equal(first.outcome, "replicated");
     assert.equal(first.status.health, "healthy");
+    assert.equal(first.status.adapterId, "local-directory");
+    assert.equal(first.status.adapterVersion, "1");
+    assert.equal(first.status.formatVersion, 2);
     assert.equal(first.status.due, false);
     assert.equal(
       first.status.lastSnapshotDirectory,
@@ -1305,6 +1312,170 @@ test("scheduled off-device replication creates verified packages and reports app
     assert.equal(unavailable.lastPackageAvailable, false);
     assert.equal(unavailable.health, "unavailable");
     assert.equal(unavailable.due, true);
+  } finally {
+    key.fill(0);
+    rmSync(fixture.directory, { force: true, recursive: true });
+    rmSync(offsiteDirectory, { force: true, recursive: true });
+  }
+});
+
+test("replication destination configuration is explicit, strict, and secret-free", () => {
+  const directory = mkdtempSync(join(tmpdir(), "memtextual-adapter-config-"));
+  const destinationDirectory = mkdtempSync(
+    join(tmpdir(), "memtextual-adapter-config-destination-"),
+  );
+  try {
+    const configurationPath = join(directory, "destination.json");
+    writeFileSync(
+      configurationPath,
+      `${JSON.stringify(
+        {
+          adapterId: "local-directory",
+          destinationDirectory,
+          formatVersion: 1,
+        },
+        null,
+        2,
+      )}\n`,
+      "utf8",
+    );
+    const configuration = loadReplicationDestinationConfiguration(
+      configurationPath,
+    );
+    assert.deepEqual(configuration, {
+      adapterId: "local-directory",
+      destinationDirectory: resolve(destinationDirectory),
+      formatVersion: 1,
+    });
+    const adapter = createConfiguredReplicationDestinationAdapter(configuration);
+    assert.equal(adapter.adapterId, "local-directory");
+    assert.equal(adapter.adapterVersion, "1");
+    assert.match(adapter.destinationIdentity, /^[a-f0-9]{64}$/u);
+
+    assert.throws(
+      () =>
+        parseReplicationDestinationConfiguration({
+          adapterId: "cloud-vendor",
+          destinationDirectory,
+          formatVersion: 1,
+        }),
+      /Unsupported replication destination adapter/u,
+    );
+    assert.throws(
+      () =>
+        parseReplicationDestinationConfiguration({
+          adapterId: "local-directory",
+          destinationDirectory: ".\\relative",
+          formatVersion: 1,
+        }),
+      /must be a non-empty absolute path/u,
+    );
+    assert.throws(
+      () =>
+        parseReplicationDestinationConfiguration({
+          adapterId: "local-directory",
+          destinationDirectory,
+          formatVersion: 1,
+          key: "must-not-be-stored-here",
+        }),
+      /unsupported properties: key/u,
+    );
+  } finally {
+    rmSync(directory, { force: true, recursive: true });
+    rmSync(destinationDirectory, { force: true, recursive: true });
+  }
+});
+
+test("safeguard CLI selects a configured replication destination", () => {
+  const directory = mkdtempSync(join(tmpdir(), "memtextual-adapter-cli-"));
+  const destinationDirectory = mkdtempSync(
+    join(tmpdir(), "memtextual-adapter-cli-destination-"),
+  );
+  try {
+    const configurationPath = join(directory, "destination.json");
+    writeFileSync(
+      configurationPath,
+      JSON.stringify({
+        adapterId: "local-directory",
+        destinationDirectory,
+        formatVersion: 1,
+      }),
+      "utf8",
+    );
+    const execution = spawnSync(
+      process.execPath,
+      [
+        "--import",
+        "tsx",
+        resolve("src", "cli", "safeguard.ts"),
+        "offsite-status",
+        "--database",
+        join(directory, "memtextual.db"),
+        "--source",
+        directory,
+        "--destination-config",
+        configurationPath,
+        "--interval-hours",
+        "24",
+      ],
+      { cwd: resolve("."), encoding: "utf8" },
+    );
+    assert.equal(execution.status, 0, execution.stderr);
+    const status = JSON.parse(execution.stdout) as {
+      adapterId: string;
+      adapterVersion: string;
+      destinationAvailable: boolean;
+    };
+    assert.equal(status.adapterId, "local-directory");
+    assert.equal(status.adapterVersion, "1");
+    assert.equal(status.destinationAvailable, true);
+  } finally {
+    rmSync(directory, { force: true, recursive: true });
+    rmSync(destinationDirectory, { force: true, recursive: true });
+  }
+});
+
+test("off-device replication reads version 1 state as local-directory state", async () => {
+  const fixture = setup();
+  const offsiteDirectory = mkdtempSync(
+    join(tmpdir(), "memtextual-offsite-legacy-state-"),
+  );
+  const key = randomBytes(32);
+  try {
+    const sourceBackupDirectory = join(fixture.directory, "backups");
+    await createDatabaseSnapshot({
+      databasePath: fixture.databasePath,
+      outputDirectory: sourceBackupDirectory,
+      now: new Date("2026-10-12T12:00:00.000Z"),
+    });
+    const options = {
+      databasePath: fixture.databasePath,
+      destinationDirectory: offsiteDirectory,
+      intervalHours: 24,
+      keyId: "recovery-key-2026",
+      masterKey: key,
+      now: new Date("2026-10-14T12:00:00.000Z"),
+      sourceBackupDirectory,
+    } as const;
+    const first = await runOffsiteReplicationIfDue(options);
+    const statePath = first.status.statePath ?? "";
+    const state = JSON.parse(readFileSync(statePath, "utf8")) as Record<
+      string,
+      unknown
+    >;
+    state.formatVersion = 1;
+    delete state.adapterId;
+    delete state.adapterVersion;
+    writeFileSync(statePath, `${JSON.stringify(state, null, 2)}\n`, "utf8");
+
+    const status = getOffsiteReplicationStatus({
+      ...options,
+      now: new Date("2026-10-14T13:00:00.000Z"),
+    });
+    assert.equal(status.adapterId, "local-directory");
+    assert.equal(status.adapterVersion, "1");
+    assert.equal(status.formatVersion, 2);
+    assert.equal(status.health, "healthy");
   } finally {
     key.fill(0);
     rmSync(fixture.directory, { force: true, recursive: true });

@@ -26,7 +26,7 @@ import {
   type ReplicationDestinationReceipt,
 } from "./replication-destination.js";
 
-export const offsiteReplicationStateFormatVersion = 1 as const;
+export const offsiteReplicationStateFormatVersion = 2 as const;
 
 export type OffsiteReplicationHealth =
   | "never_run"
@@ -36,6 +36,8 @@ export type OffsiteReplicationHealth =
   | "failed";
 
 export interface OffsiteReplicationState {
+  adapterId: "local-directory";
+  adapterVersion: "1";
   databaseFile: string;
   destinationIdentity: string;
   formatVersion: typeof offsiteReplicationStateFormatVersion;
@@ -61,6 +63,7 @@ export interface OffsiteReplicationStatus extends OffsiteReplicationState {
 }
 
 export interface OffsiteReplicationStatusOptions {
+  adapterId?: "local-directory";
   databasePath: string;
   destinationDirectory: string;
   intervalHours: number;
@@ -82,6 +85,8 @@ export interface OffsiteReplicationRunResult {
 }
 
 interface ResolvedOffsiteReplicationOptions {
+  adapterId: "local-directory";
+  adapterVersion: "1";
   databaseFile: string;
   databasePath: string;
   destinationDirectory: string;
@@ -126,6 +131,10 @@ function identityForDestination(path: string): string {
 function resolveOptions(
   options: OffsiteReplicationStatusOptions,
 ): ResolvedOffsiteReplicationOptions {
+  const adapterId = options.adapterId ?? "local-directory";
+  if (adapterId !== "local-directory") {
+    throw new Error(`Unsupported replication destination adapter: ${String(adapterId)}.`);
+  }
   const databasePath = resolve(options.databasePath);
   const sourceBackupDirectory = resolve(options.sourceBackupDirectory);
   const destinationDirectory = resolve(options.destinationDirectory);
@@ -145,6 +154,8 @@ function resolveOptions(
   const destinationIdentity = identityForDestination(destinationDirectory);
   const stateIdentity = `${databaseIdentity.slice(0, 16)}-${destinationIdentity.slice(0, 16)}`;
   return {
+    adapterId,
+    adapterVersion: "1",
     databaseFile: basename(databasePath),
     databasePath,
     destinationDirectory,
@@ -171,6 +182,8 @@ function initialState(
   options: ResolvedOffsiteReplicationOptions,
 ): OffsiteReplicationState {
   return {
+    adapterId: options.adapterId,
+    adapterVersion: options.adapterVersion,
     databaseFile: options.databaseFile,
     destinationIdentity: options.destinationIdentity,
     formatVersion: offsiteReplicationStateFormatVersion,
@@ -249,9 +262,21 @@ function readState(
   if (typeof value !== "object" || value === null) {
     throw new Error("Off-device replication state must be an object.");
   }
-  const state = value as Partial<OffsiteReplicationState>;
+  const state = value as Partial<
+    Omit<
+      OffsiteReplicationState,
+      "adapterId" | "adapterVersion" | "formatVersion"
+    >
+  > & {
+    adapterId?: unknown;
+    adapterVersion?: unknown;
+    formatVersion?: number;
+  };
+  const legacyState = state.formatVersion === 1;
   if (
-    state.formatVersion !== offsiteReplicationStateFormatVersion ||
+    (!legacyState && state.formatVersion !== offsiteReplicationStateFormatVersion) ||
+    (!legacyState && state.adapterId !== options.adapterId) ||
+    (!legacyState && state.adapterVersion !== options.adapterVersion) ||
     state.databaseFile !== options.databaseFile ||
     state.destinationIdentity !== options.destinationIdentity ||
     !/^[a-f0-9]{64}$/u.test(state.destinationIdentity ?? "") ||
@@ -299,6 +324,8 @@ function readState(
   return {
     path,
     state: {
+      adapterId: options.adapterId,
+      adapterVersion: options.adapterVersion,
       databaseFile: state.databaseFile,
       destinationIdentity: state.destinationIdentity,
       formatVersion: offsiteReplicationStateFormatVersion,
@@ -515,6 +542,8 @@ export async function runOffsiteReplicationIfDue(
         verification: finalVerification,
       };
       const successful: OffsiteReplicationState = {
+        adapterId: resolved.adapterId,
+        adapterVersion: resolved.adapterVersion,
         databaseFile: resolved.databaseFile,
         destinationIdentity: resolved.destinationIdentity,
         formatVersion: offsiteReplicationStateFormatVersion,

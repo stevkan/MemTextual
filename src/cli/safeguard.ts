@@ -32,6 +32,10 @@ import {
   getOffsiteReplicationStatus,
   runOffsiteReplicationIfDue,
 } from "../safeguards/offsite-replication.js";
+import {
+  loadReplicationDestinationConfiguration,
+  type ReplicationDestinationConfiguration,
+} from "../safeguards/replication-destination-config.js";
 
 function usage(): string {
   return [
@@ -47,8 +51,8 @@ function usage(): string {
     "  memtextual-safeguard restore-preview --database PATH --output DIRECTORY --snapshot DIRECTORY",
     "  memtextual-safeguard restore-apply --database PATH --output DIRECTORY --snapshot DIRECTORY --confirm TOKEN",
     "  memtextual-safeguard offsite-export --database PATH --source DIRECTORY --destination DIRECTORY --snapshot DIRECTORY --key-env NAME --key-id ID",
-    "  memtextual-safeguard offsite-run-if-due --database PATH --source DIRECTORY --destination DIRECTORY --interval-hours HOURS --key-env NAME --key-id ID",
-    "  memtextual-safeguard offsite-status --database PATH --source DIRECTORY --destination DIRECTORY --interval-hours HOURS",
+    "  memtextual-safeguard offsite-run-if-due --database PATH --source DIRECTORY (--adapter local-directory --destination DIRECTORY | --destination-config PATH) --interval-hours HOURS --key-env NAME --key-id ID",
+    "  memtextual-safeguard offsite-status --database PATH --source DIRECTORY (--adapter local-directory --destination DIRECTORY | --destination-config PATH) --interval-hours HOURS",
     "  memtextual-safeguard offsite-verify --package DIRECTORY --key-env NAME",
     "  memtextual-safeguard offsite-import --database PATH --package DIRECTORY --destination DIRECTORY --key-env NAME",
   ].join("\n");
@@ -87,6 +91,48 @@ function optionValue(arguments_: string[], name: string): string {
     throw new Error(`Missing required ${name} option.\n\n${usage()}`);
   }
   return value;
+}
+
+function optionalOptionValue(arguments_: string[], name: string): string | null {
+  const index = arguments_.indexOf(name);
+  if (index < 0) {
+    return null;
+  }
+  const value = arguments_[index + 1];
+  if (value === undefined || value.startsWith("--")) {
+    throw new Error(`Missing value for ${name}.\n\n${usage()}`);
+  }
+  return value;
+}
+
+function replicationDestination(
+  arguments_: string[],
+): ReplicationDestinationConfiguration {
+  const configurationPath = optionalOptionValue(
+    arguments_,
+    "--destination-config",
+  );
+  const adapterId = optionalOptionValue(arguments_, "--adapter");
+  const destinationDirectory = optionalOptionValue(arguments_, "--destination");
+  if (configurationPath !== null) {
+    if (adapterId !== null || destinationDirectory !== null) {
+      throw new Error(
+        "--destination-config cannot be combined with --adapter or --destination.",
+      );
+    }
+    return loadReplicationDestinationConfiguration(resolve(configurationPath));
+  }
+  if (adapterId !== null && adapterId !== "local-directory") {
+    throw new Error(`Unsupported replication destination adapter: ${adapterId}.`);
+  }
+  if (destinationDirectory === null) {
+    throw new Error(`Missing required --destination option.\n\n${usage()}`);
+  }
+  return {
+    adapterId: "local-directory",
+    destinationDirectory: resolve(destinationDirectory),
+    formatVersion: 1,
+  };
 }
 
 function encryptionKey(arguments_: string[]): Buffer {
@@ -275,13 +321,13 @@ async function main(arguments_: string[]): Promise<void> {
   }
 
   if (command === "offsite-run-if-due") {
+    const destination = replicationDestination(arguments_);
     const key = encryptionKey(arguments_);
     try {
       const result = await runOffsiteReplicationIfDue({
+        adapterId: destination.adapterId,
         databasePath: resolve(optionValue(arguments_, "--database")),
-        destinationDirectory: resolve(
-          optionValue(arguments_, "--destination"),
-        ),
+        destinationDirectory: destination.destinationDirectory,
         intervalHours: numberOption(arguments_, "--interval-hours"),
         keyId: optionValue(arguments_, "--key-id"),
         masterKey: key,
@@ -300,9 +346,11 @@ async function main(arguments_: string[]): Promise<void> {
   }
 
   if (command === "offsite-status") {
+    const destination = replicationDestination(arguments_);
     const status = getOffsiteReplicationStatus({
+      adapterId: destination.adapterId,
       databasePath: resolve(optionValue(arguments_, "--database")),
-      destinationDirectory: resolve(optionValue(arguments_, "--destination")),
+      destinationDirectory: destination.destinationDirectory,
       intervalHours: numberOption(arguments_, "--interval-hours"),
       sourceBackupDirectory: resolve(optionValue(arguments_, "--source")),
     });

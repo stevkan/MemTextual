@@ -151,6 +151,9 @@ describe only the current design and behavior.
 - Scheduled success now requires a second decrypt verification of the final
   destination copy; publication, verification, or state-recording failure
   rolls back the newly published package and removes staging.
+- Added explicit scheduled-replication adapter selection and a strict,
+  versioned, secret-free destination configuration file. Unknown adapters and
+  properties fail closed, while prior local-directory state remains readable.
 
 ## 0.8.0 - 2026-10-12
 

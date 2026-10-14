@@ -2,8 +2,32 @@
 
 MemTextual defines a provider-neutral contract for publishing an already
 encrypted, already verified off-device package to another storage destination.
-The contract is library-only at this stage. No cloud provider is selected,
-configured, authenticated, or contacted by default.
+No cloud provider is selected, configured, authenticated, or contacted by
+default.
+
+## Explicit configuration
+
+Scheduled replication accepts an explicit adapter plus destination, or a strict
+versioned JSON configuration file. The only supported adapter is currently
+`local-directory`:
+
+```json
+{
+  "formatVersion": 1,
+  "adapterId": "local-directory",
+  "destinationDirectory": "E:\\MemTextualOffsite"
+}
+```
+
+The destination must be an absolute path. Unknown adapters, format versions,
+and properties are rejected. This schema intentionally has no credential,
+encryption-key, or key-environment fields. The recovery key remains separately
+supplied through the existing environment-variable boundary.
+
+Use `--destination-config PATH` by itself, or use
+`--adapter local-directory --destination DIRECTORY`. The older
+`--destination DIRECTORY` form remains a compatibility shorthand for
+`local-directory`; it never triggers provider discovery or cloud selection.
 
 ## Security boundary
 

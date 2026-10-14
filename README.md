@@ -128,8 +128,8 @@ npm run safeguard -- restore-drill-status --database .\data\memtextual.db --outp
 npm run safeguard -- restore-preview --database .\data\memtextual.db --output D:\MemTextualBackups --snapshot SNAPSHOT_DIRECTORY
 npm run safeguard -- restore-apply --database .\data\memtextual.db --output D:\MemTextualBackups --snapshot SNAPSHOT_DIRECTORY --confirm "EXACT TOKEN FROM PREVIEW"
 npm run safeguard -- offsite-export --database .\data\memtextual.db --source D:\MemTextualBackups --destination E:\MemTextualOffsite --snapshot SNAPSHOT_DIRECTORY --key-env MEMTEXTUAL_OFFSITE_KEY --key-id KEY_ID
-npm run safeguard -- offsite-run-if-due --database .\data\memtextual.db --source D:\MemTextualBackups --destination E:\MemTextualOffsite --interval-hours 24 --key-env MEMTEXTUAL_OFFSITE_KEY --key-id KEY_ID
-npm run safeguard -- offsite-status --database .\data\memtextual.db --source D:\MemTextualBackups --destination E:\MemTextualOffsite --interval-hours 24
+npm run safeguard -- offsite-run-if-due --database .\data\memtextual.db --source D:\MemTextualBackups --adapter local-directory --destination E:\MemTextualOffsite --interval-hours 24 --key-env MEMTEXTUAL_OFFSITE_KEY --key-id KEY_ID
+npm run safeguard -- offsite-status --database .\data\memtextual.db --source D:\MemTextualBackups --adapter local-directory --destination E:\MemTextualOffsite --interval-hours 24
 npm run safeguard -- offsite-verify --package E:\MemTextualOffsite\PACKAGE_DIRECTORY --key-env MEMTEXTUAL_OFFSITE_KEY
 npm run safeguard -- offsite-import --database .\data\memtextual.db --package E:\MemTextualOffsite\PACKAGE_DIRECTORY --destination D:\MemTextualBackups --key-env MEMTEXTUAL_OFFSITE_KEY
 npm run privacy -- preview --id MEMORY_ID --database .\data\memtextual.db --migrations .\migrations
@@ -238,6 +238,11 @@ local-directory adapter is the reference implementation; no cloud adapter is
 selected or configured. Scheduled local-directory replication now uses this
 contract: encryption occurs in disposable staging, publication is receipted,
 the final destination copy is decrypt-verified again, and staging is removed.
+Scheduled replication now supports explicit `--adapter local-directory`
+selection or a strict, versioned, secret-free `--destination-config` JSON file.
+Unknown adapters and properties fail closed. The older `--destination`-only
+form remains a local-directory compatibility shorthand and never selects a
+cloud provider.
 
 ## Deliberately deferred
 
