@@ -15,6 +15,10 @@ import {
   previewBackupRetention,
   type BackupRetentionPolicy,
 } from "../safeguards/backup-retention.js";
+import {
+  getRestoreDrillStatus,
+  runRestoreDrillIfDue,
+} from "../safeguards/restore-drill.js";
 
 function usage(): string {
   return [
@@ -25,6 +29,8 @@ function usage(): string {
     "  memtextual-safeguard status --database PATH --output DIRECTORY --interval-hours HOURS",
     "  memtextual-safeguard retention-preview --database PATH --output DIRECTORY --daily COUNT --weekly COUNT --monthly COUNT --time-zone ZONE --week-starts-on DAY",
     "  memtextual-safeguard retention-apply --database PATH --output DIRECTORY --daily COUNT --weekly COUNT --monthly COUNT --time-zone ZONE --week-starts-on DAY --confirm TOKEN",
+    "  memtextual-safeguard restore-drill --database PATH --output DIRECTORY --interval-hours HOURS",
+    "  memtextual-safeguard restore-drill-status --database PATH --output DIRECTORY --interval-hours HOURS",
   ].join("\n");
 }
 
@@ -160,6 +166,26 @@ async function main(arguments_: string[]): Promise<void> {
       policy: retentionPolicy(arguments_),
     });
     console.log(JSON.stringify(receipt, null, 2));
+    return;
+  }
+
+  if (command === "restore-drill") {
+    const result = runRestoreDrillIfDue({
+      databasePath: resolve(optionValue(arguments_, "--database")),
+      outputDirectory: resolve(optionValue(arguments_, "--output")),
+      intervalHours: numberOption(arguments_, "--interval-hours"),
+    });
+    console.log(JSON.stringify(result, null, 2));
+    return;
+  }
+
+  if (command === "restore-drill-status") {
+    const status = getRestoreDrillStatus({
+      databasePath: resolve(optionValue(arguments_, "--database")),
+      outputDirectory: resolve(optionValue(arguments_, "--output")),
+      intervalHours: numberOption(arguments_, "--interval-hours"),
+    });
+    console.log(JSON.stringify(status, null, 2));
     return;
   }
 

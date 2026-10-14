@@ -318,6 +318,7 @@ export {
 export {
   applyBackupRetention,
   backupRetentionReceiptFormatVersion,
+  catalogDatabaseSnapshots,
   previewBackupRetention,
   type BackupRetentionDecision,
   type BackupRetentionOptions,
@@ -325,4 +326,19 @@ export {
   type BackupRetentionPreview,
   type BackupRetentionReceipt,
   type BackupRetentionSnapshot,
+  type BackupSnapshotCatalog,
+  type BackupSnapshotCatalogOptions,
+  type VerifiedBackupSnapshot,
 } from "./safeguards/backup-retention.js";
+export {
+  getRestoreDrillStatus,
+  restoreDrillReportFormatVersion,
+  restoreDrillStateFormatVersion,
+  runRestoreDrillIfDue,
+  type RestoreDrillHealth,
+  type RestoreDrillOptions,
+  type RestoreDrillReport,
+  type RestoreDrillRunResult,
+  type RestoreDrillState,
+  type RestoreDrillStatus,
+} from "./safeguards/restore-drill.js";

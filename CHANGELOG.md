@@ -111,6 +111,11 @@ describe only the current design and behavior.
 - Retention protects incomplete, corrupt, source-mismatched, or unverified
   recovery points; application shares the backup lock, validates direct
   non-link targets, and retains planned-operation and completion records.
+- Added interval-based restore drills that verify the newest recovery point in
+  a disposable copy without opening or replacing the live database.
+- Restore-drill state and reports are append-only and fail closed when a newer
+  recovery point is corrupt or incomplete rather than silently using an older
+  snapshot.
 
 ## 0.8.0 - 2026-10-12
 

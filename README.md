@@ -122,6 +122,8 @@ npm run safeguard -- snapshot -- --database .\data\memtextual.db --output .\back
 npm run safeguard -- run-if-due --database .\data\memtextual.db --output D:\MemTextualBackups --interval-hours 24
 npm run safeguard -- status --database .\data\memtextual.db --output D:\MemTextualBackups --interval-hours 24
 npm run safeguard -- retention-preview --database .\data\memtextual.db --output D:\MemTextualBackups --daily 7 --weekly 4 --monthly 12 --time-zone America/Los_Angeles --week-starts-on 0
+npm run safeguard -- restore-drill --database .\data\memtextual.db --output D:\MemTextualBackups --interval-hours 168
+npm run safeguard -- restore-drill-status --database .\data\memtextual.db --output D:\MemTextualBackups --interval-hours 168
 npm run privacy -- preview --id MEMORY_ID --database .\data\memtextual.db --migrations .\migrations
 npm run continuity -- --persona PERSONA_ID --database .\data\memtextual.db --migrations .\migrations
 ```
@@ -199,12 +201,16 @@ schedule; see `docs/automatic-backups.md`.
 The same safeguard CLI provides preview-first daily, weekly, and monthly
 retention. Applying a preview requires its exact current confirmation token;
 unverified, partial, or corrupted snapshots are protected rather than deleted.
+Periodic `restore-drill` runs copy the newest verified recovery point to a
+disposable directory and verify it without opening or replacing the live
+database. A newer protected recovery point causes a visible failure rather than
+an implicit fallback; drill health and reports are append-only.
 
 ## Deliberately deferred
 
 Concrete vendor extractor and host-event clients, vendor-specific legacy-export
 adapters, graphical source-series privacy workflows, standalone-source deletion,
-automated restore drills, guided live restore, resumable imports, streamable
+guided live restore, resumable imports, streamable
 HTTP, REST API,
 admin UI, concrete vendor embedding provider, host-specific installers, and the
 broader packaging strategy remain open.

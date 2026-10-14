@@ -64,7 +64,28 @@ confirmation. Targets must still be direct, non-link snapshot directories under
 the configured destination. A planned-operation record is written before
 deletion and a content-free receipt is retained after success.
 
-This package does not yet perform disposable restore drills, replace a live
-database, encrypt off-device copies, or install a system schedule. Those remain
-separate Phase 6 controls because each needs explicit recovery, destination, or
-credential choices.
+## Restore drills
+
+Restore drills prove that a recovery point can be copied and opened without
+replacing or opening the live database. The interval is explicit, must be
+greater than zero, and cannot exceed 8760 hours (one year).
+
+```powershell
+npm run safeguard -- restore-drill --database .\data\memtextual.db --output D:\MemTextualBackups --interval-hours 168
+npm run safeguard -- restore-drill-status --database .\data\memtextual.db --output D:\MemTextualBackups --interval-hours 168
+```
+
+When due, the drill selects the newest verified recovery point, copies it to a
+temporary disposable directory, checks its hash, integrity, and durable-table
+manifest, then removes the temporary copy. A newer corrupt or incomplete
+recovery point, or one whose creation time cannot be established, fails the
+drill instead of silently falling back to an older copy. The append-only state
+journal reports `never_run`, `healthy`, `overdue`, or `failed`, including the
+last successful drill and any failure requiring
+action. Each attempted drill writes a report with verified and protected
+snapshot counts. Automatic backup creation, retention application, and restore
+drills share one database-specific lock.
+
+This package does not yet replace a live database, encrypt off-device copies,
+or install a system schedule. Those remain separate Phase 6 controls because
+each needs explicit recovery, destination, or credential choices.

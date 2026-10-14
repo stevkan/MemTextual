@@ -8,17 +8,20 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import test from "node:test";
 import {
   PersonaService,
   SqlitePersonaRepository,
   applyBackupRetention,
   createDatabaseSnapshot,
+  databaseSafeguardIdentity,
   getAutomaticBackupStatus,
+  getRestoreDrillStatus,
   openMemTextualDatabase,
   previewBackupRetention,
   runAutomaticBackupIfDue,
+  runRestoreDrillIfDue,
   verifyDatabaseAgainstManifest,
 } from "../src/index.js";
 
@@ -470,6 +473,171 @@ test("retention protects corrupted snapshots and rejects implicit policy choices
           },
         }),
       /Unsupported backup retention timeZone/u,
+    );
+  } finally {
+    rmSync(fixture.directory, { force: true, recursive: true });
+  }
+});
+
+test("restore drill verifies the newest recovery point only when due", async () => {
+  const fixture = setup();
+  try {
+    const outputDirectory = join(fixture.directory, "backups");
+    await createDatabaseSnapshot({
+      databasePath: fixture.databasePath,
+      outputDirectory,
+      now: new Date("2026-10-12T12:00:00.000Z"),
+    });
+    const newest = await createDatabaseSnapshot({
+      databasePath: fixture.databasePath,
+      outputDirectory,
+      now: new Date("2026-10-13T12:00:00.000Z"),
+    });
+    const options = {
+      databasePath: fixture.databasePath,
+      outputDirectory,
+      intervalHours: 168,
+    } as const;
+
+    const first = runRestoreDrillIfDue({
+      ...options,
+      now: new Date("2026-10-14T12:00:00.000Z"),
+    });
+    assert.equal(first.outcome, "performed");
+    assert.equal(first.report?.passed, true);
+    assert.equal(
+      first.report?.snapshotDirectory,
+      basename(dirname(newest.backupPath)),
+    );
+    assert.equal(first.report?.protectedSnapshotCount, 0);
+    assert.equal(first.report?.verifiedSnapshotCount, 2);
+    assert.equal(first.report?.disposableCopyRemoved, true);
+    assert.ok((first.report?.checkedTables ?? 0) > 0);
+    assert.equal(first.status.health, "healthy");
+    assert.equal(first.status.due, false);
+    assert.equal(first.status.nextDueAt, "2026-10-21T12:00:00.000Z");
+    assert.equal(existsSync(first.report?.reportPath ?? ""), true);
+
+    const early = runRestoreDrillIfDue({
+      ...options,
+      now: new Date("2026-10-21T11:59:59.000Z"),
+    });
+    assert.equal(early.outcome, "not_due");
+    assert.equal(early.status.health, "healthy");
+
+    const lockPath = join(
+      outputDirectory,
+      `automatic-backup-${databaseSafeguardIdentity(fixture.databasePath).slice(0, 16)}.lock`,
+    );
+    writeFileSync(lockPath, "held", "utf8");
+    assert.throws(
+      () =>
+        runRestoreDrillIfDue({
+          ...options,
+          now: new Date("2026-10-21T11:59:59.000Z"),
+        }),
+      /operation is in progress/u,
+    );
+    rmSync(lockPath);
+
+    const due = getRestoreDrillStatus({
+      ...options,
+      now: new Date("2026-10-21T12:00:00.000Z"),
+    });
+    assert.equal(due.due, true);
+    assert.equal(due.health, "overdue");
+  } finally {
+    rmSync(fixture.directory, { force: true, recursive: true });
+  }
+});
+
+test("restore drill fails closed when the newest recovery point is corrupt", async () => {
+  const fixture = setup();
+  try {
+    const outputDirectory = join(fixture.directory, "backups");
+    await createDatabaseSnapshot({
+      databasePath: fixture.databasePath,
+      outputDirectory,
+      now: new Date("2026-10-12T12:00:00.000Z"),
+    });
+    const newest = await createDatabaseSnapshot({
+      databasePath: fixture.databasePath,
+      outputDirectory,
+      now: new Date("2026-10-13T12:00:00.000Z"),
+    });
+    writeFileSync(newest.backupPath, "corrupted", "utf8");
+    const options = {
+      databasePath: fixture.databasePath,
+      outputDirectory,
+      intervalHours: 168,
+      now: new Date("2026-10-14T12:00:00.000Z"),
+    } as const;
+
+    assert.throws(
+      () => runRestoreDrillIfDue(options),
+      /newer recovery point is protected and not verifiable/u,
+    );
+    const status = getRestoreDrillStatus(options);
+    assert.equal(status.health, "failed");
+    assert.equal(status.due, true);
+    assert.equal(status.lastSuccessfulAt, null);
+    assert.equal(status.lastSnapshotDirectory, null);
+    assert.equal(existsSync(status.lastReportPath ?? ""), true);
+    const report = JSON.parse(
+      readFileSync(status.lastReportPath ?? "", "utf8"),
+    ) as { passed: boolean; protectedSnapshotCount: number };
+    assert.equal(report.passed, false);
+    assert.equal(report.protectedSnapshotCount, 1);
+
+    rmSync(dirname(newest.backupPath), { force: true, recursive: true });
+    mkdirSync(join(outputDirectory, "memtextual-unknown-time"));
+    assert.throws(
+      () => runRestoreDrillIfDue(options),
+      /unknown creation time and is protected/u,
+    );
+  } finally {
+    rmSync(fixture.directory, { force: true, recursive: true });
+  }
+});
+
+test("restore drill records missing backups and rejects invalid state or intervals", () => {
+  const fixture = setup();
+  try {
+    const outputDirectory = join(fixture.directory, "backups");
+    const options = {
+      databasePath: fixture.databasePath,
+      outputDirectory,
+      intervalHours: 24,
+      now: new Date("2026-10-14T12:00:00.000Z"),
+    } as const;
+    assert.throws(
+      () => runRestoreDrillIfDue(options),
+      /No verified recovery point is available/u,
+    );
+    const failed = getRestoreDrillStatus(options);
+    assert.equal(failed.health, "failed");
+    assert.equal(failed.due, true);
+    assert.ok(failed.statePath !== null);
+    writeFileSync(failed.statePath, "not-json", "utf8");
+    assert.throws(
+      () => getRestoreDrillStatus(options),
+      /state is not valid JSON/u,
+    );
+    assert.throws(
+      () =>
+        getRestoreDrillStatus({
+          ...options,
+          intervalHours: 0,
+        }),
+      /greater than 0/u,
+    );
+    assert.throws(
+      () =>
+        getRestoreDrillStatus({
+          ...options,
+          intervalHours: 8_761,
+        }),
+      /no more than 8760/u,
     );
   } finally {
     rmSync(fixture.directory, { force: true, recursive: true });

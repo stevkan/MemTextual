@@ -65,9 +65,24 @@ export interface BackupRetentionOptions {
   now?: Date;
 }
 
-interface VerifiedSnapshot {
+export interface VerifiedBackupSnapshot {
+  backupPath: string;
   createdAt: string;
   directory: string;
+  manifestPath: string;
+}
+
+export interface BackupSnapshotCatalog {
+  databaseFile: string;
+  inspectedAt: string;
+  snapshots: BackupRetentionSnapshot[];
+  verifiedSnapshots: VerifiedBackupSnapshot[];
+}
+
+export interface BackupSnapshotCatalogOptions {
+  databasePath: string;
+  outputDirectory: string;
+  now?: Date;
 }
 
 function boundedCount(value: number, label: string, minimum: number): number {
@@ -160,6 +175,15 @@ function hashFile(path: string): string {
   return createHash("sha256").update(readFileSync(path)).digest("hex");
 }
 
+function isDirectRegularFile(path: string): boolean {
+  try {
+    const stats = lstatSync(path);
+    return stats.isFile() && !stats.isSymbolicLink();
+  } catch {
+    return false;
+  }
+}
+
 function snapshotDirectories(outputDirectory: string): string[] {
   if (!existsSync(outputDirectory)) {
     return [];
@@ -181,14 +205,14 @@ function inspectSnapshot(
   databaseFile: string,
   databaseIdentity: string,
   now: Date,
-): { snapshot: BackupRetentionSnapshot; verified?: VerifiedSnapshot } {
+): { snapshot: BackupRetentionSnapshot; verified?: VerifiedBackupSnapshot } {
   const path = join(outputDirectory, directory);
   const manifestPath = join(path, "manifest.json");
   const exportPath = join(path, "durable-data-export.json");
   const problems: string[] = [];
   let manifest: DatabaseSafeguardManifest | null = null;
-  if (!existsSync(manifestPath)) {
-    problems.push("Manifest is missing.");
+  if (!isDirectRegularFile(manifestPath)) {
+    problems.push("Manifest is missing or is not a direct regular file.");
   } else {
     try {
       manifest = JSON.parse(
@@ -228,13 +252,15 @@ function inspectSnapshot(
       }
     }
     const backupPath = join(path, "memtextual.db");
-    if (!existsSync(backupPath)) {
-      problems.push("Database backup is missing.");
+    if (!isDirectRegularFile(backupPath)) {
+      problems.push("Database backup is missing or is not a direct regular file.");
     } else if (hashFile(backupPath) !== manifest.backupSha256) {
       problems.push("Database backup hash does not match its manifest.");
     }
-    if (!existsSync(exportPath)) {
-      problems.push("Durable-data export is missing.");
+    if (!isDirectRegularFile(exportPath)) {
+      problems.push(
+        "Durable-data export is missing or is not a direct regular file.",
+      );
     }
     if (problems.length === 0) {
       try {
@@ -260,12 +286,20 @@ function inspectSnapshot(
     problems,
   };
   return problems.length === 0 && createdAt !== null
-    ? { snapshot, verified: { createdAt, directory } }
+    ? {
+        snapshot,
+        verified: {
+          backupPath: join(path, "memtextual.db"),
+          createdAt,
+          directory,
+          manifestPath,
+        },
+      }
     : { snapshot };
 }
 
 function addTierRetention(
-  snapshots: VerifiedSnapshot[],
+  snapshots: VerifiedBackupSnapshot[],
   retained: Map<string, Set<"newest" | "daily" | "weekly" | "monthly">>,
   tier: "daily" | "weekly" | "monthly",
   count: number,
@@ -303,31 +337,9 @@ function confirmationFor(
 export function previewBackupRetention(
   options: BackupRetentionOptions,
 ): BackupRetentionPreview {
-  const outputDirectory = resolve(options.outputDirectory);
-  const databasePath = resolve(options.databasePath);
-  const databaseFile = basename(databasePath);
-  const databaseIdentity = databaseSafeguardIdentity(databasePath);
   const policy = normalizePolicy(options.policy);
-  const now = options.now ?? new Date();
-  if (Number.isNaN(now.getTime())) {
-    throw new Error("Backup retention now must be a valid date.");
-  }
-  const inspected = snapshotDirectories(outputDirectory).map((directory) =>
-    inspectSnapshot(
-      outputDirectory,
-      directory,
-      databaseFile,
-      databaseIdentity,
-      now,
-    ),
-  );
-  const verified = inspected
-    .flatMap(({ verified: snapshot }) => (snapshot === undefined ? [] : [snapshot]))
-    .sort(
-      (left, right) =>
-        right.createdAt.localeCompare(left.createdAt) ||
-        right.directory.localeCompare(left.directory),
-    );
+  const catalog = catalogDatabaseSnapshots(options);
+  const verified = catalog.verifiedSnapshots;
   const retained = new Map(
     verified.map(({ directory }) => [
       directory,
@@ -342,13 +354,9 @@ export function previewBackupRetention(
   addTierRetention(verified, retained, "weekly", policy.weeklyCount, policy);
   addTierRetention(verified, retained, "monthly", policy.monthlyCount, policy);
 
-  const byDirectory = new Map(inspected.map(({ snapshot }) => [snapshot.directory, snapshot]));
-  const snapshots = snapshotDirectories(outputDirectory)
-    .map((directory) => {
-      const snapshot = byDirectory.get(directory);
-      if (snapshot === undefined) {
-        throw new Error(`Retention inspection lost snapshot: ${directory}.`);
-      }
+  const snapshots = catalog.snapshots
+    .map((snapshot) => {
+      const directory = snapshot.directory;
       const retainedBy = [...(retained.get(directory) ?? [])];
       return {
         ...snapshot,
@@ -365,14 +373,54 @@ export function previewBackupRetention(
         right.directory.localeCompare(left.directory),
     );
   return {
-    confirmation: confirmationFor(databaseFile, policy, snapshots),
-    databaseFile,
+    confirmation: confirmationFor(catalog.databaseFile, policy, snapshots),
+    databaseFile: catalog.databaseFile,
     deleteCount: snapshots.filter(({ decision }) => decision === "delete").length,
-    generatedAt: now.toISOString(),
+    generatedAt: catalog.inspectedAt,
     keepCount: snapshots.filter(({ decision }) => decision === "keep").length,
     policy,
     protectCount: snapshots.filter(({ decision }) => decision === "protect").length,
     snapshots,
+  };
+}
+
+export function catalogDatabaseSnapshots(
+  options: BackupSnapshotCatalogOptions,
+): BackupSnapshotCatalog {
+  const outputDirectory = resolve(options.outputDirectory);
+  const databasePath = resolve(options.databasePath);
+  const databaseFile = basename(databasePath);
+  const databaseIdentity = databaseSafeguardIdentity(databasePath);
+  const now = options.now ?? new Date();
+  if (Number.isNaN(now.getTime())) {
+    throw new Error("Backup catalog now must be a valid date.");
+  }
+  const inspected = snapshotDirectories(outputDirectory).map((directory) =>
+    inspectSnapshot(
+      outputDirectory,
+      directory,
+      databaseFile,
+      databaseIdentity,
+      now,
+    ),
+  );
+  return {
+    databaseFile,
+    inspectedAt: now.toISOString(),
+    snapshots: inspected
+      .map(({ snapshot }) => snapshot)
+      .sort(
+        (left, right) =>
+          (right.createdAt ?? "").localeCompare(left.createdAt ?? "") ||
+          right.directory.localeCompare(left.directory),
+      ),
+    verifiedSnapshots: inspected
+      .flatMap(({ verified }) => (verified === undefined ? [] : [verified]))
+      .sort(
+        (left, right) =>
+          right.createdAt.localeCompare(left.createdAt) ||
+          right.directory.localeCompare(left.directory),
+      ),
   };
 }
 

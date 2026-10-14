@@ -192,9 +192,13 @@ pass can become deletion
 candidates. Incomplete, corrupt, mismatched, and unrecognized snapshots fail
 closed to protected. Application holds the backup lock, recomputes the preview,
 requires its exact current confirmation, validates every direct non-link target,
-and writes a planned-operation record plus a completed receipt. Restore drills,
-guided live restore, and encrypted off-device copies remain subsequent Phase 6
-packages.
+and writes a planned-operation record plus a completed receipt. Restore drills
+now run at an explicitly configured interval against the newest verified
+recovery point in a disposable directory without opening the live database.
+Their append-only status and reports expose the last verified restore and any
+failure requiring action; a newer protected recovery point fails closed rather
+than triggering fallback. Guided live restore and encrypted off-device copies
+remain subsequent Phase 6 packages.
 
 ## Non-destructive migration contract
 
