@@ -249,8 +249,14 @@ contract with disposable encrypted staging, publication receipts, final-copy
 decryption and verification, and rollback if publication, verification, or
 state recording fails. Scheduler configuration now explicitly selects the
 adapter through command options or a strict versioned file that rejects unknown
-providers and credential fields. Version-1 local-directory health state remains
-readable while new state records the selected adapter ID and version.
+providers and secret credential fields. Version-1 local-directory health state
+remains readable while new state records the selected adapter ID and version.
+The initial Azure Blob destination adapter now accepts an explicitly authorized
+container client, uses create-only uploads, downloads and rehashes every remote
+artifact, and rolls back only blobs it created. Its configuration retains a
+non-secret credential reference but rejects credential material. Unattended
+credential acquisition, remote package materialization, and scheduler
+integration remain the next explicit work package.
 
 ## Non-destructive migration contract
 

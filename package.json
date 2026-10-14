@@ -27,6 +27,7 @@
     "prebuild": "node scripts/check-node.mjs"
   },
   "dependencies": {
+    "@azure/storage-blob": "12.34.0",
     "@modelcontextprotocol/server": "^2.3.1",
     "better-sqlite3": "13.0.3",
     "zod": "^4.6.5"
@@ -43,5 +44,9 @@
   "engines": {
     "node": ">=22.14.0"
   },
-  "private": true
+  "private": true,
+  "allowScripts": {
+    "better-sqlite3": false,
+    "esbuild@0.28.2": true
+  }
 }

@@ -1,0 +1,290 @@
+import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
+import { Readable } from "node:stream";
+import { describe, it } from "node:test";
+import type { ContainerClient } from "@azure/storage-blob";
+
+import { createAzureBlobReplicationAdapter } from "../src/safeguards/azure-blob-replication-destination.js";
+import type { ReplicationDestinationArtifact } from "../src/safeguards/replication-destination.js";
+import {
+  createConfiguredReplicationDestinationAdapter,
+  parseReplicationDestinationConfiguration,
+} from "../src/safeguards/replication-destination-config.js";
+
+interface StoredBlob {
+  body: Buffer;
+  metadata: Record<string, string>;
+}
+
+class FakeAzureBlobContainer {
+  readonly blobs = new Map<string, StoredBlob>();
+  readonly url: string;
+  tamperDownloads = false;
+
+  constructor(url = "https://example.blob.core.windows.net/memtextual") {
+    this.url = url;
+  }
+
+  getBlockBlobClient(blobName: string) {
+    return {
+      deleteIfExists: async () => ({ succeeded: this.blobs.delete(blobName) }),
+      download: async () => {
+        const stored = this.blobs.get(blobName);
+        if (stored === undefined) {
+          throw new Error("Blob does not exist.");
+        }
+        const body = this.tamperDownloads
+          ? Buffer.concat([stored.body, Buffer.from([0])])
+          : stored.body;
+        return { readableStreamBody: Readable.from(body) };
+      },
+      exists: async () => this.blobs.has(blobName),
+      uploadFile: async (
+        path: string,
+        options: {
+          conditions?: { ifNoneMatch?: string };
+          metadata?: Record<string, string>;
+        },
+      ) => {
+        if (options.conditions?.ifNoneMatch !== "*") {
+          throw new Error("Create-only condition was not supplied.");
+        }
+        if (this.blobs.has(blobName)) {
+          throw new Error("ConditionNotMet");
+        }
+        this.blobs.set(blobName, {
+          body: readFileSync(path),
+          metadata: { ...options.metadata },
+        });
+        return {};
+      },
+    };
+  }
+
+  asContainerClient(): ContainerClient {
+    return this as unknown as ContainerClient;
+  }
+}
+
+function artifact(filename: string, body: Buffer): ReplicationDestinationArtifact {
+  return {
+    bytes: body.byteLength,
+    filename,
+    sha256: createHash("sha256").update(body).digest("hex"),
+  };
+}
+
+describe("Azure Blob replication destination", () => {
+  it("uploads with create-only writes, downloads, and rehashes encrypted artifacts", async () => {
+    const sourceDirectory = mkdtempSync(join(tmpdir(), "memtextual-azure-source-"));
+    const container = new FakeAzureBlobContainer();
+    const database = Buffer.from("encrypted database");
+    const manifest = Buffer.from("encrypted package manifest");
+    writeFileSync(join(sourceDirectory, "database.enc"), database);
+    writeFileSync(join(sourceDirectory, "replication-manifest.json"), manifest);
+    try {
+      const adapter = createAzureBlobReplicationAdapter({
+        containerClient: container.asContainerClient(),
+        prefix: "continuity/backups",
+      });
+      const result = await adapter.publishPackage({
+        artifacts: [
+          artifact("database.enc", database),
+          artifact("replication-manifest.json", manifest),
+        ],
+        packageId: "00000000-0000-4000-8000-000000000001",
+        packageName: "offsite-2026-10-14",
+        sourceDirectory,
+      });
+
+      assert.equal(adapter.adapterId, "azure-blob");
+      assert.equal(adapter.adapterVersion, "1");
+      assert.match(adapter.destinationIdentity, /^[a-f0-9]{64}$/u);
+      assert.equal(result.artifacts.length, 2);
+      assert.equal(
+        result.packageReference,
+        `azure-blob://${adapter.destinationIdentity}/continuity/backups/offsite-2026-10-14`,
+      );
+      const stored = container.blobs.get(
+        "continuity/backups/offsite-2026-10-14/database.enc",
+      );
+      assert.deepEqual(stored?.body, database);
+      assert.equal(stored?.metadata.memtextualpackageid, "00000000-0000-4000-8000-000000000001");
+      assert.equal(stored?.metadata.memtextualsha256, artifact("database.enc", database).sha256);
+
+      await adapter.removePackage({ packageName: "offsite-2026-10-14" });
+      assert.equal(container.blobs.size, 0);
+    } finally {
+      rmSync(sourceDirectory, { force: true, recursive: true });
+    }
+  });
+
+  it("rolls back every uploaded blob when downloaded bytes do not match", async () => {
+    const sourceDirectory = mkdtempSync(join(tmpdir(), "memtextual-azure-tamper-"));
+    const container = new FakeAzureBlobContainer();
+    container.tamperDownloads = true;
+    const database = Buffer.from("encrypted database");
+    writeFileSync(join(sourceDirectory, "database.enc"), database);
+    try {
+      const adapter = createAzureBlobReplicationAdapter({
+        containerClient: container.asContainerClient(),
+      });
+      await assert.rejects(
+        adapter.publishPackage({
+          artifacts: [artifact("database.enc", database)],
+          packageId: "00000000-0000-4000-8000-000000000002",
+          packageName: "offsite-2026-10-14-tampered",
+          sourceDirectory,
+        }),
+        /failed byte-for-byte verification/u,
+      );
+      assert.equal(container.blobs.size, 0);
+    } finally {
+      rmSync(sourceDirectory, { force: true, recursive: true });
+    }
+  });
+
+  it("rejects unsafe identity, prefix, artifacts, and existing blobs before publication", async () => {
+    assert.throws(
+      () =>
+        createAzureBlobReplicationAdapter({
+          containerClient: new FakeAzureBlobContainer(
+            "https://example.blob.core.windows.net/memtextual?sig=secret",
+          ).asContainerClient(),
+        }),
+      /must not contain credentials, query parameters, or fragments/u,
+    );
+    assert.throws(
+      () =>
+        createAzureBlobReplicationAdapter({
+          containerClient: new FakeAzureBlobContainer().asContainerClient(),
+          prefix: "../unsafe",
+        }),
+      /safe segments/u,
+    );
+
+    const sourceDirectory = mkdtempSync(join(tmpdir(), "memtextual-azure-existing-"));
+    const container = new FakeAzureBlobContainer();
+    const database = Buffer.from("encrypted database");
+    writeFileSync(join(sourceDirectory, "database.enc"), database);
+    container.blobs.set("offsite-existing/database.enc", {
+      body: Buffer.from("existing"),
+      metadata: {},
+    });
+    try {
+      const adapter = createAzureBlobReplicationAdapter({
+        containerClient: container.asContainerClient(),
+      });
+      await assert.rejects(
+        adapter.publishPackage({
+          artifacts: [artifact("database.enc", database)],
+          packageId: "00000000-0000-4000-8000-000000000003",
+          packageName: "offsite-existing",
+          sourceDirectory,
+        }),
+        /package already exists/u,
+      );
+      assert.deepEqual(
+        container.blobs.get("offsite-existing/database.enc")?.body,
+        Buffer.from("existing"),
+      );
+    } finally {
+      rmSync(sourceDirectory, { force: true, recursive: true });
+    }
+  });
+
+  it("uses a strict secret-free configuration bound to an authorized container client", () => {
+    const value = {
+      accountUrl: "https://example.blob.core.windows.net",
+      adapterId: "azure-blob",
+      containerName: "memtextual",
+      credentialId: "continuity-service-certificate",
+      formatVersion: 1,
+      prefix: "continuity/backups",
+    };
+    const parsed = parseReplicationDestinationConfiguration(value);
+    assert.deepEqual(parsed, value);
+
+    const adapter = createConfiguredReplicationDestinationAdapter(parsed, {
+      azureBlobContainerClient: new FakeAzureBlobContainer().asContainerClient(),
+    });
+    assert.equal(adapter.adapterId, "azure-blob");
+
+    assert.throws(
+      () => createConfiguredReplicationDestinationAdapter(parsed),
+      /requires an explicitly authorized container client/u,
+    );
+    assert.throws(
+      () =>
+        createConfiguredReplicationDestinationAdapter(parsed, {
+          azureBlobContainerClient: new FakeAzureBlobContainer(
+            "https://other.blob.core.windows.net/memtextual",
+          ).asContainerClient(),
+        }),
+      /does not match the configured account and container/u,
+    );
+    assert.throws(
+      () =>
+        parseReplicationDestinationConfiguration({
+          ...value,
+          clientSecret: "must-not-be-stored-here",
+        }),
+      /unsupported properties: clientSecret/u,
+    );
+    assert.throws(
+      () =>
+        parseReplicationDestinationConfiguration({
+          ...value,
+          accountUrl: "https://example.blob.core.windows.net?sig=secret",
+        }),
+      /without credentials, path, query, or fragment/u,
+    );
+  });
+
+  it("keeps scheduled Azure use disabled until unattended credentials are available", () => {
+    const directory = mkdtempSync(join(tmpdir(), "memtextual-azure-cli-"));
+    const configurationPath = join(directory, "destination.json");
+    writeFileSync(
+      configurationPath,
+      JSON.stringify({
+        accountUrl: "https://example.blob.core.windows.net",
+        adapterId: "azure-blob",
+        containerName: "memtextual",
+        credentialId: "continuity-service-certificate",
+        formatVersion: 1,
+      }),
+      "utf8",
+    );
+    try {
+      const execution = spawnSync(
+        process.execPath,
+        [
+          "--import",
+          "tsx",
+          resolve("src", "cli", "safeguard.ts"),
+          "offsite-status",
+          "--database",
+          join(directory, "memtextual.db"),
+          "--source",
+          directory,
+          "--destination-config",
+          configurationPath,
+          "--interval-hours",
+          "24",
+        ],
+        { cwd: resolve("."), encoding: "utf8" },
+      );
+      assert.equal(execution.status, 1);
+      assert.match(
+        execution.stderr,
+        /unattended credential acquisition and scheduled replication are not implemented yet/u,
+      );
+    } finally {
+      rmSync(directory, { force: true, recursive: true });
+    }
+  });
+});

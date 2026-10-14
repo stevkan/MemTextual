@@ -34,6 +34,7 @@ import {
 } from "../safeguards/offsite-replication.js";
 import {
   loadReplicationDestinationConfiguration,
+  type LocalDirectoryReplicationDestinationConfiguration,
   type ReplicationDestinationConfiguration,
 } from "../safeguards/replication-destination-config.js";
 
@@ -133,6 +134,18 @@ function replicationDestination(
     destinationDirectory: resolve(destinationDirectory),
     formatVersion: 1,
   };
+}
+
+function scheduledReplicationDestination(
+  arguments_: string[],
+): LocalDirectoryReplicationDestinationConfiguration {
+  const destination = replicationDestination(arguments_);
+  if (destination.adapterId !== "local-directory") {
+    throw new Error(
+      "Azure Blob configuration is valid, but unattended credential acquisition and scheduled replication are not implemented yet.",
+    );
+  }
+  return destination;
 }
 
 function encryptionKey(arguments_: string[]): Buffer {
@@ -321,7 +334,7 @@ async function main(arguments_: string[]): Promise<void> {
   }
 
   if (command === "offsite-run-if-due") {
-    const destination = replicationDestination(arguments_);
+    const destination = scheduledReplicationDestination(arguments_);
     const key = encryptionKey(arguments_);
     try {
       const result = await runOffsiteReplicationIfDue({
@@ -346,7 +359,7 @@ async function main(arguments_: string[]): Promise<void> {
   }
 
   if (command === "offsite-status") {
-    const destination = replicationDestination(arguments_);
+    const destination = scheduledReplicationDestination(arguments_);
     const status = getOffsiteReplicationStatus({
       adapterId: destination.adapterId,
       databasePath: resolve(optionValue(arguments_, "--database")),

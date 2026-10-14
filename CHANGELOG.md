@@ -13,6 +13,13 @@ describe only the current design and behavior.
   scheduler, credential-provider, and service-identity adapters. Host mutations
   require explicit user action, and schedule definitions carry secret names but
   not secret values.
+- Added an initial Azure Blob encrypted-package destination adapter using the
+  pinned official Azure SDK, create-only blob writes, complete remote download
+  and SHA-256 verification, and package-scoped rollback.
+- Added strict secret-free Azure destination configuration bound to an
+  explicitly authorized matching container client. Scheduled Azure replication
+  remains disabled until unattended credentials and remote materialization are
+  implemented.
 - Preserved the validated v0.8.0 baseline in a dedicated safety branch and tag.
 - Added the initial MemTextual Continuity design and multi-persona isolation
   direction.

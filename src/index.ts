@@ -409,10 +409,15 @@ export {
   type ReplicationDestinationReceipt,
 } from "./safeguards/replication-destination.js";
 export {
+  createAzureBlobReplicationAdapter,
+  type AzureBlobReplicationDestinationOptions,
+} from "./safeguards/azure-blob-replication-destination.js";
+export {
   createConfiguredReplicationDestinationAdapter,
   loadReplicationDestinationConfiguration,
   parseReplicationDestinationConfiguration,
   replicationDestinationConfigFormatVersion,
+  type AzureBlobReplicationDestinationConfiguration,
   type LocalDirectoryReplicationDestinationConfiguration,
   type ReplicationDestinationConfiguration,
 } from "./safeguards/replication-destination-config.js";
