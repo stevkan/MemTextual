@@ -164,6 +164,15 @@ new local snapshot, so automatic local backup should run independently at the
 user's chosen cadence. A newer corrupt, incomplete, or otherwise protected
 recovery point fails the run instead of silently replicating an older one.
 
+Scheduled replication builds the encrypted package in disposable staging and
+publishes it through the provider-neutral destination contract. The
+local-directory adapter rehashes every copied artifact and writes an append-only
+publication receipt under the local backup destination. MemTextual then
+decrypts and verifies the final destination package again before recording
+success. A publication, final verification, or local state failure rolls back
+the newly published package; disposable staging is removed on both success and
+failure.
+
 Replication state is append-only and stored in the local backup destination,
 separately for each database and off-device destination. This keeps an
 unavailable off-device destination from hiding the recorded failure. Status is

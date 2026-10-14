@@ -52,7 +52,11 @@ partial newly created target if publication fails. It is the reference
 implementation for removable drives, mounted shares, and user-managed sync
 directories.
 
-The existing safeguard commands are not yet routed through this general
-adapter contract. Integrating scheduled replication with an adapter selected
-through explicit user configuration is the next package. Concrete cloud
-adapters remain separate provider-specific work.
+Scheduled local-directory replication is routed through this contract. It
+creates the package in disposable encrypted staging, publishes through the
+adapter, records the publication receipt locally, verifies the final destination
+copy by decrypting it in separate disposable storage, and then records scheduler
+success. Publication, final verification, or state-recording failure removes
+the newly published package. Manual `offsite-export` remains the direct
+single-destination workflow. Concrete cloud adapters remain separate
+provider-specific work.

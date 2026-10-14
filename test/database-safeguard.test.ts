@@ -1202,8 +1202,37 @@ test("scheduled off-device replication creates verified packages and reports app
     assert.match(first.status.destinationIdentity, /^[a-f0-9]{64}$/u);
     assert.equal(existsSync(first.status.statePath ?? ""), true);
     assert.equal(first.replication?.verification.passed, true);
+    assert.equal(existsSync(first.publication?.receiptPath ?? ""), true);
+    assert.equal(first.publication?.adapterId, "local-directory");
+    assert.equal(first.publication?.artifacts.length, 5);
+    assert.equal(
+      first.publication?.packageReference,
+      first.replication?.packageDirectory,
+    );
+    const verificationReports = readdirSync(
+      first.replication?.packageDirectory ?? "",
+    ).filter((filename) => filename.startsWith("verification-"));
+    assert.equal(verificationReports.length, 2);
+    for (const filename of verificationReports) {
+      const report = JSON.parse(
+        readFileSync(
+          join(first.replication?.packageDirectory ?? "", filename),
+          "utf8",
+        ),
+      ) as { reportPath: string };
+      assert.equal(
+        report.reportPath,
+        join(first.replication?.packageDirectory ?? "", filename),
+      );
+    }
     assert.equal(
       readFileSync(first.status.statePath ?? "", "utf8").includes(
+        key.toString("base64"),
+      ),
+      false,
+    );
+    assert.equal(
+      readFileSync(first.publication?.receiptPath ?? "", "utf8").includes(
         key.toString("base64"),
       ),
       false,
@@ -1252,6 +1281,16 @@ test("scheduled off-device replication creates verified packages and reports app
     assert.equal(
       readdirSync(offsiteDirectory).filter((entry) => entry.startsWith("offsite-"))
         .length,
+      2,
+    );
+    const publicationReceiptDirectory = readdirSync(sourceBackupDirectory).find(
+      (entry) => entry.startsWith(".offsite-destination-receipts-"),
+    );
+    assert.notEqual(publicationReceiptDirectory, undefined);
+    assert.equal(
+      readdirSync(
+        join(sourceBackupDirectory, publicationReceiptDirectory ?? ""),
+      ).length,
       2,
     );
     rmSync(second.status.lastPackageDirectory ?? "", {

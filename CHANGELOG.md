@@ -146,6 +146,11 @@ describe only the current design and behavior.
 - Added a reference local-directory adapter that refuses missing, linked,
   overlapping, or existing targets and rehashes every copied artifact. No cloud
   provider is selected or contacted.
+- Routed scheduled local-directory replication through the adapter contract
+  using disposable encrypted staging and append-only local publication receipts.
+- Scheduled success now requires a second decrypt verification of the final
+  destination copy; publication, verification, or state-recording failure
+  rolls back the newly published package and removes staging.
 
 ## 0.8.0 - 2026-10-12
 

@@ -235,7 +235,9 @@ The provider-neutral destination contract accepts only encrypted package
 artifacts, validates source and adapter-reported byte hashes, rolls back
 malformed publications, and writes an append-only local receipt. Its included
 local-directory adapter is the reference implementation; no cloud adapter is
-selected or configured.
+selected or configured. Scheduled local-directory replication now uses this
+contract: encryption occurs in disposable staging, publication is receipted,
+the final destination copy is decrypt-verified again, and staging is removed.
 
 ## Deliberately deferred
 

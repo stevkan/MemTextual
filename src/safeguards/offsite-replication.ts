@@ -4,19 +4,27 @@ import {
   existsSync,
   lstatSync,
   mkdirSync,
+  mkdtempSync,
   openSync,
   readFileSync,
   readdirSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
+import { tmpdir } from "node:os";
 import { basename, isAbsolute, join, relative, resolve } from "node:path";
 import { catalogDatabaseSnapshots } from "./backup-retention.js";
 import { databaseSafeguardIdentity } from "./database-safeguard.js";
 import {
   createEncryptedReplication,
+  verifyEncryptedReplication,
   type CreateEncryptedReplicationResult,
 } from "./encrypted-replication.js";
+import {
+  createLocalDirectoryReplicationAdapter,
+  publishReplicationPackage,
+  type ReplicationDestinationReceipt,
+} from "./replication-destination.js";
 
 export const offsiteReplicationStateFormatVersion = 1 as const;
 
@@ -68,6 +76,7 @@ export interface OffsiteReplicationRunOptions
 
 export interface OffsiteReplicationRunResult {
   outcome: "replicated" | "not_due";
+  publication?: ReplicationDestinationReceipt;
   replication?: CreateEncryptedReplicationResult;
   status: OffsiteReplicationStatus;
 }
@@ -81,6 +90,7 @@ interface ResolvedOffsiteReplicationOptions {
   lockPath: string;
   now: Date;
   sourceBackupDirectory: string;
+  publicationReceiptDirectory: string;
   stateDirectory: string;
 }
 
@@ -145,6 +155,10 @@ function resolveOptions(
       `offsite-replication-${databaseIdentity.slice(0, 16)}.lock`,
     ),
     now,
+    publicationReceiptDirectory: join(
+      sourceBackupDirectory,
+      `.offsite-destination-receipts-${stateIdentity}`,
+    ),
     sourceBackupDirectory,
     stateDirectory: join(
       sourceBackupDirectory,
@@ -406,6 +420,11 @@ export async function runOffsiteReplicationIfDue(
     }
     const attemptedAt = resolved.now.toISOString();
     let snapshotDirectory: string | null = null;
+    const adapter = createLocalDirectoryReplicationAdapter(
+      resolved.destinationDirectory,
+    );
+    let publishedPackageName: string | null = null;
+    let stagingDirectory: string | null = null;
     try {
       const catalog = catalogDatabaseSnapshots({
         databasePath: resolved.databasePath,
@@ -439,9 +458,12 @@ export async function runOffsiteReplicationIfDue(
         );
       }
       snapshotDirectory = snapshot.directory;
-      const replication = await createEncryptedReplication({
+      stagingDirectory = mkdtempSync(
+        join(tmpdir(), "memtextual-offsite-publication-"),
+      );
+      const stagedReplication = await createEncryptedReplication({
         databasePath: resolved.databasePath,
-        destinationDirectory: resolved.destinationDirectory,
+        destinationDirectory: stagingDirectory,
         keyId,
         masterKey: options.masterKey,
         now: resolved.now,
@@ -449,6 +471,49 @@ export async function runOffsiteReplicationIfDue(
         snapshotDirectory,
         sourceBackupDirectory: resolved.sourceBackupDirectory,
       });
+      const projectedPackageDirectory = join(
+        resolved.destinationDirectory,
+        basename(stagedReplication.packageDirectory),
+      );
+      const projectedVerificationPath = join(
+        projectedPackageDirectory,
+        basename(stagedReplication.verification.reportPath),
+      );
+      writeFileSync(
+        stagedReplication.verification.reportPath,
+        `${JSON.stringify(
+          {
+            ...stagedReplication.verification,
+            reportPath: projectedVerificationPath,
+          },
+          null,
+          2,
+        )}\n`,
+        "utf8",
+      );
+      const publication = await publishReplicationPackage({
+        adapter,
+        now: resolved.now,
+        packageDirectory: stagedReplication.packageDirectory,
+        receiptDirectory: resolved.publicationReceiptDirectory,
+      });
+      publishedPackageName = publication.packageName;
+      rmSync(stagingDirectory, { recursive: true });
+      stagingDirectory = null;
+      const finalVerification = await verifyEncryptedReplication({
+        masterKey: options.masterKey,
+        now: resolved.now,
+        packageDirectory: publication.packageReference,
+      });
+      const replication: CreateEncryptedReplicationResult = {
+        manifest: stagedReplication.manifest,
+        manifestPath: join(
+          publication.packageReference,
+          "replication-manifest.json",
+        ),
+        packageDirectory: publication.packageReference,
+        verification: finalVerification,
+      };
       const successful: OffsiteReplicationState = {
         databaseFile: resolved.databaseFile,
         destinationIdentity: resolved.destinationIdentity,
@@ -467,12 +532,29 @@ export async function runOffsiteReplicationIfDue(
       const statePath = writeState(resolved, successful);
       return {
         outcome: "replicated",
+        publication,
         replication,
         status: statusFromState(resolved, successful, statePath),
       };
     } catch (error) {
-      const message =
+      let message =
         error instanceof Error ? error.message : "Unknown replication failure";
+      if (stagingDirectory !== null) {
+        try {
+          rmSync(stagingDirectory, { force: true, recursive: true });
+          stagingDirectory = null;
+        } catch (cleanupError) {
+          message += ` Encrypted staging cleanup failed: ${cleanupError instanceof Error ? cleanupError.message : "unknown cleanup failure"}.`;
+        }
+      }
+      if (publishedPackageName !== null) {
+        try {
+          await adapter.removePackage({ packageName: publishedPackageName });
+          publishedPackageName = null;
+        } catch (rollbackError) {
+          message += ` Published-package rollback failed: ${rollbackError instanceof Error ? rollbackError.message : "unknown rollback failure"}.`;
+        }
+      }
       const failed: OffsiteReplicationState = {
         ...current.state,
         intervalHours: resolved.intervalHours,

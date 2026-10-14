@@ -219,8 +219,10 @@ remain a subsequent explicit package. A provider-neutral publication contract
 now constrains adapters to already-encrypted artifacts, validates exact
 byte-and-hash parity, records local receipts, and rolls back publications whose
 returned evidence fails validation. The included local-directory adapter is the
-reference implementation; current safeguard orchestration has not yet been
-routed through the general contract.
+reference implementation. Scheduled local-directory replication now uses the
+contract with disposable encrypted staging, publication receipts, final-copy
+decryption and verification, and rollback if publication, verification, or
+state recording fails.
 
 ## Non-destructive migration contract
 
