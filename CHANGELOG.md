@@ -5,6 +5,14 @@ describe only the current design and behavior.
 
 ## Unreleased
 
+- Formalized MemTextual Developer as the developer edition and MemTextual
+  Continuity as the personal edition built on the same core.
+- Added Windows, macOS, and Linux CI for the shared TypeScript and SQLite core,
+  while retaining Windows as Continuity's initial supported desktop target.
+- Added portable host-platform detection and explicit contracts for future
+  scheduler, credential-provider, and service-identity adapters. Host mutations
+  require explicit user action, and schedule definitions carry secret names but
+  not secret values.
 - Preserved the validated v0.8.0 baseline in a dedicated safety branch and tag.
 - Added the initial MemTextual Continuity design and multi-persona isolation
   direction.

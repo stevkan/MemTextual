@@ -5,6 +5,10 @@ user-controlled memory across friendly personas such as companions, counselors,
 or advisors. It shares MemTextual Core with the developer-facing edition while
 using different defaults, interfaces, and distribution.
 
+In product naming, **MemTextual Developer** means the developer edition and
+**MemTextual Continuity** means the personal edition. They share one core and
+data model; they are not independent or incompatible memory systems.
+
 ## Product shape
 
 - **MemTextual Core** owns durable storage, revisions, evidence, scopes,
@@ -38,6 +42,27 @@ explicit user-controlled shared scope.
 7. **Distribution:** authenticated streamable HTTP, ChatGPT integration,
    installers, and separately packaged Developer and Continuity editions.
 8. **Expansion:** legacy adapters, administration, and a public REST interface.
+
+## Platform delivery strategy
+
+Continuity will finish its first supported desktop release on Windows. The core
+must remain cross-platform during that work: Windows, macOS, and Linux run the
+same automated test, type-check, and build gates, and operating-system behavior
+is kept behind scheduler, credential-provider, and service-identity contracts.
+
+This establishes portability without claiming that the macOS or Linux personal
+edition is complete. Concrete installers, unattended schedules, secure
+credential storage, service identities, upgrade paths, and uninstall behavior
+remain platform-specific release work. macOS and selected Linux distributions
+will be prioritized from actual demand after the Windows release rather than
+delaying Windows completion for equal-day support.
+
+MemTextual Developer uses the same portability boundary. Source-level
+compatibility may become available before an officially supported packaged
+experience, but support claims require platform-specific installation,
+migration, backup, restore, replication, upgrade, and data-preserving uninstall
+validation. The current support matrix and release gates are recorded in
+`docs/platform-support.md`.
 
 The first vertical slice targets one persona while retaining the multi-persona
 data model and isolation rules from the start.

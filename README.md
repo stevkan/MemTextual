@@ -4,6 +4,19 @@ MemTextual is a local-first persistent memory layer for AI agents. Its portable
 domain model, SQLite adapter, policy-enforcing service, and local MCP transport
 are kept separate so additional interfaces do not duplicate memory rules.
 
+## Editions
+
+- **MemTextual Developer** is the developer edition for explicit tools,
+  integrations, and project-oriented workflows.
+- **MemTextual Continuity** is the personal edition for user-controlled memory
+  across one or more personas.
+
+Both editions share MemTextual Core. Windows is the initial supported desktop
+target for Continuity. Core compatibility checks are configured for Windows,
+macOS, and Linux while platform-specific installers and unattended integrations
+are delivered separately. See `docs/platform-support.md` for the support and
+release policy.
+
 ## Design
 
 MemTextual separates source evidence, proposed interpretations, immutable
@@ -52,6 +65,7 @@ docs/mcp.md                MCP tools, configuration, and host example
 docs/ingestion.md          Source ingestion and candidate review contract
 docs/legacy-migration.md   Legacy export format and migration workflow
 docs/continuity-design.md  Continuity product plan and non-destructive contract
+docs/platform-support.md   Edition names, portability boundary, and release gates
 docs/continuity-control.md Persona-scoped review and lifecycle control contract
 docs/continuity-console.md Local graphical review and memory-inspection console
 docs/context-composition.md Bounded persona-memory context payload contract
@@ -249,5 +263,6 @@ cloud provider.
 Concrete vendor extractor and host-event clients, vendor-specific legacy-export
 adapters, graphical source-series privacy workflows, standalone-source deletion,
 cloud destination adapters, resumable imports, streamable HTTP, REST API,
-admin UI, concrete vendor embedding provider, host-specific installers, and the
-broader packaging strategy remain open.
+admin UI, concrete vendor embedding provider, concrete host scheduler,
+credential, service-identity and installer implementations, and the broader
+packaging strategy remain open.

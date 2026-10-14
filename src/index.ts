@@ -4,6 +4,25 @@ export {
   type OpenDatabaseOptions,
 } from "./database/sqlite-database.js";
 export {
+  detectHostPlatform,
+  hostPlatforms,
+  type ExplicitHostMutationContext,
+  type HostAdapterIdentity,
+  type HostCredentialKind,
+  type HostCredentialProvider,
+  type HostCredentialReference,
+  type HostIntegrationBundle,
+  type HostPlatform,
+  type HostPlatformDetection,
+  type HostScheduleDefinition,
+  type HostScheduledCommand,
+  type HostSchedulerAdapter,
+  type HostScheduleState,
+  type HostServiceIdentityAdapter,
+  type HostServiceIdentityRequest,
+  type HostServiceIdentityState,
+} from "./platform/host-platform.js";
+export {
   memoryStatuses,
   memoryTypes,
   type CreateMemoryInput,
