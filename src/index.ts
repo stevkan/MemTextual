@@ -304,3 +304,13 @@ export {
   type SnapshotResult,
   type VerificationResult,
 } from "./safeguards/database-safeguard.js";
+export {
+  automaticBackupStateFormatVersion,
+  getAutomaticBackupStatus,
+  runAutomaticBackupIfDue,
+  type AutomaticBackupHealth,
+  type AutomaticBackupOptions,
+  type AutomaticBackupRunResult,
+  type AutomaticBackupState,
+  type AutomaticBackupStatus,
+} from "./safeguards/automatic-backup.js";

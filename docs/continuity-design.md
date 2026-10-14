@@ -173,6 +173,17 @@ Exact schedules, retention counts, storage limits, and off-device providers are
 configuration decisions. They must not be hard-coded or enabled through an
 unstated assumption.
 
+Phase 6 now has its first additive foundation. A trusted local scheduler can
+invoke an opt-in `run-if-due` command using a user-selected interval of no more
+than 24 hours and a destination outside the active database directory. Every
+created recovery point reuses the online snapshot, integrity manifest, and
+durable export, then verifies the backup against its manifest before recording
+success. A locked, append-only journal exposes never-run, healthy, overdue, and
+failed status plus the last attempt, success, verification, next due time, and
+failure requiring action. MemTextual does not silently install a system
+schedule. Retention enforcement, restore drills, guided live restore, and
+encrypted off-device copies remain subsequent Phase 6 packages.
+
 ## Non-destructive migration contract
 
 Continuity development must preserve existing MemTextual data by default.

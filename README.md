@@ -55,6 +55,7 @@ docs/continuity-design.md  Continuity product plan and non-destructive contract
 docs/continuity-control.md Persona-scoped review and lifecycle control contract
 docs/continuity-console.md Local graphical review and memory-inspection console
 docs/context-composition.md Bounded persona-memory context payload contract
+docs/automatic-backups.md  Opt-in everyday backup orchestration and health
 docs/personas.md           Continuity identity and persona-scope foundations
 docs/ambient-memory.md     Persona-bound ambient candidate capture contract
 docs/host-capture.md       Explicitly authorized host-event capture contract
@@ -118,6 +119,8 @@ npm run review -- --database .\data\memtextual.db --migrations .\migrations
 npm run policy -- list --database .\data\memtextual.db --migrations .\migrations
 npm run migrate -- --file .\legacy-memories.json --scope PROJECT_SCOPE_ID --database .\data\memtextual.db --migrations .\migrations
 npm run safeguard -- snapshot -- --database .\data\memtextual.db --output .\backups
+npm run safeguard -- run-if-due --database .\data\memtextual.db --output D:\MemTextualBackups --interval-hours 24
+npm run safeguard -- status --database .\data\memtextual.db --output D:\MemTextualBackups --interval-hours 24
 npm run privacy -- preview --id MEMORY_ID --database .\data\memtextual.db --migrations .\migrations
 npm run continuity -- --persona PERSONA_ID --database .\data\memtextual.db --migrations .\migrations
 ```
@@ -187,10 +190,17 @@ workflow in `docs/migration-safety.md`. It creates an online SQLite backup, a
 portable durable-data export, and a deterministic manifest that can verify an
 upgraded copy without rejecting additive schema changes.
 
+For everyday protection, `memtextual-safeguard run-if-due` provides an opt-in
+scheduler hook with an explicitly configured interval of no more than 24 hours.
+It verifies each new snapshot and maintains a fail-closed, append-only health
+journal. MemTextual does not silently install or enable an operating-system
+schedule; see `docs/automatic-backups.md`.
+
 ## Deliberately deferred
 
 Concrete vendor extractor and host-event clients, vendor-specific legacy-export
 adapters, graphical source-series privacy workflows, standalone-source deletion,
-backup-retention enforcement, resumable imports, streamable HTTP, REST API,
+backup-retention enforcement, automated restore drills, guided live restore,
+resumable imports, streamable HTTP, REST API,
 admin UI, concrete vendor embedding provider, host-specific installers, and the
 broader packaging strategy remain open.

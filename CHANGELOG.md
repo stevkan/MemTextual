@@ -98,6 +98,13 @@ describe only the current design and behavior.
 - Changed hybrid retrieval accounting so normal retrieval still records every
   returned result while context composition records only memories actually
   included in the final payload.
+- Added opt-in everyday backup orchestration with an explicitly configured
+  interval of no more than 24 hours, post-creation manifest verification,
+  concurrency locking, and a fail-closed append-only health journal.
+- Added user-visible automatic-backup status for never-run, healthy, overdue,
+  and failed states without silently installing or enabling a system schedule.
+- Changed snapshot creation to refuse reuse of an existing timestamp directory
+  rather than risk writing into an earlier recovery point.
 
 ## 0.8.0 - 2026-10-12
 

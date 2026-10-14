@@ -1,5 +1,10 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import {
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import test from "node:test";
@@ -7,7 +12,9 @@ import {
   PersonaService,
   SqlitePersonaRepository,
   createDatabaseSnapshot,
+  getAutomaticBackupStatus,
   openMemTextualDatabase,
+  runAutomaticBackupIfDue,
   verifyDatabaseAgainstManifest,
 } from "../src/index.js";
 
@@ -97,6 +104,144 @@ test("verification permits additive schema changes and rejects durable data loss
     assert.equal(destructive.passed, false);
     assert.ok(destructive.problems.some((problem) => problem.includes("row count")));
     assert.ok(destructive.problems.some((problem) => problem.includes("content hash")));
+  } finally {
+    rmSync(fixture.directory, { force: true, recursive: true });
+  }
+});
+
+test("automatic backup creates a verified recovery point only when due", async () => {
+  const fixture = setup();
+  try {
+    const outputDirectory = join(fixture.directory, "automatic-backups");
+    const first = await runAutomaticBackupIfDue({
+      databasePath: fixture.databasePath,
+      outputDirectory,
+      intervalHours: 24,
+      now: new Date("2026-10-13T08:00:00.000Z"),
+    });
+    assert.equal(first.outcome, "created");
+    assert.equal(first.status.health, "healthy");
+    assert.equal(first.status.due, false);
+    assert.equal(first.status.lastVerifiedAt, "2026-10-13T08:00:00.000Z");
+    assert.equal(first.status.nextDueAt, "2026-10-14T08:00:00.000Z");
+    assert.ok(first.snapshot !== undefined);
+
+    const early = await runAutomaticBackupIfDue({
+      databasePath: fixture.databasePath,
+      outputDirectory,
+      intervalHours: 24,
+      now: new Date("2026-10-14T07:59:59.000Z"),
+    });
+    assert.equal(early.outcome, "not_due");
+    assert.equal(early.status.health, "healthy");
+
+    const due = getAutomaticBackupStatus({
+      databasePath: fixture.databasePath,
+      outputDirectory,
+      intervalHours: 24,
+      now: new Date("2026-10-14T08:00:00.000Z"),
+    });
+    assert.equal(due.due, true);
+    assert.equal(due.health, "overdue");
+
+    const second = await runAutomaticBackupIfDue({
+      databasePath: fixture.databasePath,
+      outputDirectory,
+      intervalHours: 24,
+      now: new Date("2026-10-14T08:00:00.000Z"),
+    });
+    assert.equal(second.outcome, "created");
+    assert.equal(second.status.health, "healthy");
+    assert.notEqual(
+      second.status.lastSnapshotDirectory,
+      first.status.lastSnapshotDirectory,
+    );
+  } finally {
+    rmSync(fixture.directory, { force: true, recursive: true });
+  }
+});
+
+test("automatic backup records failures and reports that action is required", async () => {
+  const fixture = setup();
+  try {
+    const outputDirectory = join(fixture.directory, "automatic-backups");
+    await assert.rejects(
+      runAutomaticBackupIfDue({
+        databasePath: join(fixture.directory, "missing.db"),
+        outputDirectory,
+        intervalHours: 12,
+        now: new Date("2026-10-13T09:00:00.000Z"),
+      }),
+      /Automatic backup failed/u,
+    );
+    const status = getAutomaticBackupStatus({
+      databasePath: join(fixture.directory, "missing.db"),
+      outputDirectory,
+      intervalHours: 12,
+      now: new Date("2026-10-13T09:01:00.000Z"),
+    });
+    assert.equal(status.health, "failed");
+    assert.equal(status.due, true);
+    assert.equal(status.lastSuccessfulAt, null);
+    assert.match(status.lastFailure?.message ?? "", /open database file/u);
+  } finally {
+    rmSync(fixture.directory, { force: true, recursive: true });
+  }
+});
+
+test("automatic backup configuration and state fail closed", async () => {
+  const fixture = setup();
+  try {
+    await assert.rejects(
+      runAutomaticBackupIfDue({
+        databasePath: fixture.databasePath,
+        outputDirectory: fixture.directory,
+        intervalHours: 24,
+      }),
+      /destination must differ/u,
+    );
+    await assert.rejects(
+      runAutomaticBackupIfDue({
+        databasePath: fixture.databasePath,
+        outputDirectory: join(fixture.directory, "backups"),
+        intervalHours: 25,
+      }),
+      /no more than 24/u,
+    );
+
+    const outputDirectory = join(fixture.directory, "backups");
+    const first = await runAutomaticBackupIfDue({
+      databasePath: fixture.databasePath,
+      outputDirectory,
+      intervalHours: 24,
+      now: new Date("2026-10-13T10:00:00.000Z"),
+    });
+    assert.ok(first.status.statePath !== null);
+    writeFileSync(first.status.statePath, "not-json", "utf8");
+    assert.throws(
+      () =>
+        getAutomaticBackupStatus({
+          databasePath: fixture.databasePath,
+          outputDirectory,
+          intervalHours: 24,
+        }),
+      /state is not valid JSON/u,
+    );
+  } finally {
+    rmSync(fixture.directory, { force: true, recursive: true });
+  }
+});
+
+test("snapshot creation refuses to reuse an existing timestamp directory", async () => {
+  const fixture = setup();
+  try {
+    const options = {
+      databasePath: fixture.databasePath,
+      outputDirectory: join(fixture.directory, "backups"),
+      now: new Date("2026-10-13T11:00:00.000Z"),
+    };
+    await createDatabaseSnapshot(options);
+    await assert.rejects(createDatabaseSnapshot(options), /EEXIST/u);
   } finally {
     rmSync(fixture.directory, { force: true, recursive: true });
   }

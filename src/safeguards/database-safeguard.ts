@@ -170,7 +170,8 @@ export async function createDatabaseSnapshot(options: {
     outputDirectory,
     `memtextual-${timestampForFilename(new Date(createdAt))}`,
   );
-  mkdirSync(snapshotDirectory, { recursive: true });
+  mkdirSync(outputDirectory, { recursive: true });
+  mkdirSync(snapshotDirectory);
 
   const backupFile = "memtextual.db";
   const backupPath = join(snapshotDirectory, backupFile);

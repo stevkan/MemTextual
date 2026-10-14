@@ -6,13 +6,27 @@ import {
   createDatabaseSnapshot,
   verifyDatabaseAgainstManifest,
 } from "../safeguards/database-safeguard.js";
+import {
+  getAutomaticBackupStatus,
+  runAutomaticBackupIfDue,
+} from "../safeguards/automatic-backup.js";
 
 function usage(): string {
   return [
     "Usage:",
     "  memtextual-safeguard snapshot --database PATH --output DIRECTORY",
     "  memtextual-safeguard verify --database PATH --manifest PATH",
+    "  memtextual-safeguard run-if-due --database PATH --output DIRECTORY --interval-hours HOURS",
+    "  memtextual-safeguard status --database PATH --output DIRECTORY --interval-hours HOURS",
   ].join("\n");
+}
+
+function numberOption(arguments_: string[], name: string): number {
+  const value = Number(optionValue(arguments_, name));
+  if (!Number.isFinite(value)) {
+    throw new Error(`${name} must be a finite number.\n\n${usage()}`);
+  }
+  return value;
 }
 
 function optionValue(arguments_: string[], name: string): string {
@@ -75,6 +89,31 @@ async function main(arguments_: string[]): Promise<void> {
     }
     console.log(`Safeguard verification passed for ${result.checkedTables} tables.`);
     console.log(`Verification report created: ${reportPath}`);
+    return;
+  }
+
+  if (command === "run-if-due") {
+    const result = await runAutomaticBackupIfDue({
+      databasePath: resolve(optionValue(arguments_, "--database")),
+      outputDirectory: resolve(optionValue(arguments_, "--output")),
+      intervalHours: numberOption(arguments_, "--interval-hours"),
+    });
+    console.log(JSON.stringify(result.status, null, 2));
+    console.log(
+      result.outcome === "created"
+        ? "Automatic backup created and verified."
+        : "Automatic backup is not due.",
+    );
+    return;
+  }
+
+  if (command === "status") {
+    const status = getAutomaticBackupStatus({
+      databasePath: resolve(optionValue(arguments_, "--database")),
+      outputDirectory: resolve(optionValue(arguments_, "--output")),
+      intervalHours: numberOption(arguments_, "--interval-hours"),
+    });
+    console.log(JSON.stringify(status, null, 2));
     return;
   }
 
