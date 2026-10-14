@@ -207,8 +207,11 @@ destination without choosing or contacting a cloud provider. It streams the
 database, safeguard manifest, and durable export through AES-256-GCM with
 per-file HKDF-derived keys, authenticates package metadata, and verifies the
 completed package through disposable decryption. The 32-byte master key remains
-external and must be retained separately. Plaintext package import and concrete
-cloud destination adapters remain subsequent explicit packages.
+external and must be retained separately. An authenticated package can now be
+imported into the matching installation's local recovery catalog after complete
+disposable verification, without touching the live database or overwriting an
+existing recovery point. Concrete cloud destination adapters remain a
+subsequent explicit package.
 
 ## Non-destructive migration contract
 

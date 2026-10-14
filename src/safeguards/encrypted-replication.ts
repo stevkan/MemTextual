@@ -7,8 +7,11 @@ import {
   randomUUID,
 } from "node:crypto";
 import {
+  constants,
+  copyFileSync,
   createReadStream,
   createWriteStream,
+  existsSync,
   lstatSync,
   mkdirSync,
   mkdtempSync,
@@ -31,6 +34,7 @@ import {
 
 export const encryptedReplicationManifestFormatVersion = 1 as const;
 export const encryptedReplicationVerificationFormatVersion = 1 as const;
+export const encryptedReplicationImportReceiptFormatVersion = 1 as const;
 
 type ReplicatedLogicalFile =
   | "database"
@@ -95,6 +99,25 @@ export interface VerifyEncryptedReplicationOptions {
   masterKey: Uint8Array;
   now?: Date;
   packageDirectory: string;
+}
+
+export interface ImportEncryptedReplicationOptions {
+  databasePath: string;
+  destinationDirectory: string;
+  masterKey: Uint8Array;
+  now?: Date;
+  packageDirectory: string;
+}
+
+export interface ImportEncryptedReplicationResult {
+  checkedTables: number;
+  formatVersion: typeof encryptedReplicationImportReceiptFormatVersion;
+  importedAt: string;
+  packageId: string;
+  receiptPath: string;
+  snapshotDirectory: string;
+  snapshotPath: string;
+  warnings: string[];
 }
 
 interface MeasuredDigest {
@@ -477,9 +500,18 @@ async function decryptFile(input: {
   }
 }
 
-export async function verifyEncryptedReplication(
-  options: VerifyEncryptedReplicationOptions,
-): Promise<EncryptedReplicationVerification> {
+interface DecryptedReplication {
+  checkedTables: number;
+  destinations: Record<ReplicatedLogicalFile, string>;
+  manifest: EncryptedReplicationManifest;
+  manifestPath: string;
+  packageDirectory: string;
+}
+
+async function withDecryptedReplication<T>(
+  options: Pick<VerifyEncryptedReplicationOptions, "masterKey" | "packageDirectory">,
+  use: (decrypted: DecryptedReplication) => Promise<T>,
+): Promise<T> {
   const packageDirectory = resolve(options.packageDirectory);
   requireDirectDirectory(packageDirectory, "Encrypted replication package");
   const manifestPath = join(packageDirectory, "replication-manifest.json");
@@ -492,7 +524,7 @@ export async function verifyEncryptedReplication(
   );
   let workspace: string | null = null;
   try {
-    workspace = mkdtempSync(join(tmpdir(), "memtextual-offsite-verify-"));
+    workspace = mkdtempSync(join(tmpdir(), "memtextual-offsite-decrypt-"));
     const destinations: Record<ReplicatedLogicalFile, string> = {
       database: join(workspace, "memtextual.db"),
       "durable-data-export": join(workspace, "durable-data-export.json"),
@@ -512,9 +544,11 @@ export async function verifyEncryptedReplication(
       readFileSync(destinations["safeguard-manifest"], "utf8"),
     ) as DatabaseSafeguardManifest;
     if (
+      safeguardManifest.formatVersion !== 1 ||
       safeguardManifest.sourceDatabase !== manifest.sourceDatabase ||
       safeguardManifest.sourceDatabaseIdentity !== manifest.sourceDatabaseIdentity ||
       safeguardManifest.createdAt !== manifest.snapshotCreatedAt ||
+      safeguardManifest.backupFile !== basename(destinations.database) ||
       safeguardManifest.backupSha256 !== (await hashFile(destinations.database))
     ) {
       throw new Error(
@@ -530,20 +564,40 @@ export async function verifyEncryptedReplication(
         `Decrypted database verification failed: ${verification.problems.join("; ")}`,
       );
     }
+    return await use({
+      checkedTables: verification.checkedTables,
+      destinations,
+      manifest,
+      manifestPath,
+      packageDirectory,
+    });
+  } finally {
+    key.fill(0);
+    salt.fill(0);
+    if (workspace !== null) {
+      rmSync(workspace, { force: true, recursive: true });
+    }
+  }
+}
+
+export async function verifyEncryptedReplication(
+  options: VerifyEncryptedReplicationOptions,
+): Promise<EncryptedReplicationVerification> {
+  return withDecryptedReplication(options, async (decrypted) => {
     const verifiedAt = validDate(
       options.now ?? new Date(),
       "Encrypted replication verification now",
     ).toISOString();
     const reportPath = join(
-      packageDirectory,
+      decrypted.packageDirectory,
       `verification-${timestampForFilename(new Date(verifiedAt))}-${randomUUID()}.json`,
     );
     const report: EncryptedReplicationVerification = {
-      checkedTables: verification.checkedTables,
-      fileCount: manifest.files.length,
+      checkedTables: decrypted.checkedTables,
+      fileCount: decrypted.manifest.files.length,
       formatVersion: encryptedReplicationVerificationFormatVersion,
-      manifestSha256: await hashFile(manifestPath),
-      packageId: manifest.packageId,
+      manifestSha256: await hashFile(decrypted.manifestPath),
+      packageId: decrypted.manifest.packageId,
       passed: true,
       reportPath,
       verifiedAt,
@@ -553,12 +607,188 @@ export async function verifyEncryptedReplication(
       flag: "wx",
     });
     return report;
-  } finally {
-    key.fill(0);
-    salt.fill(0);
-    if (workspace !== null) {
-      rmSync(workspace, { force: true, recursive: true });
+  });
+}
+
+export async function importEncryptedReplication(
+  options: ImportEncryptedReplicationOptions,
+): Promise<ImportEncryptedReplicationResult> {
+  const databasePath = resolve(options.databasePath);
+  const destinationDirectory = resolve(options.destinationDirectory);
+  const packageDirectory = resolve(options.packageDirectory);
+  if (
+    isWithin(destinationDirectory, packageDirectory) ||
+    isWithin(packageDirectory, destinationDirectory)
+  ) {
+    throw new Error(
+      "Encrypted replication package and local backup destination must not overlap.",
+    );
+  }
+  if (
+    dirname(databasePath) === destinationDirectory ||
+    isWithin(destinationDirectory, databasePath)
+  ) {
+    throw new Error(
+      "Imported recovery points must be stored outside the active database location.",
+    );
+  }
+  if (options.masterKey.byteLength !== 32) {
+    throw new Error("Encrypted replication masterKey must be exactly 32 bytes.");
+  }
+  const importedAt = validDate(
+    options.now ?? new Date(),
+    "Encrypted replication import now",
+  ).toISOString();
+  const identity = databaseSafeguardIdentity(databasePath);
+  requireDirectFile(databasePath, "The active database");
+  requireDirectDirectory(packageDirectory, "Encrypted replication package");
+  mkdirSync(destinationDirectory, { recursive: true });
+  requireDirectDirectory(destinationDirectory, "Local backup destination");
+  const lockPath = join(
+    destinationDirectory,
+    `automatic-backup-${identity.slice(0, 16)}.lock`,
+  );
+  let lock: number;
+  try {
+    lock = openSync(lockPath, "wx");
+  } catch (error) {
+    if (error instanceof Error && "code" in error && error.code === "EEXIST") {
+      throw new Error(
+        "Another backup, retention, restore, replication, or import operation is in progress.",
+      );
     }
+    throw error;
+  }
+  try {
+    return await withDecryptedReplication(options, async (decrypted) => {
+      if (
+        decrypted.manifest.sourceDatabase !== basename(databasePath) ||
+        decrypted.manifest.sourceDatabaseIdentity !== identity ||
+        !decrypted.manifest.snapshotDirectory.startsWith("memtextual-")
+      ) {
+        throw new Error(
+          "Encrypted replication package belongs to another active database.",
+        );
+      }
+      const snapshotDirectory = decrypted.manifest.snapshotDirectory;
+      const snapshotPath = join(destinationDirectory, snapshotDirectory);
+      if (existsSync(snapshotPath)) {
+        throw new Error(
+          `Local recovery point already exists and will not be overwritten: ${snapshotDirectory}.`,
+        );
+      }
+      const receiptDirectory = join(
+        destinationDirectory,
+        `.offsite-import-receipts-${identity.slice(0, 16)}`,
+      );
+      mkdirSync(receiptDirectory, { recursive: true });
+      const operationId = randomUUID();
+      const plannedPath = join(receiptDirectory, `${operationId}.planned.json`);
+      writeFileSync(
+        plannedPath,
+        `${JSON.stringify(
+          {
+            createdAt: importedAt,
+            operationId,
+            packageId: decrypted.manifest.packageId,
+            snapshotDirectory,
+            status: "planned",
+          },
+          null,
+          2,
+        )}\n`,
+        { encoding: "utf8", flag: "wx" },
+      );
+      let targetCreated = false;
+      try {
+        mkdirSync(snapshotPath);
+        targetCreated = true;
+        const targets: Record<ReplicatedLogicalFile, string> = {
+          database: join(snapshotPath, "memtextual.db"),
+          "durable-data-export": join(snapshotPath, "durable-data-export.json"),
+          "safeguard-manifest": join(snapshotPath, "manifest.json"),
+        };
+        for (const file of decrypted.manifest.files) {
+          copyFileSync(
+            decrypted.destinations[file.logicalName],
+            targets[file.logicalName],
+            constants.COPYFILE_EXCL,
+          );
+          if ((await hashFile(targets[file.logicalName])) !== file.plaintextSha256) {
+            throw new Error(
+              `Imported recovery point hash changed for ${file.logicalName}.`,
+            );
+          }
+        }
+        const verification = verifyDatabaseAgainstManifest({
+          databasePath: targets.database,
+          manifestPath: targets["safeguard-manifest"],
+        });
+        if (!verification.passed) {
+          throw new Error(
+            `Imported recovery point verification failed: ${verification.problems.join("; ")}`,
+          );
+        }
+        const receiptPath = join(
+          receiptDirectory,
+          `${timestampForFilename(new Date(importedAt))}-${operationId}.json`,
+        );
+        const receipt: ImportEncryptedReplicationResult = {
+          checkedTables: verification.checkedTables,
+          formatVersion: encryptedReplicationImportReceiptFormatVersion,
+          importedAt,
+          packageId: decrypted.manifest.packageId,
+          receiptPath,
+          snapshotDirectory,
+          snapshotPath,
+          warnings: [],
+        };
+        try {
+          rmSync(plannedPath);
+        } catch (cleanupError) {
+          receipt.warnings.push(
+            `Import succeeded, but its planned-operation record requires review: ${cleanupError instanceof Error ? cleanupError.message : "unknown cleanup failure"}`,
+          );
+        }
+        writeFileSync(receiptPath, `${JSON.stringify(receipt, null, 2)}\n`, {
+          encoding: "utf8",
+          flag: "wx",
+        });
+        return receipt;
+      } catch (error) {
+        try {
+          if (targetCreated) {
+            rmSync(snapshotPath, { force: true, recursive: true });
+          }
+          writeFileSync(
+            join(receiptDirectory, `${operationId}.failed.json`),
+            `${JSON.stringify(
+              {
+                error:
+                  error instanceof Error ? error.message : "unknown import failure",
+                failedAt: importedAt,
+                operationId,
+                packageId: decrypted.manifest.packageId,
+                snapshotDirectory,
+                status: "failed",
+              },
+              null,
+              2,
+            )}\n`,
+            { encoding: "utf8", flag: "wx" },
+          );
+          rmSync(plannedPath, { force: true });
+        } catch (reportError) {
+          throw new Error(
+            `Encrypted replication import failed and cleanup or failure reporting also failed. Preserve any partial snapshot and planned operation record. Import error: ${error instanceof Error ? error.message : "unknown import failure"}. Cleanup/report error: ${reportError instanceof Error ? reportError.message : "unknown cleanup or report failure"}.`,
+          );
+        }
+        throw error;
+      }
+    });
+  } finally {
+    closeSync(lock);
+    rmSync(lockPath, { force: true });
   }
 }
 

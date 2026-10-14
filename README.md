@@ -128,6 +128,7 @@ npm run safeguard -- restore-preview --database .\data\memtextual.db --output D:
 npm run safeguard -- restore-apply --database .\data\memtextual.db --output D:\MemTextualBackups --snapshot SNAPSHOT_DIRECTORY --confirm "EXACT TOKEN FROM PREVIEW"
 npm run safeguard -- offsite-export --database .\data\memtextual.db --source D:\MemTextualBackups --destination E:\MemTextualOffsite --snapshot SNAPSHOT_DIRECTORY --key-env MEMTEXTUAL_OFFSITE_KEY --key-id KEY_ID
 npm run safeguard -- offsite-verify --package E:\MemTextualOffsite\PACKAGE_DIRECTORY --key-env MEMTEXTUAL_OFFSITE_KEY
+npm run safeguard -- offsite-import --database .\data\memtextual.db --package E:\MemTextualOffsite\PACKAGE_DIRECTORY --destination D:\MemTextualBackups --key-env MEMTEXTUAL_OFFSITE_KEY
 npm run privacy -- preview --id MEMORY_ID --database .\data\memtextual.db --migrations .\migrations
 npm run continuity -- --persona PERSONA_ID --database .\data\memtextual.db --migrations .\migrations
 ```
@@ -217,13 +218,15 @@ Encrypted off-device replication streams all recovery artifacts into an
 AES-256-GCM package at a user-selected destination and immediately verifies it
 through disposable decryption. MemTextual stores neither the externally managed
 32-byte key nor plaintext memory artifacts in the package, and it does not
-choose or contact a cloud provider.
+choose or contact a cloud provider. A verified package can be imported back
+into the matching database's local recovery-point catalog without opening or
+changing the live database. Import refuses existing snapshot names and leaves
+live activation to the separate preview-and-confirm guided restore workflow.
 
 ## Deliberately deferred
 
 Concrete vendor extractor and host-event clients, vendor-specific legacy-export
 adapters, graphical source-series privacy workflows, standalone-source deletion,
-off-device package import, cloud destination adapters, resumable imports,
-streamable HTTP, REST API,
+cloud destination adapters, resumable imports, streamable HTTP, REST API,
 admin UI, concrete vendor embedding provider, host-specific installers, and the
 broader packaging strategy remain open.

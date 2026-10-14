@@ -22,6 +22,7 @@ import {
   databaseSafeguardIdentity,
   getAutomaticBackupStatus,
   getRestoreDrillStatus,
+  importEncryptedReplication,
   openMemTextualDatabase,
   previewGuidedRestore,
   previewBackupRetention,
@@ -965,5 +966,181 @@ test("encrypted replication rejects unsafe destinations, keys, locks, and snapsh
     key.fill(0);
     rmSync(fixture.directory, { force: true, recursive: true });
     rmSync(destinationDirectory, { force: true, recursive: true });
+  }
+});
+
+test("encrypted replication import creates a verified local recovery point without changing the live database", async () => {
+  const fixture = setup();
+  const offsiteDirectory = mkdtempSync(
+    join(tmpdir(), "memtextual-offsite-import-source-"),
+  );
+  const key = randomBytes(32);
+  try {
+    const localBackupDirectory = join(fixture.directory, "backups");
+    const snapshot = await createDatabaseSnapshot({
+      databasePath: fixture.databasePath,
+      outputDirectory: localBackupDirectory,
+      now: new Date("2026-10-12T12:00:00.000Z"),
+    });
+    const snapshotDirectory = basename(dirname(snapshot.backupPath));
+    const replication = await createEncryptedReplication({
+      databasePath: fixture.databasePath,
+      destinationDirectory: offsiteDirectory,
+      keyId: "recovery-key-2026",
+      masterKey: key,
+      now: new Date("2026-10-14T12:00:00.000Z"),
+      snapshotDirectory,
+      sourceBackupDirectory: localBackupDirectory,
+    });
+    rmSync(dirname(snapshot.backupPath), { force: true, recursive: true });
+
+    const liveDatabase = openMemTextualDatabase({ filename: fixture.databasePath });
+    liveDatabase
+      .prepare(
+        "INSERT INTO scopes(id, scope_kind, name, external_key) VALUES (?, 'project', ?, ?)",
+      )
+      .run("live-after-package", "Live after package", "live-after-package");
+    liveDatabase.close();
+
+    const imported = await importEncryptedReplication({
+      databasePath: fixture.databasePath,
+      destinationDirectory: localBackupDirectory,
+      masterKey: key,
+      now: new Date("2026-10-15T12:00:00.000Z"),
+      packageDirectory: replication.packageDirectory,
+    });
+
+    assert.equal(imported.snapshotDirectory, snapshotDirectory);
+    assert.equal(imported.warnings.length, 0);
+    assert.ok(imported.checkedTables > 0);
+    assert.equal(existsSync(imported.receiptPath), true);
+    assert.equal(existsSync(imported.snapshotPath), true);
+    const importedVerification = verifyDatabaseAgainstManifest({
+      databasePath: join(imported.snapshotPath, "memtextual.db"),
+      manifestPath: join(imported.snapshotPath, "manifest.json"),
+    });
+    assert.equal(importedVerification.passed, true);
+
+    const restoredDatabase = openMemTextualDatabase({
+      filename: join(imported.snapshotPath, "memtextual.db"),
+    });
+    assert.equal(
+      restoredDatabase
+        .prepare("SELECT 1 FROM scopes WHERE id = ?")
+        .get("live-after-package"),
+      undefined,
+    );
+    restoredDatabase.close();
+    const unchangedLiveDatabase = openMemTextualDatabase({
+      filename: fixture.databasePath,
+    });
+    assert.ok(
+      unchangedLiveDatabase
+        .prepare("SELECT 1 FROM scopes WHERE id = ?")
+        .get("live-after-package"),
+    );
+    unchangedLiveDatabase.close();
+
+    const preview = previewBackupRetention({
+      databasePath: fixture.databasePath,
+      outputDirectory: localBackupDirectory,
+      now: new Date("2026-10-15T13:00:00.000Z"),
+      policy: {
+        dailyCount: 7,
+        monthlyCount: 12,
+        timeZone: "UTC",
+        weekStartsOn: 1,
+        weeklyCount: 4,
+      },
+    });
+    assert.ok(
+      preview.snapshots.some(
+        (candidate) =>
+          candidate.directory === snapshotDirectory &&
+          candidate.problems.length === 0,
+      ),
+    );
+
+    await assert.rejects(
+      importEncryptedReplication({
+        databasePath: fixture.databasePath,
+        destinationDirectory: localBackupDirectory,
+        masterKey: key,
+        packageDirectory: replication.packageDirectory,
+      }),
+      /already exists and will not be overwritten/u,
+    );
+  } finally {
+    key.fill(0);
+    rmSync(fixture.directory, { force: true, recursive: true });
+    rmSync(offsiteDirectory, { force: true, recursive: true });
+  }
+});
+
+test("encrypted replication import rejects unsafe keys, destinations, identities, and locks", async () => {
+  const fixture = setup();
+  const otherFixture = setup();
+  const offsiteDirectory = mkdtempSync(
+    join(tmpdir(), "memtextual-offsite-import-boundaries-"),
+  );
+  const key = randomBytes(32);
+  try {
+    const localBackupDirectory = join(fixture.directory, "backups");
+    const snapshot = await createDatabaseSnapshot({
+      databasePath: fixture.databasePath,
+      outputDirectory: localBackupDirectory,
+      now: new Date("2026-10-12T12:00:00.000Z"),
+    });
+    const replication = await createEncryptedReplication({
+      databasePath: fixture.databasePath,
+      destinationDirectory: offsiteDirectory,
+      keyId: "recovery-key-2026",
+      masterKey: key,
+      snapshotDirectory: basename(dirname(snapshot.backupPath)),
+      sourceBackupDirectory: localBackupDirectory,
+    });
+    rmSync(dirname(snapshot.backupPath), { force: true, recursive: true });
+    const options = {
+      databasePath: fixture.databasePath,
+      destinationDirectory: localBackupDirectory,
+      masterKey: key,
+      packageDirectory: replication.packageDirectory,
+    } as const;
+
+    await assert.rejects(
+      importEncryptedReplication({ ...options, masterKey: randomBytes(32) }),
+      /authenticate|authentication|unsupported state/iu,
+    );
+    await assert.rejects(
+      importEncryptedReplication({
+        ...options,
+        destinationDirectory: replication.packageDirectory,
+      }),
+      /must not overlap/u,
+    );
+
+    const lockPath = join(
+      localBackupDirectory,
+      `automatic-backup-${databaseSafeguardIdentity(fixture.databasePath).slice(0, 16)}.lock`,
+    );
+    mkdirSync(localBackupDirectory, { recursive: true });
+    writeFileSync(lockPath, "held", "utf8");
+    await assert.rejects(importEncryptedReplication(options), /operation is in progress/u);
+    rmSync(lockPath);
+
+    await assert.rejects(
+      importEncryptedReplication({
+        databasePath: otherFixture.databasePath,
+        destinationDirectory: join(otherFixture.directory, "backups"),
+        masterKey: key,
+        packageDirectory: replication.packageDirectory,
+      }),
+      /belongs to another active database/u,
+    );
+  } finally {
+    key.fill(0);
+    rmSync(fixture.directory, { force: true, recursive: true });
+    rmSync(otherFixture.directory, { force: true, recursive: true });
+    rmSync(offsiteDirectory, { force: true, recursive: true });
   }
 });

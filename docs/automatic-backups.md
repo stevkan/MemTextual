@@ -132,6 +132,7 @@ used to identify which externally retained key is required for recovery.
 ```powershell
 npm run safeguard -- offsite-export --database .\data\memtextual.db --source D:\MemTextualBackups --destination E:\MemTextualOffsite --snapshot memtextual-2026-10-12T12-00-00-000Z --key-env MEMTEXTUAL_OFFSITE_KEY --key-id recovery-key-2026
 npm run safeguard -- offsite-verify --package E:\MemTextualOffsite\OFFSITE_PACKAGE_DIRECTORY --key-env MEMTEXTUAL_OFFSITE_KEY
+npm run safeguard -- offsite-import --database .\data\memtextual.db --package E:\MemTextualOffsite\OFFSITE_PACKAGE_DIRECTORY --destination D:\MemTextualBackups --key-env MEMTEXTUAL_OFFSITE_KEY
 ```
 
 Each package encrypts the SQLite recovery point, its safeguard manifest, and
@@ -151,8 +152,16 @@ The disposable plaintext is then removed and an append-only verification report
 is retained with the package. Wrong keys and modified ciphertext fail
 authentication.
 
+`offsite-import` decrypts and verifies the complete package only in disposable
+storage before copying it into the local recovery-point catalog. The package
+must carry the exact path-derived identity and database filename of the active
+installation. Import uses the shared safeguard lock, refuses to overwrite an
+existing snapshot, rehashes and verifies every copied artifact, and writes
+planned, success, or failure evidence. It does not open, replace, or otherwise
+change the live database. After import, use `restore-preview` and
+`restore-apply` for the separately confirmed live activation workflow.
+
 The recovery key must be backed up separately from both the active database and
 the encrypted packages. Losing it makes the packages unrecoverable. This
-package does not upload data, install a system schedule, or materialize a
-plaintext local recovery point from an off-device package; those require
-separate explicit destination and recovery choices.
+package does not upload data or install a system schedule; concrete provider
+adapters and scheduling remain separate explicit choices.

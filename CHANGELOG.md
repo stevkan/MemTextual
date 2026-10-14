@@ -127,6 +127,11 @@ describe only the current design and behavior.
 - Encrypted packages are decrypt-verified in a disposable directory before
   success; wrong keys, altered ciphertext, unsafe destinations, and unverified
   local recovery points fail closed without storing the master key.
+- Added authenticated off-device package import into the matching local
+  recovery-point catalog after disposable decryption and full verification.
+- Import shares the safeguard lock, refuses identity mismatches and existing
+  snapshot names, records planned, success, or failure evidence, and never
+  opens or changes the live database.
 
 ## 0.8.0 - 2026-10-12
 

@@ -25,6 +25,7 @@ import {
 } from "../safeguards/guided-restore.js";
 import {
   createEncryptedReplication,
+  importEncryptedReplication,
   verifyEncryptedReplication,
 } from "../safeguards/encrypted-replication.js";
 
@@ -43,6 +44,7 @@ function usage(): string {
     "  memtextual-safeguard restore-apply --database PATH --output DIRECTORY --snapshot DIRECTORY --confirm TOKEN",
     "  memtextual-safeguard offsite-export --database PATH --source DIRECTORY --destination DIRECTORY --snapshot DIRECTORY --key-env NAME --key-id ID",
     "  memtextual-safeguard offsite-verify --package DIRECTORY --key-env NAME",
+    "  memtextual-safeguard offsite-import --database PATH --package DIRECTORY --destination DIRECTORY --key-env NAME",
   ].join("\n");
 }
 
@@ -270,6 +272,24 @@ async function main(arguments_: string[]): Promise<void> {
     const key = encryptionKey(arguments_);
     try {
       const result = await verifyEncryptedReplication({
+        masterKey: key,
+        packageDirectory: resolve(optionValue(arguments_, "--package")),
+      });
+      console.log(JSON.stringify(result, null, 2));
+    } finally {
+      key.fill(0);
+    }
+    return;
+  }
+
+  if (command === "offsite-import") {
+    const key = encryptionKey(arguments_);
+    try {
+      const result = await importEncryptedReplication({
+        databasePath: resolve(optionValue(arguments_, "--database")),
+        destinationDirectory: resolve(
+          optionValue(arguments_, "--destination"),
+        ),
         masterKey: key,
         packageDirectory: resolve(optionValue(arguments_, "--package")),
       });
