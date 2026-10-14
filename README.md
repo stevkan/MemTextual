@@ -56,6 +56,7 @@ docs/continuity-control.md Persona-scoped review and lifecycle control contract
 docs/continuity-console.md Local graphical review and memory-inspection console
 docs/context-composition.md Bounded persona-memory context payload contract
 docs/automatic-backups.md  Opt-in everyday backup orchestration and health
+docs/replication-destinations.md Encrypted destination-adapter contract
 docs/personas.md           Continuity identity and persona-scope foundations
 docs/ambient-memory.md     Persona-bound ambient candidate capture contract
 docs/host-capture.md       Explicitly authorized host-event capture contract
@@ -230,6 +231,11 @@ records append-only health locally so an unavailable destination remains
 visible. The off-device directory must already exist, preventing a missing
 mount point from being silently recreated on local storage. MemTextual does not
 install or enable a system schedule.
+The provider-neutral destination contract accepts only encrypted package
+artifacts, validates source and adapter-reported byte hashes, rolls back
+malformed publications, and writes an append-only local receipt. Its included
+local-directory adapter is the reference implementation; no cloud adapter is
+selected or configured.
 
 ## Deliberately deferred
 

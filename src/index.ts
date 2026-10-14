@@ -378,3 +378,14 @@ export {
   type OffsiteReplicationStatus,
   type OffsiteReplicationStatusOptions,
 } from "./safeguards/offsite-replication.js";
+export {
+  createLocalDirectoryReplicationAdapter,
+  publishReplicationPackage,
+  replicationDestinationReceiptFormatVersion,
+  type PublishReplicationPackageOptions,
+  type ReplicationDestinationAdapter,
+  type ReplicationDestinationArtifact,
+  type ReplicationDestinationPublishRequest,
+  type ReplicationDestinationPublishResult,
+  type ReplicationDestinationReceipt,
+} from "./safeguards/replication-destination.js";

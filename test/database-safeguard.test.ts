@@ -17,6 +17,7 @@ import {
   SqlitePersonaRepository,
   applyGuidedRestore,
   applyBackupRetention,
+  createLocalDirectoryReplicationAdapter,
   createDatabaseSnapshot,
   createEncryptedReplication,
   databaseSafeguardIdentity,
@@ -27,11 +28,13 @@ import {
   openMemTextualDatabase,
   previewGuidedRestore,
   previewBackupRetention,
+  publishReplicationPackage,
   runAutomaticBackupIfDue,
   runOffsiteReplicationIfDue,
   runRestoreDrillIfDue,
   verifyEncryptedReplication,
   verifyDatabaseAgainstManifest,
+  type ReplicationDestinationAdapter,
 } from "../src/index.js";
 
 function setup(): { databasePath: string; directory: string } {
@@ -1354,5 +1357,224 @@ test("scheduled off-device replication fails closed for unsafe state and newer c
     key.fill(0);
     rmSync(fixture.directory, { force: true, recursive: true });
     rmSync(offsiteDirectory, { force: true, recursive: true });
+  }
+});
+
+test("replication destination contract publishes only verified encrypted artifacts with a receipt", async () => {
+  const fixture = setup();
+  const packageRoot = mkdtempSync(join(tmpdir(), "memtextual-adapter-source-"));
+  const destination = mkdtempSync(
+    join(tmpdir(), "memtextual-adapter-destination-"),
+  );
+  const key = randomBytes(32);
+  try {
+    const backupDirectory = join(fixture.directory, "backups");
+    const snapshot = await createDatabaseSnapshot({
+      databasePath: fixture.databasePath,
+      outputDirectory: backupDirectory,
+      now: new Date("2026-10-12T12:00:00.000Z"),
+    });
+    const replication = await createEncryptedReplication({
+      databasePath: fixture.databasePath,
+      destinationDirectory: packageRoot,
+      keyId: "recovery-key-2026",
+      masterKey: key,
+      snapshotDirectory: basename(dirname(snapshot.backupPath)),
+      sourceBackupDirectory: backupDirectory,
+    });
+    const receipt = await publishReplicationPackage({
+      adapter: createLocalDirectoryReplicationAdapter(destination),
+      now: new Date("2026-10-15T12:00:00.000Z"),
+      packageDirectory: replication.packageDirectory,
+      receiptDirectory: join(fixture.directory, "destination-receipts"),
+    });
+
+    assert.equal(receipt.adapterId, "local-directory");
+    assert.equal(receipt.adapterVersion, "1");
+    assert.equal(receipt.packageId, replication.manifest.packageId);
+    assert.equal(receipt.artifacts.length, 5);
+    assert.equal(existsSync(receipt.receiptPath), true);
+    assert.equal(existsSync(receipt.packageReference), true);
+    assert.equal(existsSync(join(receipt.packageReference, "memtextual.db")), false);
+    assert.equal(
+      readFileSync(receipt.receiptPath, "utf8").includes(key.toString("base64")),
+      false,
+    );
+    const verified = await verifyEncryptedReplication({
+      masterKey: key,
+      packageDirectory: receipt.packageReference,
+    });
+    assert.equal(verified.passed, true);
+
+    await assert.rejects(
+      publishReplicationPackage({
+        adapter: createLocalDirectoryReplicationAdapter(destination),
+        packageDirectory: replication.packageDirectory,
+        receiptDirectory: join(fixture.directory, "destination-receipts"),
+      }),
+      /EEXIST/u,
+    );
+    assert.equal(existsSync(receipt.packageReference), true);
+  } finally {
+    key.fill(0);
+    rmSync(fixture.directory, { force: true, recursive: true });
+    rmSync(packageRoot, { force: true, recursive: true });
+    rmSync(destination, { force: true, recursive: true });
+  }
+});
+
+test("replication destination contract rejects malformed adapter evidence and unexpected artifacts", async () => {
+  const fixture = setup();
+  const packageRoot = mkdtempSync(
+    join(tmpdir(), "memtextual-adapter-boundary-source-"),
+  );
+  const destination = mkdtempSync(
+    join(tmpdir(), "memtextual-adapter-boundary-destination-"),
+  );
+  const key = randomBytes(32);
+  try {
+    const backupDirectory = join(fixture.directory, "backups");
+    const snapshot = await createDatabaseSnapshot({
+      databasePath: fixture.databasePath,
+      outputDirectory: backupDirectory,
+      now: new Date("2026-10-12T12:00:00.000Z"),
+    });
+    const replication = await createEncryptedReplication({
+      databasePath: fixture.databasePath,
+      destinationDirectory: packageRoot,
+      keyId: "recovery-key-2026",
+      masterKey: key,
+      snapshotDirectory: basename(dirname(snapshot.backupPath)),
+      sourceBackupDirectory: backupDirectory,
+    });
+    let rollbackCalled = false;
+    const malformedAdapter: ReplicationDestinationAdapter = {
+      adapterId: "test-malformed",
+      adapterVersion: "1",
+      destinationIdentity: "test-destination",
+      async publishPackage(request) {
+        return {
+          artifacts: request.artifacts.map((artifact, index) => ({
+            ...artifact,
+            sha256: index === 0 ? "0".repeat(64) : artifact.sha256,
+          })),
+          packageReference: "test://published-package",
+        };
+      },
+      async removePackage() {
+        rollbackCalled = true;
+      },
+    };
+    await assert.rejects(
+      publishReplicationPackage({
+        adapter: malformedAdapter,
+        packageDirectory: replication.packageDirectory,
+        receiptDirectory: join(fixture.directory, "destination-receipts"),
+      }),
+      /does not prove byte-for-byte artifact parity/u,
+    );
+    assert.equal(rollbackCalled, true);
+    assert.equal(
+      readdirSync(join(fixture.directory, "destination-receipts")).length,
+      0,
+    );
+
+    const sourceDatabasePath = join(replication.packageDirectory, "database.enc");
+    const sourceDatabase = readFileSync(sourceDatabasePath);
+    let mutationRollbackCalled = false;
+    const mutatingAdapter: ReplicationDestinationAdapter = {
+      adapterId: "test-mutating",
+      adapterVersion: "1",
+      destinationIdentity: "test-destination",
+      async publishPackage(request) {
+        writeFileSync(
+          sourceDatabasePath,
+          Buffer.concat([sourceDatabase, Buffer.from([0])]),
+        );
+        return {
+          artifacts: request.artifacts,
+          packageReference: "test://mutated-source",
+        };
+      },
+      async removePackage() {
+        mutationRollbackCalled = true;
+      },
+    };
+    await assert.rejects(
+      publishReplicationPackage({
+        adapter: mutatingAdapter,
+        packageDirectory: replication.packageDirectory,
+        receiptDirectory: join(fixture.directory, "destination-receipts"),
+      }),
+      /does not match its manifest/u,
+    );
+    assert.equal(mutationRollbackCalled, true);
+    writeFileSync(sourceDatabasePath, sourceDatabase);
+
+    writeFileSync(join(replication.packageDirectory, "plaintext.db"), "unsafe");
+    await assert.rejects(
+      publishReplicationPackage({
+        adapter: malformedAdapter,
+        packageDirectory: replication.packageDirectory,
+        receiptDirectory: join(fixture.directory, "destination-receipts"),
+      }),
+      /missing or unexpected artifacts/u,
+    );
+    rmSync(join(replication.packageDirectory, "plaintext.db"));
+
+    const verificationFilename = readdirSync(replication.packageDirectory).find(
+      (filename) => filename.startsWith("verification-"),
+    );
+    assert.notEqual(verificationFilename, undefined);
+    const verificationPath = join(
+      replication.packageDirectory,
+      verificationFilename ?? "",
+    );
+    const verificationReport = readFileSync(verificationPath);
+    rmSync(verificationPath);
+    await assert.rejects(
+      publishReplicationPackage({
+        adapter: malformedAdapter,
+        packageDirectory: replication.packageDirectory,
+        receiptDirectory: join(fixture.directory, "destination-receipts"),
+      }),
+      /missing or unexpected artifacts/u,
+    );
+    writeFileSync(verificationPath, verificationReport);
+
+    const encryptedDatabasePath = join(
+      replication.packageDirectory,
+      "database.enc",
+    );
+    const encryptedDatabase = readFileSync(encryptedDatabasePath);
+    const tamperedDatabase = Buffer.from(encryptedDatabase);
+    tamperedDatabase[Math.floor(tamperedDatabase.length / 2)] =
+      (tamperedDatabase[Math.floor(tamperedDatabase.length / 2)] ?? 0) ^ 1;
+    writeFileSync(encryptedDatabasePath, tamperedDatabase);
+    await assert.rejects(
+      publishReplicationPackage({
+        adapter: malformedAdapter,
+        packageDirectory: replication.packageDirectory,
+        receiptDirectory: join(fixture.directory, "destination-receipts"),
+      }),
+      /does not match its manifest/u,
+    );
+    writeFileSync(encryptedDatabasePath, encryptedDatabase);
+
+    const missingDestination = join(destination, "missing");
+    await assert.rejects(
+      publishReplicationPackage({
+        adapter: createLocalDirectoryReplicationAdapter(missingDestination),
+        packageDirectory: replication.packageDirectory,
+        receiptDirectory: join(fixture.directory, "destination-receipts"),
+      }),
+      /Replication destination does not exist/u,
+    );
+    assert.equal(existsSync(missingDestination), false);
+  } finally {
+    key.fill(0);
+    rmSync(fixture.directory, { force: true, recursive: true });
+    rmSync(packageRoot, { force: true, recursive: true });
+    rmSync(destination, { force: true, recursive: true });
   }
 });

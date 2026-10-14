@@ -215,7 +215,12 @@ verified local point at an explicit interval and maintains local append-only
 never-run, healthy, overdue, unavailable, and failed status. It fails closed
 when a newer protected point exists, requires an already-mounted destination,
 and does not install a system schedule. Concrete cloud destination adapters
-remain a subsequent explicit package.
+remain a subsequent explicit package. A provider-neutral publication contract
+now constrains adapters to already-encrypted artifacts, validates exact
+byte-and-hash parity, records local receipts, and rolls back publications whose
+returned evidence fails validation. The included local-directory adapter is the
+reference implementation; current safeguard orchestration has not yet been
+routed through the general contract.
 
 ## Non-destructive migration contract
 

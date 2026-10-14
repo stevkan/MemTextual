@@ -140,6 +140,12 @@ describe only the current design and behavior.
 - Replication now requires its direct destination directory to exist, avoiding
   accidental local writes when an intended removable or mounted destination is
   unavailable; status reports destination and last-package availability.
+- Added a provider-neutral encrypted-package destination contract with strict
+  artifact allowlisting, source-manifest checks, adapter-result validation,
+  append-only publication receipts, and rollback on invalid evidence.
+- Added a reference local-directory adapter that refuses missing, linked,
+  overlapping, or existing targets and rehashes every copied artifact. No cloud
+  provider is selected or contacted.
 
 ## 0.8.0 - 2026-10-12
 
