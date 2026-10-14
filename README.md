@@ -268,5 +268,5 @@ Concrete vendor extractor and host-event clients, vendor-specific legacy-export
 adapters, graphical source-series privacy workflows, standalone-source deletion,
 additional cloud destination adapters, resumable imports, streamable HTTP,
 REST API, admin UI, concrete vendor embedding provider, concrete host
-scheduler, service-identity and installer implementations, additional secure
+the privileged Windows host executor, installer UX, additional secure
 credential-store providers, and the broader packaging strategy remain open.

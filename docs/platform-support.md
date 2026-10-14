@@ -24,7 +24,7 @@ that operating system.
 | Core TypeScript, SQLite, migrations, and tests | CI gate configured | CI gate configured | CI gate configured |
 | Developer source workflows | Initial target | Compatibility tracked | Compatibility tracked |
 | Continuity desktop packaging | Initial supported target | Deferred | Deferred |
-| Unattended scheduler integration | Deferred Windows adapter | Deferred adapter | Deferred adapter |
+| Unattended scheduler integration | Adapter and confirmed orchestration available; privileged executor deferred | Deferred adapter | Deferred adapter |
 | Certificate credential provider | Core provider available; installer ACL setup deferred | Core provider available; packaging deferred | Core provider available; packaging deferred |
 | Dedicated service identity | Planned where appropriate | Platform-specific decision deferred | Platform-specific decision deferred |
 
@@ -47,6 +47,18 @@ Scheduler and service-identity mutations require an
 `ExplicitHostMutationContext` whose `explicitUserAction` value is `true`.
 Schedule definitions may contain environment-variable names, but not secret
 values. No concrete host adapter is selected or installed by the core.
+
+The Windows layer now supplies concrete Task Scheduler and local service-
+identity adapters over an injectable `WindowsHostOperations` boundary. Its
+installer orchestration previews current identity and task state, binds an
+exact confirmation to that state and the requested definitions, refuses to
+adopt or remove resources without an explicit MemTextual ownership marker,
+and rolls back newly created tasks and identities after an installation
+failure. Removal intentionally preserves every configured data, certificate,
+configuration, and recovery-key path. The privileged PowerShell implementation
+that creates the local account, applies Windows ACLs, securely transfers the
+generated password, and registers the tasks is still required before this can
+be described as an installable unattended Windows feature.
 
 ## Release gates
 

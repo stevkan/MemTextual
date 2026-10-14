@@ -261,6 +261,16 @@ storage and fully decrypt-verified before success is recorded. Concrete
 operating-system schedule installation, dedicated service-account creation,
 certificate ACL provisioning, and installer UX remain separate host work.
 
+The first Windows host-integration layer is now in place. Windows Task
+Scheduler and local service-identity adapters share an injectable privileged-
+operation boundary, while install and removal orchestration use exact fresh
+confirmations bound to current host state. Existing unmanaged accounts or
+tasks are never adopted or removed, partial installation rolls back resources
+created by that attempt, and removal preserves all data and credential paths.
+The next Windows package is the elevated PowerShell executor for account
+creation, ACL application, secret transfer through standard input, and task
+registration; no host mutation is performed by the orchestration layer alone.
+
 ## Non-destructive migration contract
 
 Continuity development must preserve existing MemTextual data by default.

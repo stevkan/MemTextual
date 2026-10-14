@@ -23,6 +23,23 @@ export {
   type HostServiceIdentityState,
 } from "./platform/host-platform.js";
 export {
+  WindowsServiceIdentityAdapter,
+  WindowsTaskSchedulerAdapter,
+  applyWindowsHostInstallation,
+  applyWindowsHostRemoval,
+  createWindowsHostIntegrationBundle,
+  previewWindowsHostInstallation,
+  previewWindowsHostRemoval,
+  windowsHostIntegrationPlanFormatVersion,
+  type WindowsHostInstallationPreview,
+  type WindowsHostInstallationResult,
+  type WindowsHostIntegrationConfiguration,
+  type WindowsHostOperations,
+  type WindowsManagedScheduleState,
+  type WindowsHostRemovalPreview,
+  type WindowsHostRemovalResult,
+} from "./platform/windows-host-integration.js";
+export {
   memoryStatuses,
   memoryTypes,
   type CreateMemoryInput,

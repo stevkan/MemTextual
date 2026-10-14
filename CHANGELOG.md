@@ -21,6 +21,12 @@ describe only the current design and behavior.
   materialization, final decrypt verification, append-only scheduled health,
   and CLI wiring for Azure Blob replication. Operating-system schedule and
   dedicated-account installation remain explicit later work.
+- Added Windows-specific Task Scheduler and local service-identity adapters
+  behind an injectable privileged-operation boundary. Installation and removal
+  now require fresh preview-bound confirmation, refuse unmanaged identities or
+  tasks, roll back newly created host resources after failure, and preserve all
+  data and credential paths during removal. The elevated PowerShell executor
+  remains a separate installer package.
 - Preserved the validated v0.8.0 baseline in a dedicated safety branch and tag.
 - Added the initial MemTextual Continuity design and multi-persona isolation
   direction.
