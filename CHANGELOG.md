@@ -116,6 +116,11 @@ describe only the current design and behavior.
 - Restore-drill state and reports are append-only and fail closed when a newer
   recovery point is corrupt or incomplete rather than silently using an older
   snapshot.
+- Added guided live-restore preview and apply commands with confirmation bound
+  to the selected recovery point and current logical database contents.
+- Live restore creates and verifies a pre-restore recovery point, stages and
+  verifies the replacement, preserves database sidecars, rolls back activation
+  failures, and records planned, completed, and cleanup evidence.
 
 ## 0.8.0 - 2026-10-12
 

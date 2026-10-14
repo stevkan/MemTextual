@@ -342,3 +342,12 @@ export {
   type RestoreDrillState,
   type RestoreDrillStatus,
 } from "./safeguards/restore-drill.js";
+export {
+  applyGuidedRestore,
+  guidedRestoreReportFormatVersion,
+  previewGuidedRestore,
+  type GuidedRestoreOptions,
+  type GuidedRestorePreview,
+  type GuidedRestoreReport,
+  type GuidedRestoreResult,
+} from "./safeguards/guided-restore.js";

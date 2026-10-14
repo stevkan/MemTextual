@@ -197,8 +197,12 @@ now run at an explicitly configured interval against the newest verified
 recovery point in a disposable directory without opening the live database.
 Their append-only status and reports expose the last verified restore and any
 failure requiring action; a newer protected recovery point fails closed rather
-than triggering fallback. Guided live restore and encrypted off-device copies
-remain subsequent Phase 6 packages.
+than triggering fallback. Guided live restore now adds an exact preview-bound
+confirmation, a newly verified pre-restore recovery point, busy-database check,
+verified staging and activation, automatic failure rollback, interruption
+records, and append-only completion and cleanup reports. All writers must be
+stopped before activation. Encrypted off-device copies remain a subsequent
+Phase 6 package.
 
 ## Non-destructive migration contract
 

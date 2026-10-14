@@ -19,6 +19,10 @@ import {
   getRestoreDrillStatus,
   runRestoreDrillIfDue,
 } from "../safeguards/restore-drill.js";
+import {
+  applyGuidedRestore,
+  previewGuidedRestore,
+} from "../safeguards/guided-restore.js";
 
 function usage(): string {
   return [
@@ -31,6 +35,8 @@ function usage(): string {
     "  memtextual-safeguard retention-apply --database PATH --output DIRECTORY --daily COUNT --weekly COUNT --monthly COUNT --time-zone ZONE --week-starts-on DAY --confirm TOKEN",
     "  memtextual-safeguard restore-drill --database PATH --output DIRECTORY --interval-hours HOURS",
     "  memtextual-safeguard restore-drill-status --database PATH --output DIRECTORY --interval-hours HOURS",
+    "  memtextual-safeguard restore-preview --database PATH --output DIRECTORY --snapshot DIRECTORY",
+    "  memtextual-safeguard restore-apply --database PATH --output DIRECTORY --snapshot DIRECTORY --confirm TOKEN",
   ].join("\n");
 }
 
@@ -186,6 +192,27 @@ async function main(arguments_: string[]): Promise<void> {
       intervalHours: numberOption(arguments_, "--interval-hours"),
     });
     console.log(JSON.stringify(status, null, 2));
+    return;
+  }
+
+  if (command === "restore-preview") {
+    const preview = previewGuidedRestore({
+      databasePath: resolve(optionValue(arguments_, "--database")),
+      outputDirectory: resolve(optionValue(arguments_, "--output")),
+      snapshotDirectory: optionValue(arguments_, "--snapshot"),
+    });
+    console.log(JSON.stringify(preview, null, 2));
+    return;
+  }
+
+  if (command === "restore-apply") {
+    const result = await applyGuidedRestore({
+      confirmation: optionValue(arguments_, "--confirm"),
+      databasePath: resolve(optionValue(arguments_, "--database")),
+      outputDirectory: resolve(optionValue(arguments_, "--output")),
+      snapshotDirectory: optionValue(arguments_, "--snapshot"),
+    });
+    console.log(JSON.stringify(result, null, 2));
     return;
   }
 

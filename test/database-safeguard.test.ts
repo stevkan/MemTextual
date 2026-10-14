@@ -4,6 +4,7 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  readdirSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
@@ -13,12 +14,14 @@ import test from "node:test";
 import {
   PersonaService,
   SqlitePersonaRepository,
+  applyGuidedRestore,
   applyBackupRetention,
   createDatabaseSnapshot,
   databaseSafeguardIdentity,
   getAutomaticBackupStatus,
   getRestoreDrillStatus,
   openMemTextualDatabase,
+  previewGuidedRestore,
   previewBackupRetention,
   runAutomaticBackupIfDue,
   runRestoreDrillIfDue,
@@ -638,6 +641,189 @@ test("restore drill records missing backups and rejects invalid state or interva
           intervalHours: 8_761,
         }),
       /no more than 8760/u,
+    );
+  } finally {
+    rmSync(fixture.directory, { force: true, recursive: true });
+  }
+});
+
+test("guided restore previews and applies an explicitly confirmed recovery point", async () => {
+  const fixture = setup();
+  try {
+    const outputDirectory = join(fixture.directory, "backups");
+    const selected = await createDatabaseSnapshot({
+      databasePath: fixture.databasePath,
+      outputDirectory,
+      now: new Date("2026-10-12T12:00:00.000Z"),
+    });
+    const selectedDirectory = basename(dirname(selected.backupPath));
+    const changed = openMemTextualDatabase({ filename: fixture.databasePath });
+    changed
+      .prepare(
+        "INSERT INTO scopes(id, scope_kind, name, external_key) VALUES (?, 'project', ?, ?)",
+      )
+      .run("after-snapshot", "Later state", "later-state");
+    changed.close();
+    const options = {
+      databasePath: fixture.databasePath,
+      outputDirectory,
+      snapshotDirectory: selectedDirectory,
+      now: new Date("2026-10-14T12:00:00.000Z"),
+    } as const;
+
+    const preview = previewGuidedRestore(options);
+    assert.equal(preview.selectedSnapshotDirectory, selectedDirectory);
+    assert.equal(preview.selectedCreatedAt, "2026-10-12T12:00:00.000Z");
+    assert.deepEqual(preview.newerVerifiedSnapshots, []);
+    assert.match(preview.confirmation, /^RESTORE source\.db FROM memtextual-/u);
+    await assert.rejects(
+      applyGuidedRestore({ ...options, confirmation: "wrong" }),
+      /confirmation does not match/u,
+    );
+
+    const result = await applyGuidedRestore({
+      ...options,
+      confirmation: preview.confirmation,
+    });
+    assert.equal(result.report.selectedSnapshotDirectory, selectedDirectory);
+    assert.equal(result.report.restoredDatabaseSha256, selected.manifest.backupSha256);
+    assert.equal(result.warnings.length, 0);
+    assert.equal(result.rollbackDirectory, null);
+    assert.equal(existsSync(result.report.reportPath), true);
+    assert.equal(existsSync(result.cleanupReceiptPath ?? ""), true);
+
+    const restored = openMemTextualDatabase({ filename: fixture.databasePath });
+    assert.equal(
+      restored.prepare("SELECT 1 FROM scopes WHERE id = ?").get("after-snapshot"),
+      undefined,
+    );
+    restored.close();
+
+    const preRestore = join(
+      outputDirectory,
+      result.preRestoreSnapshotDirectory,
+      "memtextual.db",
+    );
+    const preserved = openMemTextualDatabase({ filename: preRestore });
+    assert.ok(
+      preserved.prepare("SELECT 1 FROM scopes WHERE id = ?").get("after-snapshot") !==
+        undefined,
+    );
+    preserved.close();
+  } finally {
+    rmSync(fixture.directory, { force: true, recursive: true });
+  }
+});
+
+test("guided restore invalidates stale confirmation and rejects unsafe recovery points", async () => {
+  const fixture = setup();
+  try {
+    const outputDirectory = join(fixture.directory, "backups");
+    const selected = await createDatabaseSnapshot({
+      databasePath: fixture.databasePath,
+      outputDirectory,
+      now: new Date("2026-10-12T12:00:00.000Z"),
+    });
+    const selectedDirectory = basename(dirname(selected.backupPath));
+    const options = {
+      databasePath: fixture.databasePath,
+      outputDirectory,
+      snapshotDirectory: selectedDirectory,
+      now: new Date("2026-10-14T12:00:00.000Z"),
+    } as const;
+    const preview = previewGuidedRestore(options);
+    const lockPath = join(
+      outputDirectory,
+      `automatic-backup-${databaseSafeguardIdentity(fixture.databasePath).slice(0, 16)}.lock`,
+    );
+    writeFileSync(lockPath, "held", "utf8");
+    await assert.rejects(
+      applyGuidedRestore({ ...options, confirmation: preview.confirmation }),
+      /operation is in progress/u,
+    );
+    rmSync(lockPath);
+    const changed = openMemTextualDatabase({ filename: fixture.databasePath });
+    changed
+      .prepare(
+        "INSERT INTO scopes(id, scope_kind, name, external_key) VALUES (?, 'project', ?, ?)",
+      )
+      .run("after-preview", "Changed state", "changed-state");
+    changed.close();
+
+    await assert.rejects(
+      applyGuidedRestore({
+        ...options,
+        confirmation: preview.confirmation,
+      }),
+      /confirmation does not match the current preview/u,
+    );
+    const unchanged = openMemTextualDatabase({ filename: fixture.databasePath });
+    assert.ok(
+      unchanged.prepare("SELECT 1 FROM scopes WHERE id = ?").get("after-preview") !==
+        undefined,
+    );
+    unchanged.close();
+
+    writeFileSync(selected.backupPath, "corrupted", "utf8");
+    assert.throws(
+      () => previewGuidedRestore(options),
+      /protected and not verifiable/u,
+    );
+    assert.throws(
+      () =>
+        previewGuidedRestore({
+          ...options,
+          snapshotDirectory: "..\\outside",
+        }),
+      /must name one direct/u,
+    );
+  } finally {
+    rmSync(fixture.directory, { force: true, recursive: true });
+  }
+});
+
+test("guided restore leaves the live database unchanged and records a busy failure", async () => {
+  const fixture = setup();
+  try {
+    const outputDirectory = join(fixture.directory, "backups");
+    const selected = await createDatabaseSnapshot({
+      databasePath: fixture.databasePath,
+      outputDirectory,
+      now: new Date("2026-10-12T12:00:00.000Z"),
+    });
+    const options = {
+      databasePath: fixture.databasePath,
+      outputDirectory,
+      snapshotDirectory: basename(dirname(selected.backupPath)),
+      now: new Date("2026-10-14T12:00:00.000Z"),
+    } as const;
+    const preview = previewGuidedRestore(options);
+    const blocker = openMemTextualDatabase({ filename: fixture.databasePath });
+    blocker.exec("BEGIN IMMEDIATE");
+    try {
+      await assert.rejects(
+        applyGuidedRestore({ ...options, confirmation: preview.confirmation }),
+        /database is busy/u,
+      );
+    } finally {
+      blocker.exec("ROLLBACK");
+      blocker.close();
+    }
+
+    const database = openMemTextualDatabase({ filename: fixture.databasePath });
+    assert.ok(database.prepare("SELECT 1 FROM scopes WHERE id = ?").get("scope-1"));
+    database.close();
+    const reportDirectory = join(
+      outputDirectory,
+      `.restore-reports-${databaseSafeguardIdentity(fixture.databasePath).slice(0, 16)}`,
+    );
+    assert.equal(
+      readdirSync(reportDirectory).some((filename) => filename.endsWith(".failed.json")),
+      true,
+    );
+    assert.equal(
+      readdirSync(reportDirectory).some((filename) => filename.endsWith(".planned.json")),
+      false,
     );
   } finally {
     rmSync(fixture.directory, { force: true, recursive: true });

@@ -124,6 +124,8 @@ npm run safeguard -- status --database .\data\memtextual.db --output D:\MemTextu
 npm run safeguard -- retention-preview --database .\data\memtextual.db --output D:\MemTextualBackups --daily 7 --weekly 4 --monthly 12 --time-zone America/Los_Angeles --week-starts-on 0
 npm run safeguard -- restore-drill --database .\data\memtextual.db --output D:\MemTextualBackups --interval-hours 168
 npm run safeguard -- restore-drill-status --database .\data\memtextual.db --output D:\MemTextualBackups --interval-hours 168
+npm run safeguard -- restore-preview --database .\data\memtextual.db --output D:\MemTextualBackups --snapshot SNAPSHOT_DIRECTORY
+npm run safeguard -- restore-apply --database .\data\memtextual.db --output D:\MemTextualBackups --snapshot SNAPSHOT_DIRECTORY --confirm "EXACT TOKEN FROM PREVIEW"
 npm run privacy -- preview --id MEMORY_ID --database .\data\memtextual.db --migrations .\migrations
 npm run continuity -- --persona PERSONA_ID --database .\data\memtextual.db --migrations .\migrations
 ```
@@ -205,12 +207,15 @@ Periodic `restore-drill` runs copy the newest verified recovery point to a
 disposable directory and verify it without opening or replacing the live
 database. A newer protected recovery point causes a visible failure rather than
 an implicit fallback; drill health and reports are append-only.
+Guided restore requires an exact preview-bound confirmation, preserves and
+verifies the current database first, verifies the staged replacement before and
+after activation, and automatically rolls back a failed activation. Writers
+must be stopped before applying a restore.
 
 ## Deliberately deferred
 
 Concrete vendor extractor and host-event clients, vendor-specific legacy-export
 adapters, graphical source-series privacy workflows, standalone-source deletion,
-guided live restore, resumable imports, streamable
-HTTP, REST API,
+resumable imports, streamable HTTP, REST API,
 admin UI, concrete vendor embedding provider, host-specific installers, and the
 broader packaging strategy remain open.

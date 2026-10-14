@@ -81,11 +81,40 @@ manifest, then removes the temporary copy. A newer corrupt or incomplete
 recovery point, or one whose creation time cannot be established, fails the
 drill instead of silently falling back to an older copy. The append-only state
 journal reports `never_run`, `healthy`, `overdue`, or `failed`, including the
-last successful drill and any failure requiring
-action. Each attempted drill writes a report with verified and protected
-snapshot counts. Automatic backup creation, retention application, and restore
-drills share one database-specific lock.
+last successful drill and any failure requiring action. Each attempted drill
+writes a report with verified and protected snapshot counts. Automatic backup
+creation, retention application, and restore drills share one database-specific
+lock.
 
-This package does not yet replace a live database, encrypt off-device copies,
-or install a system schedule. Those remain separate Phase 6 controls because
-each needs explicit recovery, destination, or credential choices.
+## Guided live restore
+
+Stop every MemTextual process that can access the active database before a live
+restore. Preview the exact verified recovery point first, review its timestamp
+and any newer available recovery points, then pass the preview's complete
+confirmation string unchanged:
+
+```powershell
+npm run safeguard -- restore-preview --database .\data\memtextual.db --output D:\MemTextualBackups --snapshot memtextual-2026-10-12T12-00-00-000Z
+npm run safeguard -- restore-apply --database .\data\memtextual.db --output D:\MemTextualBackups --snapshot memtextual-2026-10-12T12-00-00-000Z --confirm "EXACT TOKEN FROM PREVIEW"
+```
+
+The confirmation is bound to the selected backup hash and the current logical
+contents of the live database. Any intervening database or backup change makes
+it stale. Application holds the shared safeguard lock, creates and verifies a
+new pre-restore recovery point, stages and verifies the selected database, and
+checks that the live database is not busy before activation. Existing database,
+WAL, shared-memory, and rollback-journal files are copied into a temporary
+rollback directory before the staged database replaces the live file. The
+activated database is verified again before a recovery report is written.
+
+If activation fails, MemTextual restores the original files automatically. A
+planned-operation record remains available if the process is interrupted and
+manual recovery is required. After a successful recorded restore, the temporary
+rollback files are removed and an append-only cleanup receipt is written. If
+cleanup or its receipt fails, the command reports a warning and any retained
+rollback directory for review; the independently verified pre-restore recovery
+point remains in the configured backup destination.
+
+This package does not encrypt off-device copies or install a system schedule.
+Those remain separate Phase 6 controls because each needs explicit destination
+or credential choices.
