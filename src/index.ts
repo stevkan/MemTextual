@@ -367,3 +367,14 @@ export {
   type ImportEncryptedReplicationResult,
   type VerifyEncryptedReplicationOptions,
 } from "./safeguards/encrypted-replication.js";
+export {
+  getOffsiteReplicationStatus,
+  offsiteReplicationStateFormatVersion,
+  runOffsiteReplicationIfDue,
+  type OffsiteReplicationHealth,
+  type OffsiteReplicationRunOptions,
+  type OffsiteReplicationRunResult,
+  type OffsiteReplicationState,
+  type OffsiteReplicationStatus,
+  type OffsiteReplicationStatusOptions,
+} from "./safeguards/offsite-replication.js";

@@ -121,7 +121,9 @@ MemTextual can copy one verified local recovery point into an authenticated,
 encrypted package at an explicitly selected destination. The destination may be
 a removable drive, network share, or user-configured synchronized directory;
 MemTextual does not infer whether it is physically separate and does not select
-or contact a cloud provider.
+or contact a cloud provider. The destination directory must already exist as a
+direct, non-link directory; MemTextual will not recreate a missing mount point
+and accidentally place an intended off-device copy on local storage.
 
 The key must be exactly 32 random bytes encoded as canonical base64 in a named
 environment variable. `--key-env` passes only that variable's name. The key
@@ -131,6 +133,8 @@ used to identify which externally retained key is required for recovery.
 
 ```powershell
 npm run safeguard -- offsite-export --database .\data\memtextual.db --source D:\MemTextualBackups --destination E:\MemTextualOffsite --snapshot memtextual-2026-10-12T12-00-00-000Z --key-env MEMTEXTUAL_OFFSITE_KEY --key-id recovery-key-2026
+npm run safeguard -- offsite-run-if-due --database .\data\memtextual.db --source D:\MemTextualBackups --destination E:\MemTextualOffsite --interval-hours 24 --key-env MEMTEXTUAL_OFFSITE_KEY --key-id recovery-key-2026
+npm run safeguard -- offsite-status --database .\data\memtextual.db --source D:\MemTextualBackups --destination E:\MemTextualOffsite --interval-hours 24
 npm run safeguard -- offsite-verify --package E:\MemTextualOffsite\OFFSITE_PACKAGE_DIRECTORY --key-env MEMTEXTUAL_OFFSITE_KEY
 npm run safeguard -- offsite-import --database .\data\memtextual.db --package E:\MemTextualOffsite\OFFSITE_PACKAGE_DIRECTORY --destination D:\MemTextualBackups --key-env MEMTEXTUAL_OFFSITE_KEY
 ```
@@ -152,6 +156,24 @@ The disposable plaintext is then removed and an append-only verification report
 is retained with the package. Wrong keys and modified ciphertext fail
 authentication.
 
+`offsite-run-if-due` is an opt-in hook for a trusted local scheduler. Its
+explicit interval must be greater than zero and no more than 8760 hours. When
+due, it selects the newest verified local recovery point and repeats the full
+encrypted-package verification before recording success. It does not create a
+new local snapshot, so automatic local backup should run independently at the
+user's chosen cadence. A newer corrupt, incomplete, or otherwise protected
+recovery point fails the run instead of silently replicating an older one.
+
+Replication state is append-only and stored in the local backup destination,
+separately for each database and off-device destination. This keeps an
+unavailable off-device destination from hiding the recorded failure. Status is
+`never_run`, `healthy`, `overdue`, `unavailable`, or `failed` and includes
+destination and last-package availability, the last attempt, success,
+verification, snapshot, package, key label, next due time, and failure requiring
+action. The state contains no encryption key or memory assertions. A local lock
+prevents overlapping scheduled runs; a lock left after process termination
+requires operator review before removal.
+
 `offsite-import` decrypts and verifies the complete package only in disposable
 storage before copying it into the local recovery-point catalog. The package
 must carry the exact path-derived identity and database filename of the active
@@ -164,4 +186,4 @@ change the live database. After import, use `restore-preview` and
 The recovery key must be backed up separately from both the active database and
 the encrypted packages. Losing it makes the packages unrecoverable. This
 package does not upload data or install a system schedule; concrete provider
-adapters and scheduling remain separate explicit choices.
+adapters remain a separate explicit choice.

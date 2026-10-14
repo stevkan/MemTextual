@@ -132,6 +132,14 @@ describe only the current design and behavior.
 - Import shares the safeguard lock, refuses identity mismatches and existing
   snapshot names, records planned, success, or failure evidence, and never
   opens or changes the live database.
+- Added an opt-in encrypted off-device `run-if-due` scheduler hook and status
+  command with an explicit interval and destination.
+- Scheduled replication selects the newest verified local recovery point,
+  fails closed for newer protected points, and records append-only local health
+  so destination failures remain visible without storing keys or assertions.
+- Replication now requires its direct destination directory to exist, avoiding
+  accidental local writes when an intended removable or mounted destination is
+  unavailable; status reports destination and last-package availability.
 
 ## 0.8.0 - 2026-10-12
 

@@ -84,6 +84,7 @@ export interface CreateEncryptedReplicationOptions {
   keyId: string;
   masterKey: Uint8Array;
   now?: Date;
+  requireNewestVerified?: boolean;
   snapshotDirectory: string;
   sourceBackupDirectory: string;
 }
@@ -830,7 +831,6 @@ export async function createEncryptedReplication(
   const identity = databaseSafeguardIdentity(databasePath);
   requireDirectFile(databasePath, "The active database");
   mkdirSync(sourceBackupDirectory, { recursive: true });
-  mkdirSync(destinationDirectory, { recursive: true });
   requireDirectDirectory(sourceBackupDirectory, "Local backup destination");
   requireDirectDirectory(destinationDirectory, "Replication destination");
   const key = masterKey(options.masterKey);
@@ -869,6 +869,33 @@ export async function createEncryptedReplication(
           ? "Selected recovery point does not exist in the local backup destination."
           : `Selected recovery point is protected and not verifiable: ${inspected.problems.join("; ")}`,
       );
+    }
+    if (options.requireNewestVerified === true) {
+      const unorderableProtected = catalog.snapshots.find(
+        (candidate) =>
+          candidate.decision === "protect" && candidate.createdAt === null,
+      );
+      if (unorderableProtected !== undefined) {
+        throw new Error(
+          `A recovery point has an unknown creation time and is protected: ${unorderableProtected.directory}.`,
+        );
+      }
+      const newerProtected = catalog.snapshots.find(
+        (candidate) =>
+          candidate.decision === "protect" &&
+          candidate.createdAt !== null &&
+          candidate.createdAt > selected.createdAt,
+      );
+      if (newerProtected !== undefined) {
+        throw new Error(
+          `A newer recovery point is protected and not verifiable: ${newerProtected.directory}.`,
+        );
+      }
+      if (catalog.verifiedSnapshots[0]?.directory !== selected.directory) {
+        throw new Error(
+          "Selected recovery point is no longer the newest verified recovery point.",
+        );
+      }
     }
     const safeguardManifest = JSON.parse(
       readFileSync(selected.manifestPath, "utf8"),

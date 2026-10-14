@@ -28,6 +28,10 @@ import {
   importEncryptedReplication,
   verifyEncryptedReplication,
 } from "../safeguards/encrypted-replication.js";
+import {
+  getOffsiteReplicationStatus,
+  runOffsiteReplicationIfDue,
+} from "../safeguards/offsite-replication.js";
 
 function usage(): string {
   return [
@@ -43,6 +47,8 @@ function usage(): string {
     "  memtextual-safeguard restore-preview --database PATH --output DIRECTORY --snapshot DIRECTORY",
     "  memtextual-safeguard restore-apply --database PATH --output DIRECTORY --snapshot DIRECTORY --confirm TOKEN",
     "  memtextual-safeguard offsite-export --database PATH --source DIRECTORY --destination DIRECTORY --snapshot DIRECTORY --key-env NAME --key-id ID",
+    "  memtextual-safeguard offsite-run-if-due --database PATH --source DIRECTORY --destination DIRECTORY --interval-hours HOURS --key-env NAME --key-id ID",
+    "  memtextual-safeguard offsite-status --database PATH --source DIRECTORY --destination DIRECTORY --interval-hours HOURS",
     "  memtextual-safeguard offsite-verify --package DIRECTORY --key-env NAME",
     "  memtextual-safeguard offsite-import --database PATH --package DIRECTORY --destination DIRECTORY --key-env NAME",
   ].join("\n");
@@ -265,6 +271,42 @@ async function main(arguments_: string[]): Promise<void> {
     } finally {
       key.fill(0);
     }
+    return;
+  }
+
+  if (command === "offsite-run-if-due") {
+    const key = encryptionKey(arguments_);
+    try {
+      const result = await runOffsiteReplicationIfDue({
+        databasePath: resolve(optionValue(arguments_, "--database")),
+        destinationDirectory: resolve(
+          optionValue(arguments_, "--destination"),
+        ),
+        intervalHours: numberOption(arguments_, "--interval-hours"),
+        keyId: optionValue(arguments_, "--key-id"),
+        masterKey: key,
+        sourceBackupDirectory: resolve(optionValue(arguments_, "--source")),
+      });
+      console.log(JSON.stringify(result.status, null, 2));
+      console.log(
+        result.outcome === "replicated"
+          ? "Off-device recovery point created and verified."
+          : "Off-device replication is not due.",
+      );
+    } finally {
+      key.fill(0);
+    }
+    return;
+  }
+
+  if (command === "offsite-status") {
+    const status = getOffsiteReplicationStatus({
+      databasePath: resolve(optionValue(arguments_, "--database")),
+      destinationDirectory: resolve(optionValue(arguments_, "--destination")),
+      intervalHours: numberOption(arguments_, "--interval-hours"),
+      sourceBackupDirectory: resolve(optionValue(arguments_, "--source")),
+    });
+    console.log(JSON.stringify(status, null, 2));
     return;
   }
 

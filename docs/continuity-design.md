@@ -210,8 +210,12 @@ completed package through disposable decryption. The 32-byte master key remains
 external and must be retained separately. An authenticated package can now be
 imported into the matching installation's local recovery catalog after complete
 disposable verification, without touching the live database or overwriting an
-existing recovery point. Concrete cloud destination adapters remain a
-subsequent explicit package.
+existing recovery point. An opt-in scheduler hook now replicates the newest
+verified local point at an explicit interval and maintains local append-only
+never-run, healthy, overdue, unavailable, and failed status. It fails closed
+when a newer protected point exists, requires an already-mounted destination,
+and does not install a system schedule. Concrete cloud destination adapters
+remain a subsequent explicit package.
 
 ## Non-destructive migration contract
 

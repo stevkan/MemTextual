@@ -21,12 +21,14 @@ import {
   createEncryptedReplication,
   databaseSafeguardIdentity,
   getAutomaticBackupStatus,
+  getOffsiteReplicationStatus,
   getRestoreDrillStatus,
   importEncryptedReplication,
   openMemTextualDatabase,
   previewGuidedRestore,
   previewBackupRetention,
   runAutomaticBackupIfDue,
+  runOffsiteReplicationIfDue,
   runRestoreDrillIfDue,
   verifyEncryptedReplication,
   verifyDatabaseAgainstManifest,
@@ -943,6 +945,14 @@ test("encrypted replication rejects unsafe destinations, keys, locks, and snapsh
       /must not overlap/u,
     );
     await assert.rejects(
+      createEncryptedReplication({
+        ...options,
+        destinationDirectory: join(destinationDirectory, "missing"),
+      }),
+      /Replication destination does not exist/u,
+    );
+    assert.equal(existsSync(join(destinationDirectory, "missing")), false);
+    await assert.rejects(
       createEncryptedReplication({ ...options, masterKey: randomBytes(31) }),
       /exactly 32 bytes/u,
     );
@@ -1141,6 +1151,208 @@ test("encrypted replication import rejects unsafe keys, destinations, identities
     key.fill(0);
     rmSync(fixture.directory, { force: true, recursive: true });
     rmSync(otherFixture.directory, { force: true, recursive: true });
+    rmSync(offsiteDirectory, { force: true, recursive: true });
+  }
+});
+
+test("scheduled off-device replication creates verified packages and reports append-only health", async () => {
+  const fixture = setup();
+  const offsiteDirectory = mkdtempSync(
+    join(tmpdir(), "memtextual-offsite-scheduled-"),
+  );
+  const key = randomBytes(32);
+  try {
+    const sourceBackupDirectory = join(fixture.directory, "backups");
+    const firstSnapshot = await createDatabaseSnapshot({
+      databasePath: fixture.databasePath,
+      outputDirectory: sourceBackupDirectory,
+      now: new Date("2026-10-12T12:00:00.000Z"),
+    });
+    const options = {
+      databasePath: fixture.databasePath,
+      destinationDirectory: offsiteDirectory,
+      intervalHours: 24,
+      keyId: "recovery-key-2026",
+      masterKey: key,
+      sourceBackupDirectory,
+    } as const;
+    const initial = getOffsiteReplicationStatus({
+      ...options,
+      now: new Date("2026-10-14T12:00:00.000Z"),
+    });
+    assert.equal(initial.health, "never_run");
+    assert.equal(initial.due, true);
+    assert.equal(initial.statePath, null);
+
+    const first = await runOffsiteReplicationIfDue({
+      ...options,
+      now: new Date("2026-10-14T12:00:00.000Z"),
+    });
+    assert.equal(first.outcome, "replicated");
+    assert.equal(first.status.health, "healthy");
+    assert.equal(first.status.due, false);
+    assert.equal(
+      first.status.lastSnapshotDirectory,
+      basename(dirname(firstSnapshot.backupPath)),
+    );
+    assert.equal(first.status.lastKeyId, "recovery-key-2026");
+    assert.match(first.status.destinationIdentity, /^[a-f0-9]{64}$/u);
+    assert.equal(existsSync(first.status.statePath ?? ""), true);
+    assert.equal(first.replication?.verification.passed, true);
+    assert.equal(
+      readFileSync(first.status.statePath ?? "", "utf8").includes(
+        key.toString("base64"),
+      ),
+      false,
+    );
+    await assert.rejects(
+      runOffsiteReplicationIfDue({
+        ...options,
+        masterKey: Buffer.alloc(31),
+        now: new Date("2026-10-14T13:00:00.000Z"),
+      }),
+      /exactly 32 bytes/u,
+    );
+
+    const early = await runOffsiteReplicationIfDue({
+      ...options,
+      now: new Date("2026-10-14T13:00:00.000Z"),
+    });
+    assert.equal(early.outcome, "not_due");
+    assert.equal(
+      readdirSync(offsiteDirectory).filter((entry) => entry.startsWith("offsite-"))
+        .length,
+      1,
+    );
+
+    const secondSnapshot = await createDatabaseSnapshot({
+      databasePath: fixture.databasePath,
+      outputDirectory: sourceBackupDirectory,
+      now: new Date("2026-10-15T12:00:00.000Z"),
+    });
+    const second = await runOffsiteReplicationIfDue({
+      ...options,
+      now: new Date("2026-10-15T13:00:00.000Z"),
+    });
+    assert.equal(second.outcome, "replicated");
+    assert.equal(second.status.sequence, 2);
+    assert.equal(
+      second.status.lastSnapshotDirectory,
+      basename(dirname(secondSnapshot.backupPath)),
+    );
+    assert.equal(
+      readdirSync(dirname(second.status.statePath ?? "")).filter((entry) =>
+        entry.endsWith(".json"),
+      ).length,
+      2,
+    );
+    assert.equal(
+      readdirSync(offsiteDirectory).filter((entry) => entry.startsWith("offsite-"))
+        .length,
+      2,
+    );
+    rmSync(second.status.lastPackageDirectory ?? "", {
+      force: true,
+      recursive: true,
+    });
+    const unavailable = getOffsiteReplicationStatus({
+      ...options,
+      now: new Date("2026-10-15T14:00:00.000Z"),
+    });
+    assert.equal(unavailable.destinationAvailable, true);
+    assert.equal(unavailable.lastPackageAvailable, false);
+    assert.equal(unavailable.health, "unavailable");
+    assert.equal(unavailable.due, true);
+  } finally {
+    key.fill(0);
+    rmSync(fixture.directory, { force: true, recursive: true });
+    rmSync(offsiteDirectory, { force: true, recursive: true });
+  }
+});
+
+test("scheduled off-device replication fails closed for unsafe state and newer corrupt recovery points", async () => {
+  const fixture = setup();
+  const offsiteDirectory = mkdtempSync(
+    join(tmpdir(), "memtextual-offsite-scheduled-failure-"),
+  );
+  const key = randomBytes(32);
+  try {
+    const sourceBackupDirectory = join(fixture.directory, "backups");
+    await createDatabaseSnapshot({
+      databasePath: fixture.databasePath,
+      outputDirectory: sourceBackupDirectory,
+      now: new Date("2026-10-12T12:00:00.000Z"),
+    });
+    const newer = await createDatabaseSnapshot({
+      databasePath: fixture.databasePath,
+      outputDirectory: sourceBackupDirectory,
+      now: new Date("2026-10-13T12:00:00.000Z"),
+    });
+    writeFileSync(newer.backupPath, "corrupted", "utf8");
+    const options = {
+      databasePath: fixture.databasePath,
+      destinationDirectory: offsiteDirectory,
+      intervalHours: 24,
+      keyId: "recovery-key-2026",
+      masterKey: key,
+      now: new Date("2026-10-14T12:00:00.000Z"),
+      sourceBackupDirectory,
+    } as const;
+
+    const neverMounted = getOffsiteReplicationStatus({
+      ...options,
+      destinationDirectory: join(offsiteDirectory, "missing"),
+    });
+    assert.equal(neverMounted.destinationAvailable, false);
+    assert.equal(neverMounted.health, "unavailable");
+    assert.equal(neverMounted.due, true);
+
+    await assert.rejects(
+      runOffsiteReplicationIfDue(options),
+      /newer recovery point is protected and not verifiable/u,
+    );
+    const failed = getOffsiteReplicationStatus(options);
+    assert.equal(failed.health, "failed");
+    assert.equal(failed.due, true);
+    assert.match(
+      failed.lastFailure?.message ?? "",
+      /newer recovery point is protected and not verifiable/u,
+    );
+    assert.equal(
+      readdirSync(offsiteDirectory).filter((entry) => entry.startsWith("offsite-"))
+        .length,
+      0,
+    );
+
+    await assert.rejects(
+      runOffsiteReplicationIfDue({
+        ...options,
+        destinationDirectory: sourceBackupDirectory,
+      }),
+      /must not overlap/u,
+    );
+    assert.throws(
+      () => getOffsiteReplicationStatus({ ...options, intervalHours: 8_761 }),
+      /no more than 8760/u,
+    );
+    writeFileSync(failed.statePath ?? "", "not-json", "utf8");
+    assert.throws(
+      () => getOffsiteReplicationStatus(options),
+      /state is not valid JSON/u,
+    );
+
+    const lockPath = join(
+      sourceBackupDirectory,
+      `offsite-replication-${databaseSafeguardIdentity(fixture.databasePath).slice(0, 16)}.lock`,
+    );
+    writeFileSync(lockPath, "held", "utf8");
+    await assert.rejects(
+      runOffsiteReplicationIfDue(options),
+      /already in progress/u,
+    );
+  } finally {
+    key.fill(0);
+    rmSync(fixture.directory, { force: true, recursive: true });
     rmSync(offsiteDirectory, { force: true, recursive: true });
   }
 });

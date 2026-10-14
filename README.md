@@ -127,6 +127,8 @@ npm run safeguard -- restore-drill-status --database .\data\memtextual.db --outp
 npm run safeguard -- restore-preview --database .\data\memtextual.db --output D:\MemTextualBackups --snapshot SNAPSHOT_DIRECTORY
 npm run safeguard -- restore-apply --database .\data\memtextual.db --output D:\MemTextualBackups --snapshot SNAPSHOT_DIRECTORY --confirm "EXACT TOKEN FROM PREVIEW"
 npm run safeguard -- offsite-export --database .\data\memtextual.db --source D:\MemTextualBackups --destination E:\MemTextualOffsite --snapshot SNAPSHOT_DIRECTORY --key-env MEMTEXTUAL_OFFSITE_KEY --key-id KEY_ID
+npm run safeguard -- offsite-run-if-due --database .\data\memtextual.db --source D:\MemTextualBackups --destination E:\MemTextualOffsite --interval-hours 24 --key-env MEMTEXTUAL_OFFSITE_KEY --key-id KEY_ID
+npm run safeguard -- offsite-status --database .\data\memtextual.db --source D:\MemTextualBackups --destination E:\MemTextualOffsite --interval-hours 24
 npm run safeguard -- offsite-verify --package E:\MemTextualOffsite\PACKAGE_DIRECTORY --key-env MEMTEXTUAL_OFFSITE_KEY
 npm run safeguard -- offsite-import --database .\data\memtextual.db --package E:\MemTextualOffsite\PACKAGE_DIRECTORY --destination D:\MemTextualBackups --key-env MEMTEXTUAL_OFFSITE_KEY
 npm run privacy -- preview --id MEMORY_ID --database .\data\memtextual.db --migrations .\migrations
@@ -222,6 +224,12 @@ choose or contact a cloud provider. A verified package can be imported back
 into the matching database's local recovery-point catalog without opening or
 changing the live database. Import refuses existing snapshot names and leaves
 live activation to the separate preview-and-confirm guided restore workflow.
+An opt-in `offsite-run-if-due` scheduler hook selects the newest verified local
+recovery point, fails closed rather than bypassing a newer protected point, and
+records append-only health locally so an unavailable destination remains
+visible. The off-device directory must already exist, preventing a missing
+mount point from being silently recreated on local storage. MemTextual does not
+install or enable a system schedule.
 
 ## Deliberately deferred
 
