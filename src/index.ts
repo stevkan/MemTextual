@@ -299,6 +299,7 @@ export {
 } from "./services/memory-service.js";
 export {
   createDatabaseSnapshot,
+  databaseSafeguardIdentity,
   verifyDatabaseAgainstManifest,
   type DatabaseSafeguardManifest,
   type SnapshotResult,
@@ -314,3 +315,14 @@ export {
   type AutomaticBackupState,
   type AutomaticBackupStatus,
 } from "./safeguards/automatic-backup.js";
+export {
+  applyBackupRetention,
+  backupRetentionReceiptFormatVersion,
+  previewBackupRetention,
+  type BackupRetentionDecision,
+  type BackupRetentionOptions,
+  type BackupRetentionPolicy,
+  type BackupRetentionPreview,
+  type BackupRetentionReceipt,
+  type BackupRetentionSnapshot,
+} from "./safeguards/backup-retention.js";

@@ -105,6 +105,12 @@ describe only the current design and behavior.
   and failed states without silently installing or enabling a system schedule.
 - Changed snapshot creation to refuse reuse of an existing timestamp directory
   rather than risk writing into an earlier recovery point.
+- Added preview-first daily, weekly, and monthly backup retention with explicit
+  timezone and week-boundary configuration, unconditional newest-snapshot
+  preservation, and exact current-preview confirmation.
+- Retention protects incomplete, corrupt, source-mismatched, or unverified
+  recovery points; application shares the backup lock, validates direct
+  non-link targets, and retains planned-operation and completion records.
 
 ## 0.8.0 - 2026-10-12
 

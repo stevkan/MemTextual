@@ -109,6 +109,8 @@ are not modified.
 
 ## Current boundary
 
-Memory and source-series deletion and purge are implemented. Standalone sources
-without an external series identity, backup-retention enforcement, bulk
+Memory and source-series deletion and purge are implemented. Verified local
+snapshot retention is available through the separate preview-and-confirm
+safeguard workflow; memory purge does not invoke it automatically. Standalone
+sources without an external series identity, off-device retention, bulk
 operations, and graphical source-series privacy controls remain separate work.

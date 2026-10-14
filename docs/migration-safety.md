@@ -14,7 +14,8 @@ containing:
 
 - `memtextual.db`: a consistent, directly restorable database backup.
 - `manifest.json`: integrity result, applied migrations, protected table schema,
-  row counts, and deterministic content hashes.
+  row counts, deterministic content hashes, and a one-way identity of the
+  source database path for safe retention matching.
 - `durable-data-export.json`: a portable export of durable records.
 
 The export contains memory content and should receive the same privacy protection

@@ -10,6 +10,11 @@ import {
   getAutomaticBackupStatus,
   runAutomaticBackupIfDue,
 } from "../safeguards/automatic-backup.js";
+import {
+  applyBackupRetention,
+  previewBackupRetention,
+  type BackupRetentionPolicy,
+} from "../safeguards/backup-retention.js";
 
 function usage(): string {
   return [
@@ -18,7 +23,27 @@ function usage(): string {
     "  memtextual-safeguard verify --database PATH --manifest PATH",
     "  memtextual-safeguard run-if-due --database PATH --output DIRECTORY --interval-hours HOURS",
     "  memtextual-safeguard status --database PATH --output DIRECTORY --interval-hours HOURS",
+    "  memtextual-safeguard retention-preview --database PATH --output DIRECTORY --daily COUNT --weekly COUNT --monthly COUNT --time-zone ZONE --week-starts-on DAY",
+    "  memtextual-safeguard retention-apply --database PATH --output DIRECTORY --daily COUNT --weekly COUNT --monthly COUNT --time-zone ZONE --week-starts-on DAY --confirm TOKEN",
   ].join("\n");
+}
+
+function integerOption(arguments_: string[], name: string): number {
+  const value = Number(optionValue(arguments_, name));
+  if (!Number.isSafeInteger(value)) {
+    throw new Error(`${name} must be an integer.\n\n${usage()}`);
+  }
+  return value;
+}
+
+function retentionPolicy(arguments_: string[]): BackupRetentionPolicy {
+  return {
+    dailyCount: integerOption(arguments_, "--daily"),
+    weeklyCount: integerOption(arguments_, "--weekly"),
+    monthlyCount: integerOption(arguments_, "--monthly"),
+    timeZone: optionValue(arguments_, "--time-zone"),
+    weekStartsOn: integerOption(arguments_, "--week-starts-on"),
+  };
 }
 
 function numberOption(arguments_: string[], name: string): number {
@@ -114,6 +139,27 @@ async function main(arguments_: string[]): Promise<void> {
       intervalHours: numberOption(arguments_, "--interval-hours"),
     });
     console.log(JSON.stringify(status, null, 2));
+    return;
+  }
+
+  if (command === "retention-preview") {
+    const preview = previewBackupRetention({
+      databasePath: resolve(optionValue(arguments_, "--database")),
+      outputDirectory: resolve(optionValue(arguments_, "--output")),
+      policy: retentionPolicy(arguments_),
+    });
+    console.log(JSON.stringify(preview, null, 2));
+    return;
+  }
+
+  if (command === "retention-apply") {
+    const receipt = applyBackupRetention({
+      confirmation: optionValue(arguments_, "--confirm"),
+      databasePath: resolve(optionValue(arguments_, "--database")),
+      outputDirectory: resolve(optionValue(arguments_, "--output")),
+      policy: retentionPolicy(arguments_),
+    });
+    console.log(JSON.stringify(receipt, null, 2));
     return;
   }
 

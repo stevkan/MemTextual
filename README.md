@@ -121,6 +121,7 @@ npm run migrate -- --file .\legacy-memories.json --scope PROJECT_SCOPE_ID --data
 npm run safeguard -- snapshot -- --database .\data\memtextual.db --output .\backups
 npm run safeguard -- run-if-due --database .\data\memtextual.db --output D:\MemTextualBackups --interval-hours 24
 npm run safeguard -- status --database .\data\memtextual.db --output D:\MemTextualBackups --interval-hours 24
+npm run safeguard -- retention-preview --database .\data\memtextual.db --output D:\MemTextualBackups --daily 7 --weekly 4 --monthly 12 --time-zone America/Los_Angeles --week-starts-on 0
 npm run privacy -- preview --id MEMORY_ID --database .\data\memtextual.db --migrations .\migrations
 npm run continuity -- --persona PERSONA_ID --database .\data\memtextual.db --migrations .\migrations
 ```
@@ -195,12 +196,15 @@ scheduler hook with an explicitly configured interval of no more than 24 hours.
 It verifies each new snapshot and maintains a fail-closed, append-only health
 journal. MemTextual does not silently install or enable an operating-system
 schedule; see `docs/automatic-backups.md`.
+The same safeguard CLI provides preview-first daily, weekly, and monthly
+retention. Applying a preview requires its exact current confirmation token;
+unverified, partial, or corrupted snapshots are protected rather than deleted.
 
 ## Deliberately deferred
 
 Concrete vendor extractor and host-event clients, vendor-specific legacy-export
 adapters, graphical source-series privacy workflows, standalone-source deletion,
-backup-retention enforcement, automated restore drills, guided live restore,
-resumable imports, streamable HTTP, REST API,
+automated restore drills, guided live restore, resumable imports, streamable
+HTTP, REST API,
 admin UI, concrete vendor embedding provider, host-specific installers, and the
 broader packaging strategy remain open.

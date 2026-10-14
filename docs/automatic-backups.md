@@ -38,7 +38,33 @@ invalid or corrupt newest record fails closed instead of being ignored. A lock
 prevents overlapping runs; a lock left by a terminated process must be reviewed
 and removed by an operator only after confirming no backup is running.
 
-This package does not yet delete old recovery points, perform disposable restore
-drills, replace a live database, encrypt off-device copies, or install a system
-schedule. Those remain separate Phase 6 controls because each needs explicit
-retention, recovery, destination, or credential choices.
+## Retention
+
+Retention is preview-first and requires explicit counts, an IANA timezone, and
+the first day of the week (`0` for Sunday through `6` for Saturday). No counts
+are inferred. At least one daily recovery point must be retained, and the newest
+verified recovery point is always kept independently of all buckets.
+
+```powershell
+npm run safeguard -- retention-preview --database .\data\memtextual.db --output D:\MemTextualBackups --daily 7 --weekly 4 --monthly 12 --time-zone America/Los_Angeles --week-starts-on 0
+npm run safeguard -- retention-apply --database .\data\memtextual.db --output D:\MemTextualBackups --daily 7 --weekly 4 --monthly 12 --time-zone America/Los_Angeles --week-starts-on 0 --confirm "EXACT TOKEN FROM PREVIEW"
+```
+
+The newest snapshot in each retained local-calendar bucket is kept. One
+snapshot may satisfy multiple daily, weekly, or monthly buckets. Before a
+snapshot can become a deletion candidate, its manifest and required artifacts
+must exist, its source database filename and path-derived identity must match,
+its database hash must match the manifest, and durable-table verification must
+pass. Partial, legacy-without-identity, unrecognized, mismatched, or corrupted
+snapshots are protected for manual review rather than deleted.
+
+Application recomputes the preview while holding the same database-specific
+lock used by automatic backup. Any changed snapshot set invalidates the prior
+confirmation. Targets must still be direct, non-link snapshot directories under
+the configured destination. A planned-operation record is written before
+deletion and a content-free receipt is retained after success.
+
+This package does not yet perform disposable restore drills, replace a live
+database, encrypt off-device copies, or install a system schedule. Those remain
+separate Phase 6 controls because each needs explicit recovery, destination, or
+credential choices.

@@ -181,8 +181,20 @@ durable export, then verifies the backup against its manifest before recording
 success. A locked, append-only journal exposes never-run, healthy, overdue, and
 failed status plus the last attempt, success, verification, next due time, and
 failure requiring action. MemTextual does not silently install a system
-schedule. Retention enforcement, restore drills, guided live restore, and
-encrypted off-device copies remain subsequent Phase 6 packages.
+schedule.
+
+Configurable retention is now also available as a separate preview-and-apply
+control. Users must explicitly choose daily, weekly, and monthly counts, an IANA
+timezone, and a week-start day; at least one daily point and the newest verified
+snapshot are always retained. Only complete snapshots with a matching
+path-derived source identity whose database hash and durable-table verification
+pass can become deletion
+candidates. Incomplete, corrupt, mismatched, and unrecognized snapshots fail
+closed to protected. Application holds the backup lock, recomputes the preview,
+requires its exact current confirmation, validates every direct non-link target,
+and writes a planned-operation record plus a completed receipt. Restore drills,
+guided live restore, and encrypted off-device copies remain subsequent Phase 6
+packages.
 
 ## Non-destructive migration contract
 

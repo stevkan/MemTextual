@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import {
   closeSync,
   mkdirSync,
@@ -11,6 +10,7 @@ import {
 import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import {
   createDatabaseSnapshot,
+  databaseSafeguardIdentity,
   verifyDatabaseAgainstManifest,
   type SnapshotResult,
 } from "./database-safeguard.js";
@@ -78,10 +78,7 @@ function validateIntervalHours(value: number): number {
 }
 
 function stateIdentity(databasePath: string): string {
-  return createHash("sha256")
-    .update(databasePath, "utf8")
-    .digest("hex")
-    .slice(0, 16);
+  return databaseSafeguardIdentity(databasePath).slice(0, 16);
 }
 
 function isWithin(parent: string, child: string): boolean {

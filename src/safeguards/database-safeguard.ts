@@ -41,6 +41,7 @@ export interface DatabaseSafeguardManifest {
   migrations: MigrationManifest[];
   protectedTables: Record<string, TableManifest>;
   sourceDatabase: string;
+  sourceDatabaseIdentity: string;
 }
 
 export interface SnapshotResult {
@@ -158,6 +159,12 @@ function timestampForFilename(date: Date): string {
   return date.toISOString().replaceAll(":", "-").replace(".", "-");
 }
 
+export function databaseSafeguardIdentity(databasePath: string): string {
+  return createHash("sha256")
+    .update(resolve(databasePath), "utf8")
+    .digest("hex");
+}
+
 export async function createDatabaseSnapshot(options: {
   databasePath: string;
   outputDirectory: string;
@@ -211,6 +218,7 @@ export async function createDatabaseSnapshot(options: {
       migrations: readMigrations(backup),
       protectedTables,
       sourceDatabase: basename(databasePath),
+      sourceDatabaseIdentity: databaseSafeguardIdentity(databasePath),
     };
     const manifestPath = join(snapshotDirectory, "manifest.json");
     const exportPath = join(snapshotDirectory, "durable-data-export.json");

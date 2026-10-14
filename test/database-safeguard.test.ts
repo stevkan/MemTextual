@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import {
+  existsSync,
+  mkdirSync,
   mkdtempSync,
   readFileSync,
   rmSync,
@@ -11,9 +13,11 @@ import test from "node:test";
 import {
   PersonaService,
   SqlitePersonaRepository,
+  applyBackupRetention,
   createDatabaseSnapshot,
   getAutomaticBackupStatus,
   openMemTextualDatabase,
+  previewBackupRetention,
   runAutomaticBackupIfDue,
   verifyDatabaseAgainstManifest,
 } from "../src/index.js";
@@ -47,6 +51,7 @@ test("snapshot creates an integrity-checked backup, manifest, and durable export
     });
 
     assert.equal(result.manifest.integrityCheck, "ok");
+    assert.match(result.manifest.sourceDatabaseIdentity, /^[a-f0-9]{64}$/u);
     assert.equal(result.manifest.protectedTables.scopes?.rowCount, 4);
     assert.equal(result.manifest.protectedTables.memory_items?.rowCount, 0);
     assert.equal(result.manifest.protectedTables.memory_embeddings, undefined);
@@ -242,6 +247,230 @@ test("snapshot creation refuses to reuse an existing timestamp directory", async
     };
     await createDatabaseSnapshot(options);
     await assert.rejects(createDatabaseSnapshot(options), /EEXIST/u);
+  } finally {
+    rmSync(fixture.directory, { force: true, recursive: true });
+  }
+});
+
+test("retention preview keeps explicit daily, weekly, and monthly recovery points", async () => {
+  const fixture = setup();
+  try {
+    const outputDirectory = join(fixture.directory, "backups");
+    for (const createdAt of [
+      "2026-08-15T12:00:00.000Z",
+      "2026-09-15T12:00:00.000Z",
+      "2026-10-05T12:00:00.000Z",
+      "2026-10-12T12:00:00.000Z",
+      "2026-10-13T12:00:00.000Z",
+    ]) {
+      await createDatabaseSnapshot({
+        databasePath: fixture.databasePath,
+        outputDirectory,
+        now: new Date(createdAt),
+      });
+    }
+    const incompleteDirectory = join(
+      outputDirectory,
+      "memtextual-2026-07-01T12-00-00-000Z",
+    );
+    mkdirSync(incompleteDirectory);
+
+    const preview = previewBackupRetention({
+      databasePath: fixture.databasePath,
+      outputDirectory,
+      policy: {
+        dailyCount: 2,
+        weeklyCount: 2,
+        monthlyCount: 2,
+        timeZone: "America/Los_Angeles",
+        weekStartsOn: 1,
+      },
+      now: new Date("2026-10-13T13:00:00.000Z"),
+    });
+
+    assert.equal(preview.keepCount, 4);
+    assert.equal(preview.deleteCount, 1);
+    assert.equal(preview.protectCount, 1);
+    assert.match(preview.confirmation, /^DELETE 1 BACKUPS [a-f0-9]{16}$/u);
+    assert.deepEqual(
+      preview.snapshots
+        .filter(({ decision }) => decision === "delete")
+        .map(({ createdAt }) => createdAt),
+      ["2026-08-15T12:00:00.000Z"],
+    );
+    const newest = preview.snapshots.find(
+      ({ createdAt }) => createdAt === "2026-10-13T12:00:00.000Z",
+    );
+    assert.deepEqual(newest?.retainedBy, ["newest", "daily", "weekly", "monthly"]);
+    const protectedSnapshot = preview.snapshots.find(
+      ({ decision }) => decision === "protect",
+    );
+    assert.match(protectedSnapshot?.problems[0] ?? "", /Manifest is missing/u);
+  } finally {
+    rmSync(fixture.directory, { force: true, recursive: true });
+  }
+});
+
+test("retention apply requires a fresh exact confirmation and writes a receipt", async () => {
+  const fixture = setup();
+  try {
+    const outputDirectory = join(fixture.directory, "backups");
+    for (const createdAt of [
+      "2026-10-10T12:00:00.000Z",
+      "2026-10-11T12:00:00.000Z",
+      "2026-10-12T12:00:00.000Z",
+    ]) {
+      await createDatabaseSnapshot({
+        databasePath: fixture.databasePath,
+        outputDirectory,
+        now: new Date(createdAt),
+      });
+    }
+    const options = {
+      databasePath: fixture.databasePath,
+      outputDirectory,
+      policy: {
+        dailyCount: 1,
+        weeklyCount: 0,
+        monthlyCount: 0,
+        timeZone: "UTC",
+        weekStartsOn: 1,
+      },
+      now: new Date("2026-10-14T00:00:00.000Z"),
+    } as const;
+    const preview = previewBackupRetention(options);
+    assert.equal(preview.deleteCount, 2);
+    assert.throws(
+      () => applyBackupRetention({ ...options, confirmation: "wrong" }),
+      /does not match the current preview/u,
+    );
+    for (const snapshot of preview.snapshots) {
+      assert.equal(existsSync(join(outputDirectory, snapshot.directory)), true);
+    }
+
+    await createDatabaseSnapshot({
+      databasePath: fixture.databasePath,
+      outputDirectory,
+      now: new Date("2026-10-13T12:00:00.000Z"),
+    });
+    assert.throws(
+      () =>
+        applyBackupRetention({
+          ...options,
+          confirmation: preview.confirmation,
+        }),
+      /does not match the current preview/u,
+    );
+
+    const fresh = previewBackupRetention(options);
+    const receipt = applyBackupRetention({
+      ...options,
+      confirmation: fresh.confirmation,
+    });
+    assert.equal(receipt.deletedDirectories.length, 3);
+    assert.equal(existsSync(receipt.receiptPath), true);
+    for (const directory of receipt.deletedDirectories) {
+      assert.equal(existsSync(join(outputDirectory, directory)), false);
+    }
+    const remaining = previewBackupRetention(options);
+    assert.equal(remaining.deleteCount, 0);
+    assert.equal(remaining.keepCount, 1);
+  } finally {
+    rmSync(fixture.directory, { force: true, recursive: true });
+  }
+});
+
+test("retention protects corrupted snapshots and rejects implicit policy choices", async () => {
+  const fixture = setup();
+  try {
+    const outputDirectory = join(fixture.directory, "backups");
+    const snapshot = await createDatabaseSnapshot({
+      databasePath: fixture.databasePath,
+      outputDirectory,
+      now: new Date("2026-10-13T12:00:00.000Z"),
+    });
+    writeFileSync(snapshot.backupPath, "corrupted", "utf8");
+    const legacy = await createDatabaseSnapshot({
+      databasePath: fixture.databasePath,
+      outputDirectory,
+      now: new Date("2026-10-12T12:00:00.000Z"),
+    });
+    const legacyManifest = JSON.parse(
+      readFileSync(legacy.manifestPath, "utf8"),
+    ) as Record<string, unknown>;
+    delete legacyManifest.sourceDatabaseIdentity;
+    writeFileSync(
+      legacy.manifestPath,
+      `${JSON.stringify(legacyManifest, null, 2)}\n`,
+      "utf8",
+    );
+    const preview = previewBackupRetention({
+      databasePath: fixture.databasePath,
+      outputDirectory,
+      policy: {
+        dailyCount: 1,
+        weeklyCount: 0,
+        monthlyCount: 0,
+        timeZone: "UTC",
+        weekStartsOn: 1,
+      },
+    });
+    assert.equal(preview.protectCount, 2);
+    assert.equal(preview.deleteCount, 0);
+    assert.ok(
+      preview.snapshots.some(({ problems }) => problems.join(" ").includes("hash")),
+    );
+    assert.ok(
+      preview.snapshots.some(({ problems }) =>
+        problems.join(" ").includes("identity"),
+      ),
+    );
+
+    assert.throws(
+      () =>
+        previewBackupRetention({
+          databasePath: fixture.databasePath,
+          outputDirectory,
+          policy: {
+            dailyCount: 0,
+            weeklyCount: 1,
+            monthlyCount: 1,
+            timeZone: "UTC",
+            weekStartsOn: 1,
+          },
+        }),
+      /dailyCount must be an integer between 1/u,
+    );
+    assert.throws(
+      () =>
+        previewBackupRetention({
+          databasePath: fixture.databasePath,
+          outputDirectory,
+          policy: {
+            dailyCount: 1,
+            weeklyCount: 1,
+            monthlyCount: 1,
+            timeZone: "UTC",
+            weekStartsOn: 7,
+          },
+        }),
+      /weekStartsOn must be an integer/u,
+    );
+    assert.throws(
+      () =>
+        previewBackupRetention({
+          databasePath: fixture.databasePath,
+          outputDirectory,
+          policy: {
+            dailyCount: 1,
+            weeklyCount: 1,
+            monthlyCount: 1,
+            timeZone: "not-a-zone",
+            weekStartsOn: 1,
+          },
+        }),
+      /Unsupported backup retention timeZone/u,
+    );
   } finally {
     rmSync(fixture.directory, { force: true, recursive: true });
   }
