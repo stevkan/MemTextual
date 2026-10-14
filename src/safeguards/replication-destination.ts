@@ -3,6 +3,7 @@ import {
   constants,
   copyFileSync,
   createReadStream,
+  existsSync,
   lstatSync,
   mkdirSync,
   readFileSync,
@@ -32,6 +33,21 @@ export interface ReplicationDestinationPublishResult {
   packageReference: string;
 }
 
+export interface ReplicationDestinationPackageRequest {
+  artifacts: ReplicationDestinationArtifact[];
+  packageName: string;
+}
+
+export interface ReplicationDestinationMaterializeRequest
+  extends ReplicationDestinationPackageRequest {
+  destinationDirectory: string;
+}
+
+export interface ReplicationDestinationMaterializeResult {
+  artifacts: ReplicationDestinationArtifact[];
+  packageDirectory: string;
+}
+
 export interface ReplicationDestinationAdapter {
   adapterId: string;
   adapterVersion: string;
@@ -40,6 +56,13 @@ export interface ReplicationDestinationAdapter {
     request: ReplicationDestinationPublishRequest,
   ): Promise<ReplicationDestinationPublishResult>;
   removePackage(input: { packageName: string }): Promise<void>;
+  destinationAvailable?(): Promise<boolean>;
+  packageExists?(
+    request: ReplicationDestinationPackageRequest,
+  ): Promise<boolean>;
+  materializePackage?(
+    request: ReplicationDestinationMaterializeRequest,
+  ): Promise<ReplicationDestinationMaterializeResult>;
 }
 
 export interface PublishReplicationPackageOptions {
@@ -132,6 +155,16 @@ function requireDirectDirectory(path: string, label: string): void {
   }
   if (!stats.isDirectory() || stats.isSymbolicLink()) {
     throw new Error(`${label} must be a direct directory.`);
+  }
+}
+
+function directDirectoryExists(path: string): boolean {
+  try {
+    if (!existsSync(path)) return false;
+    const stats = lstatSync(path);
+    return stats.isDirectory() && !stats.isSymbolicLink();
+  } catch {
+    return false;
   }
 }
 
@@ -472,6 +505,9 @@ export function createLocalDirectoryReplicationAdapter(
     adapterId: "local-directory",
     adapterVersion: "1",
     destinationIdentity,
+    async destinationAvailable() {
+      return directDirectoryExists(destination);
+    },
     async publishPackage(request) {
       requireDirectDirectory(destination, "Replication destination");
       const sourceDirectory = resolve(request.sourceDirectory);
@@ -522,6 +558,63 @@ export function createLocalDirectoryReplicationAdapter(
         throw new Error("Unsafe replication rollback target.");
       }
       rmSync(targetDirectory, { force: true, recursive: true });
+    },
+    async packageExists(request) {
+      const packageName = directName(request.packageName, "Package name");
+      const targetDirectory = join(destination, packageName);
+      try {
+        requireDirectDirectory(targetDirectory, "Published replication package");
+        const filenames = readdirSync(targetDirectory).sort();
+        const expected = request.artifacts
+          .map(({ filename }) => directName(filename, "Artifact filename"))
+          .sort();
+        return (
+          filenames.length === expected.length &&
+          filenames.every((filename, index) => filename === expected[index])
+        );
+      } catch {
+        return false;
+      }
+    },
+    async materializePackage(request) {
+      const packageName = directName(request.packageName, "Package name");
+      const publishedDirectory = join(destination, packageName);
+      requireDirectDirectory(publishedDirectory, "Published replication package");
+      const materializationRoot = resolve(request.destinationDirectory);
+      requireDirectDirectory(
+        materializationRoot,
+        "Replication materialization destination",
+      );
+      const targetDirectory = join(materializationRoot, packageName);
+      let targetCreated = false;
+      try {
+        mkdirSync(targetDirectory);
+        targetCreated = true;
+        const copied: ReplicationDestinationArtifact[] = [];
+        for (const artifact of request.artifacts) {
+          const filename = directName(artifact.filename, "Artifact filename");
+          const sourcePath = join(publishedDirectory, filename);
+          const targetPath = join(targetDirectory, filename);
+          requireDirectFile(sourcePath, `Published replication artifact ${filename}`);
+          copyFileSync(sourcePath, targetPath, constants.COPYFILE_EXCL);
+          const measured = await measureFile(targetPath);
+          if (
+            measured.bytes !== artifact.bytes ||
+            measured.sha256 !== artifact.sha256
+          ) {
+            throw new Error(
+              `Published replication artifact failed byte-for-byte verification: ${filename}.`,
+            );
+          }
+          copied.push({ filename, ...measured });
+        }
+        return { artifacts: copied, packageDirectory: targetDirectory };
+      } catch (error) {
+        if (targetCreated) {
+          rmSync(targetDirectory, { force: true, recursive: true });
+        }
+        throw error;
+      }
     },
   };
 }

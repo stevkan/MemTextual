@@ -23,6 +23,7 @@ interface StoredBlob {
 class FakeAzureBlobContainer {
   readonly blobs = new Map<string, StoredBlob>();
   readonly url: string;
+  available = true;
   tamperDownloads = false;
 
   constructor(url = "https://example.blob.core.windows.net/memtextual") {
@@ -41,6 +42,17 @@ class FakeAzureBlobContainer {
           ? Buffer.concat([stored.body, Buffer.from([0])])
           : stored.body;
         return { readableStreamBody: Readable.from(body) };
+      },
+      downloadToFile: async (path: string) => {
+        const stored = this.blobs.get(blobName);
+        if (stored === undefined) {
+          throw new Error("Blob does not exist.");
+        }
+        const body = this.tamperDownloads
+          ? Buffer.concat([stored.body, Buffer.from([0])])
+          : stored.body;
+        writeFileSync(path, body, { flag: "wx" });
+        return {};
       },
       exists: async () => this.blobs.has(blobName),
       uploadFile: async (
@@ -63,6 +75,10 @@ class FakeAzureBlobContainer {
         return {};
       },
     };
+  }
+
+  async exists(): Promise<boolean> {
+    return this.available;
   }
 
   asContainerClient(): ContainerClient {
@@ -115,6 +131,31 @@ describe("Azure Blob replication destination", () => {
       assert.deepEqual(stored?.body, database);
       assert.equal(stored?.metadata.memtextualpackageid, "00000000-0000-4000-8000-000000000001");
       assert.equal(stored?.metadata.memtextualsha256, artifact("database.enc", database).sha256);
+
+      assert.equal(
+        await adapter.packageExists?.({
+          artifacts: result.artifacts,
+          packageName: "offsite-2026-10-14",
+        }),
+        true,
+      );
+      const materializationRoot = mkdtempSync(
+        join(tmpdir(), "memtextual-azure-materialized-"),
+      );
+      try {
+        const materialized = await adapter.materializePackage?.({
+          artifacts: result.artifacts,
+          destinationDirectory: materializationRoot,
+          packageName: "offsite-2026-10-14",
+        });
+        assert.deepEqual(
+          readFileSync(join(materialized?.packageDirectory ?? "", "database.enc")),
+          database,
+        );
+        assert.deepEqual(materialized?.artifacts, result.artifacts);
+      } finally {
+        rmSync(materializationRoot, { force: true, recursive: true });
+      }
 
       await adapter.removePackage({ packageName: "offsite-2026-10-14" });
       assert.equal(container.blobs.size, 0);
@@ -245,7 +286,7 @@ describe("Azure Blob replication destination", () => {
     );
   });
 
-  it("keeps scheduled Azure use disabled until unattended credentials are available", () => {
+  it("requires an explicit unattended credential configuration for scheduled Azure use", () => {
     const directory = mkdtempSync(join(tmpdir(), "memtextual-azure-cli-"));
     const configurationPath = join(directory, "destination.json");
     writeFileSync(
@@ -281,7 +322,7 @@ describe("Azure Blob replication destination", () => {
       assert.equal(execution.status, 1);
       assert.match(
         execution.stderr,
-        /unattended credential acquisition and scheduled replication are not implemented yet/u,
+        /Missing required --credential-config option/u,
       );
     } finally {
       rmSync(directory, { force: true, recursive: true });

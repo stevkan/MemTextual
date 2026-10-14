@@ -248,13 +248,14 @@ install or enable a system schedule.
 The provider-neutral destination contract accepts only encrypted package
 artifacts, validates source and adapter-reported byte hashes, rolls back
 malformed publications, and writes an append-only local receipt. Its included
-local-directory adapter is the reference implementation. An initial Azure Blob
-adapter accepts an explicitly authorized container client, uses create-only
-uploads, and downloads and rehashes every published artifact; unattended Azure
-credentials and scheduler wiring are not yet implemented. Scheduled
-local-directory replication now uses this
-contract: encryption occurs in disposable staging, publication is receipted,
-the final destination copy is decrypt-verified again, and staging is removed.
+local-directory adapter is the reference implementation. The Azure Blob
+adapter uses create-only uploads and a certificate-based unattended service
+principal, downloads and rehashes every published artifact, and materializes
+the remote package for final disposable decryption and verification. Both
+scheduled paths use the same provider-neutral contract: encryption occurs in
+disposable staging, publication is receipted, the final destination copy is
+decrypt-verified again, and staging is removed. Certificate validity and
+expiration health are available through the safeguard CLI.
 Scheduled replication now supports explicit `--adapter local-directory`
 selection or a strict, versioned, secret-free `--destination-config` JSON file.
 Unknown adapters and properties fail closed. The older `--destination`-only
@@ -267,5 +268,5 @@ Concrete vendor extractor and host-event clients, vendor-specific legacy-export
 adapters, graphical source-series privacy workflows, standalone-source deletion,
 additional cloud destination adapters, resumable imports, streamable HTTP,
 REST API, admin UI, concrete vendor embedding provider, concrete host
-scheduler, credential, service-identity and installer implementations, Azure
-scheduled replication wiring, and the broader packaging strategy remain open.
+scheduler, service-identity and installer implementations, additional secure
+credential-store providers, and the broader packaging strategy remain open.

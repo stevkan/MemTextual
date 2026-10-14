@@ -251,12 +251,15 @@ state recording fails. Scheduler configuration now explicitly selects the
 adapter through command options or a strict versioned file that rejects unknown
 providers and secret credential fields. Version-1 local-directory health state
 remains readable while new state records the selected adapter ID and version.
-The initial Azure Blob destination adapter now accepts an explicitly authorized
-container client, uses create-only uploads, downloads and rehashes every remote
-artifact, and rolls back only blobs it created. Its configuration retains a
-non-secret credential reference but rejects credential material. Unattended
-credential acquisition, remote package materialization, and scheduler
-integration remain the next explicit work package.
+The Azure Blob destination adapter uses create-only uploads, downloads and
+rehashes every remote artifact, and rolls back only blobs it created. Its
+configuration retains a non-secret credential reference but rejects credential
+material. A certificate provider now resolves that reference for unattended
+use, reports certificate validity and expiration, and refuses unusable
+credentials. Scheduled Azure publication is materialized into disposable
+storage and fully decrypt-verified before success is recorded. Concrete
+operating-system schedule installation, dedicated service-account creation,
+certificate ACL provisioning, and installer UX remain separate host work.
 
 ## Non-destructive migration contract
 

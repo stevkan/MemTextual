@@ -135,6 +135,9 @@ used to identify which externally retained key is required for recovery.
 npm run safeguard -- offsite-export --database .\data\memtextual.db --source D:\MemTextualBackups --destination E:\MemTextualOffsite --snapshot memtextual-2026-10-12T12-00-00-000Z --key-env MEMTEXTUAL_OFFSITE_KEY --key-id recovery-key-2026
 npm run safeguard -- offsite-run-if-due --database .\data\memtextual.db --source D:\MemTextualBackups --adapter local-directory --destination E:\MemTextualOffsite --interval-hours 24 --key-env MEMTEXTUAL_OFFSITE_KEY --key-id recovery-key-2026
 npm run safeguard -- offsite-status --database .\data\memtextual.db --source D:\MemTextualBackups --adapter local-directory --destination E:\MemTextualOffsite --interval-hours 24
+npm run safeguard -- azure-credential-status --credential-config C:\ProgramData\MemTextual\azure-credential.json
+npm run safeguard -- offsite-run-if-due --database .\data\memtextual.db --source D:\MemTextualBackups --destination-config C:\ProgramData\MemTextual\azure-destination.json --credential-config C:\ProgramData\MemTextual\azure-credential.json --interval-hours 24 --key-env MEMTEXTUAL_OFFSITE_KEY --key-id recovery-key-2026
+npm run safeguard -- offsite-status --database .\data\memtextual.db --source D:\MemTextualBackups --destination-config C:\ProgramData\MemTextual\azure-destination.json --credential-config C:\ProgramData\MemTextual\azure-credential.json --interval-hours 24
 npm run safeguard -- offsite-verify --package E:\MemTextualOffsite\OFFSITE_PACKAGE_DIRECTORY --key-env MEMTEXTUAL_OFFSITE_KEY
 npm run safeguard -- offsite-import --database .\data\memtextual.db --package E:\MemTextualOffsite\OFFSITE_PACKAGE_DIRECTORY --destination D:\MemTextualBackups --key-env MEMTEXTUAL_OFFSITE_KEY
 ```
@@ -172,13 +175,13 @@ user's chosen cadence. A newer corrupt, incomplete, or otherwise protected
 recovery point fails the run instead of silently replicating an older one.
 
 Scheduled replication builds the encrypted package in disposable staging and
-publishes it through the provider-neutral destination contract. The
-local-directory adapter rehashes every copied artifact and writes an append-only
-publication receipt under the local backup destination. MemTextual then
-decrypts and verifies the final destination package again before recording
-success. A publication, final verification, or local state failure rolls back
-the newly published package; disposable staging is removed on both success and
-failure.
+publishes it through the provider-neutral destination contract. Both the local
+directory and Azure Blob paths write an append-only publication receipt under
+the local backup destination. MemTextual materializes the published package in
+separate disposable storage, rehashes it, and decrypts and verifies the final
+copy before recording success. A publication, materialization, final
+verification, or local state failure rolls back the newly published package;
+disposable staging is removed on both success and failure.
 
 Replication state is append-only and stored in the local backup destination,
 separately for each database and off-device destination. This keeps an
@@ -200,6 +203,6 @@ change the live database. After import, use `restore-preview` and
 `restore-apply` for the separately confirmed live activation workflow.
 
 The recovery key must be backed up separately from both the active database and
-the encrypted packages. Losing it makes the packages unrecoverable. This
-package does not upload data or install a system schedule; concrete provider
-adapters remain a separate explicit choice.
+the encrypted packages. Losing it makes the packages unrecoverable. Azure
+upload occurs only when the user explicitly configures the Azure adapter and
+invokes the command. This package does not install a system schedule.

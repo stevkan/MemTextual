@@ -33,8 +33,16 @@ import {
   runOffsiteReplicationIfDue,
 } from "../safeguards/offsite-replication.js";
 import {
+  getScheduledReplicationStatus,
+  runScheduledReplicationIfDue,
+} from "../safeguards/scheduled-replication.js";
+import { createAuthorizedAzureBlobReplicationAdapter } from "../safeguards/azure-blob-authorized-adapter.js";
+import {
+  AzureCertificateCredentialProvider,
+  loadAzureCertificateCredentialConfiguration,
+} from "../credentials/azure-certificate-credential.js";
+import {
   loadReplicationDestinationConfiguration,
-  type LocalDirectoryReplicationDestinationConfiguration,
   type ReplicationDestinationConfiguration,
 } from "../safeguards/replication-destination-config.js";
 
@@ -52,8 +60,9 @@ function usage(): string {
     "  memtextual-safeguard restore-preview --database PATH --output DIRECTORY --snapshot DIRECTORY",
     "  memtextual-safeguard restore-apply --database PATH --output DIRECTORY --snapshot DIRECTORY --confirm TOKEN",
     "  memtextual-safeguard offsite-export --database PATH --source DIRECTORY --destination DIRECTORY --snapshot DIRECTORY --key-env NAME --key-id ID",
-    "  memtextual-safeguard offsite-run-if-due --database PATH --source DIRECTORY (--adapter local-directory --destination DIRECTORY | --destination-config PATH) --interval-hours HOURS --key-env NAME --key-id ID",
-    "  memtextual-safeguard offsite-status --database PATH --source DIRECTORY (--adapter local-directory --destination DIRECTORY | --destination-config PATH) --interval-hours HOURS",
+    "  memtextual-safeguard offsite-run-if-due --database PATH --source DIRECTORY (--adapter local-directory --destination DIRECTORY | --destination-config PATH [--credential-config PATH]) --interval-hours HOURS --key-env NAME --key-id ID",
+    "  memtextual-safeguard offsite-status --database PATH --source DIRECTORY (--adapter local-directory --destination DIRECTORY | --destination-config PATH [--credential-config PATH]) --interval-hours HOURS",
+    "  memtextual-safeguard azure-credential-status --credential-config PATH",
     "  memtextual-safeguard offsite-verify --package DIRECTORY --key-env NAME",
     "  memtextual-safeguard offsite-import --database PATH --package DIRECTORY --destination DIRECTORY --key-env NAME",
   ].join("\n");
@@ -136,16 +145,14 @@ function replicationDestination(
   };
 }
 
-function scheduledReplicationDestination(
+function azureCredentialProvider(
   arguments_: string[],
-): LocalDirectoryReplicationDestinationConfiguration {
-  const destination = replicationDestination(arguments_);
-  if (destination.adapterId !== "local-directory") {
-    throw new Error(
-      "Azure Blob configuration is valid, but unattended credential acquisition and scheduled replication are not implemented yet.",
-    );
-  }
-  return destination;
+): AzureCertificateCredentialProvider {
+  return new AzureCertificateCredentialProvider({
+    configuration: loadAzureCertificateCredentialConfiguration(
+      resolve(optionValue(arguments_, "--credential-config")),
+    ),
+  });
 }
 
 function encryptionKey(arguments_: string[]): Buffer {
@@ -334,18 +341,39 @@ async function main(arguments_: string[]): Promise<void> {
   }
 
   if (command === "offsite-run-if-due") {
-    const destination = scheduledReplicationDestination(arguments_);
+    const destination = replicationDestination(arguments_);
     const key = encryptionKey(arguments_);
     try {
-      const result = await runOffsiteReplicationIfDue({
-        adapterId: destination.adapterId,
+      const common = {
         databasePath: resolve(optionValue(arguments_, "--database")),
-        destinationDirectory: destination.destinationDirectory,
         intervalHours: numberOption(arguments_, "--interval-hours"),
         keyId: optionValue(arguments_, "--key-id"),
         masterKey: key,
         sourceBackupDirectory: resolve(optionValue(arguments_, "--source")),
-      });
+      };
+      const result = destination.adapterId === "local-directory"
+        ? await runOffsiteReplicationIfDue({
+            ...common,
+            adapterId: destination.adapterId,
+            destinationDirectory: destination.destinationDirectory,
+          })
+        : await (async () => {
+            const authorized = await createAuthorizedAzureBlobReplicationAdapter(
+              destination,
+              azureCredentialProvider(arguments_),
+            );
+            const scheduled = await runScheduledReplicationIfDue({
+              ...common,
+              adapter: authorized.adapter,
+            });
+            return {
+              ...scheduled,
+              status: {
+                ...scheduled.status,
+                credential: authorized.credentialStatus,
+              },
+            };
+          })();
       console.log(JSON.stringify(result.status, null, 2));
       console.log(
         result.outcome === "replicated"
@@ -359,15 +387,52 @@ async function main(arguments_: string[]): Promise<void> {
   }
 
   if (command === "offsite-status") {
-    const destination = scheduledReplicationDestination(arguments_);
-    const status = getOffsiteReplicationStatus({
-      adapterId: destination.adapterId,
+    const destination = replicationDestination(arguments_);
+    const common = {
       databasePath: resolve(optionValue(arguments_, "--database")),
-      destinationDirectory: destination.destinationDirectory,
       intervalHours: numberOption(arguments_, "--interval-hours"),
       sourceBackupDirectory: resolve(optionValue(arguments_, "--source")),
-    });
+    };
+    const status = destination.adapterId === "local-directory"
+      ? getOffsiteReplicationStatus({
+          ...common,
+          adapterId: destination.adapterId,
+          destinationDirectory: destination.destinationDirectory,
+        })
+      : await (async () => {
+          const provider = azureCredentialProvider(arguments_);
+          const credential = provider.inspect({
+            credentialId: destination.credentialId,
+            kind: "certificate",
+          });
+          if (credential.health === "expired" || credential.health === "not_yet_valid") {
+            return { credential, replication: null };
+          }
+          const authorized = await createAuthorizedAzureBlobReplicationAdapter(
+            destination,
+            provider,
+          );
+          return {
+            ...(await getScheduledReplicationStatus({
+              ...common,
+              adapter: authorized.adapter,
+            })),
+            credential,
+          };
+        })();
     console.log(JSON.stringify(status, null, 2));
+    return;
+  }
+
+  if (command === "azure-credential-status") {
+    const provider = azureCredentialProvider(arguments_);
+    const configuration = loadAzureCertificateCredentialConfiguration(
+      resolve(optionValue(arguments_, "--credential-config")),
+    );
+    console.log(JSON.stringify(provider.inspect({
+      credentialId: configuration.credentialId,
+      kind: "certificate",
+    }), null, 2));
     return;
   }
 

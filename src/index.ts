@@ -404,6 +404,9 @@ export {
   type PublishReplicationPackageOptions,
   type ReplicationDestinationAdapter,
   type ReplicationDestinationArtifact,
+  type ReplicationDestinationMaterializeRequest,
+  type ReplicationDestinationMaterializeResult,
+  type ReplicationDestinationPackageRequest,
   type ReplicationDestinationPublishRequest,
   type ReplicationDestinationPublishResult,
   type ReplicationDestinationReceipt,
@@ -412,6 +415,31 @@ export {
   createAzureBlobReplicationAdapter,
   type AzureBlobReplicationDestinationOptions,
 } from "./safeguards/azure-blob-replication-destination.js";
+export {
+  createAuthorizedAzureBlobReplicationAdapter,
+  type AuthorizedAzureBlobReplicationAdapter,
+} from "./safeguards/azure-blob-authorized-adapter.js";
+export {
+  getScheduledReplicationStatus,
+  runScheduledReplicationIfDue,
+  scheduledReplicationStateFormatVersion,
+  type ScheduledReplicationHealth,
+  type ScheduledReplicationRunOptions,
+  type ScheduledReplicationRunResult,
+  type ScheduledReplicationState,
+  type ScheduledReplicationStatus,
+  type ScheduledReplicationStatusOptions,
+} from "./safeguards/scheduled-replication.js";
+export {
+  AzureCertificateCredentialProvider,
+  azureCertificateCredentialConfigFormatVersion,
+  loadAzureCertificateCredentialConfiguration,
+  parseAzureCertificateCredentialConfiguration,
+  type AzureCertificateCredentialConfiguration,
+  type AzureCertificateCredentialHealth,
+  type AzureCertificateCredentialProviderOptions,
+  type AzureCertificateCredentialStatus,
+} from "./credentials/azure-certificate-credential.js";
 export {
   createConfiguredReplicationDestinationAdapter,
   loadReplicationDestinationConfiguration,

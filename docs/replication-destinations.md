@@ -47,9 +47,26 @@ configuration shape:
 SAS tokens, client secrets, and encryption keys are not accepted configuration
 properties. Creating the adapter requires an already-authorized Azure
 `ContainerClient` whose account and container exactly match the configuration.
-The scheduled CLI recognizes this configuration but refuses to run it until
-the separate unattended credential-acquisition and remote-verification workflow
-is implemented.
+The scheduled CLI uses this configuration with a separate strict certificate
+credential configuration passed as `--credential-config PATH`:
+
+```json
+{
+  "formatVersion": 1,
+  "credentialId": "continuity-service-certificate",
+  "tenantId": "00000000-0000-4000-8000-000000000000",
+  "clientId": "00000000-0000-4000-8000-000000000000",
+  "certificatePath": "C:\\ProgramData\\MemTextual\\credentials\\azure.pem"
+}
+```
+
+The PEM must be a direct regular file containing the certificate and its
+unencrypted private key. The credential ID must exactly match the destination
+configuration. The CLI reports the certificate validity window, SHA-256
+fingerprint, and `valid`, `expiring`, `expired`, or `not_yet_valid` health. It
+refuses expired and not-yet-valid credentials. The private key is never copied
+into MemTextual configuration, state, receipts, or output. The installation
+workflow must restrict file access to the dedicated service identity.
 
 ## Security boundary
 
@@ -124,6 +141,12 @@ container deletion.
 
 Receipts use a hashed destination identity and an opaque `azure-blob://`
 package reference. The Azure account URL, credential reference, and any
-authentication material are omitted. The next work package will provide the
-unattended host credential and download/materialization boundary needed to wire
-this adapter into scheduled replication and final decrypt verification.
+authentication material are omitted. Scheduled Azure replication downloads
+the newly published package into disposable storage, rehashes every artifact,
+decrypts and verifies the complete recovery point, removes the disposable
+copy, and records append-only local health. A failure after publication rolls
+back only the package created by that run.
+
+The CLI provides the scheduler-safe `offsite-run-if-due` hook; it does not
+install or enable an operating-system schedule. Dedicated-account creation,
+certificate ACL setup, and schedule installation remain installer work.

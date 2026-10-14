@@ -16,10 +16,11 @@ describe only the current design and behavior.
 - Added an initial Azure Blob encrypted-package destination adapter using the
   pinned official Azure SDK, create-only blob writes, complete remote download
   and SHA-256 verification, and package-scoped rollback.
-- Added strict secret-free Azure destination configuration bound to an
-  explicitly authorized matching container client. Scheduled Azure replication
-  remains disabled until unattended credentials and remote materialization are
-  implemented.
+- Added strict secret-free Azure destination configuration, an unattended
+  certificate credential provider with expiration health, remote package
+  materialization, final decrypt verification, append-only scheduled health,
+  and CLI wiring for Azure Blob replication. Operating-system schedule and
+  dedicated-account installation remain explicit later work.
 - Preserved the validated v0.8.0 baseline in a dedicated safety branch and tag.
 - Added the initial MemTextual Continuity design and multi-persona isolation
   direction.

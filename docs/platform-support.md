@@ -25,7 +25,7 @@ that operating system.
 | Developer source workflows | Initial target | Compatibility tracked | Compatibility tracked |
 | Continuity desktop packaging | Initial supported target | Deferred | Deferred |
 | Unattended scheduler integration | Deferred Windows adapter | Deferred adapter | Deferred adapter |
-| Secure credential integration | Deferred Windows adapter | Deferred adapter | Deferred adapter |
+| Certificate credential provider | Core provider available; installer ACL setup deferred | Core provider available; packaging deferred | Core provider available; packaging deferred |
 | Dedicated service identity | Planned where appropriate | Platform-specific decision deferred | Platform-specific decision deferred |
 
 The first Linux distribution targets will be selected before packaging work;

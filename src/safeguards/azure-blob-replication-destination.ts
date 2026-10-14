@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { lstatSync } from "node:fs";
+import { createReadStream, lstatSync, mkdirSync, rmSync } from "node:fs";
 import { basename, isAbsolute, join, relative, resolve } from "node:path";
 import type { ContainerClient } from "@azure/storage-blob";
 import type {
@@ -148,6 +148,13 @@ export function createAzureBlobReplicationAdapter(
     adapterId: "azure-blob",
     adapterVersion: "1",
     destinationIdentity,
+    async destinationAvailable() {
+      try {
+        return await options.containerClient.exists();
+      } catch {
+        return false;
+      }
+    },
     async publishPackage(request) {
       const packageName = directName(request.packageName, "Package name");
       if (!/^offsite-[A-Za-z0-9._-]+$/u.test(packageName)) {
@@ -240,6 +247,76 @@ export function createAzureBlobReplicationAdapter(
       }
       await removeBlobNames(blobNames);
       publishedArtifacts.delete(directPackageName);
+    },
+    async packageExists(request) {
+      const packageName = directName(request.packageName, "Package name");
+      for (const artifact of request.artifacts) {
+        const filename = directName(artifact.filename, "Artifact filename");
+        if (!permittedArtifactName.test(filename)) {
+          return false;
+        }
+        const exists = await options.containerClient
+          .getBlockBlobClient(`${prefix}${packageName}/${filename}`)
+          .exists();
+        if (!exists) {
+          return false;
+        }
+      }
+      return request.artifacts.length > 0;
+    },
+    async materializePackage(request) {
+      const packageName = directName(request.packageName, "Package name");
+      const materializationRoot = resolve(request.destinationDirectory);
+      let rootStats;
+      try {
+        rootStats = lstatSync(materializationRoot);
+      } catch {
+        throw new Error("Azure Blob materialization destination does not exist.");
+      }
+      if (!rootStats.isDirectory() || rootStats.isSymbolicLink()) {
+        throw new Error(
+          "Azure Blob materialization destination must be a direct directory.",
+        );
+      }
+      const packageDirectory = join(materializationRoot, packageName);
+      let packageCreated = false;
+      try {
+        mkdirSync(packageDirectory);
+        packageCreated = true;
+        const downloaded: ReplicationDestinationArtifact[] = [];
+        for (const artifact of request.artifacts) {
+          const filename = directName(artifact.filename, "Artifact filename");
+          if (!permittedArtifactName.test(filename)) {
+            throw new Error(
+              `Azure Blob replication artifact is invalid: ${filename}.`,
+            );
+          }
+          const path = join(packageDirectory, filename);
+          await options.containerClient
+            .getBlockBlobClient(`${prefix}${packageName}/${filename}`)
+            .downloadToFile(path);
+          const hash = createHash("sha256");
+          let bytes = 0;
+          for await (const chunk of createReadStream(path)) {
+            const buffer = chunk as Buffer;
+            bytes += buffer.byteLength;
+            hash.update(buffer);
+          }
+          const measured = { bytes, sha256: hash.digest("hex") };
+          if (!sameArtifact(artifact, measured)) {
+            throw new Error(
+              `Azure Blob materialized artifact failed byte-for-byte verification: ${filename}.`,
+            );
+          }
+          downloaded.push({ filename, ...measured });
+        }
+        return { artifacts: downloaded, packageDirectory };
+      } catch (error) {
+        if (packageCreated) {
+          rmSync(packageDirectory, { force: true, recursive: true });
+        }
+        throw error;
+      }
     },
   };
 }

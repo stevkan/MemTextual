@@ -25,6 +25,7 @@ import {
   databaseSafeguardIdentity,
   getAutomaticBackupStatus,
   getOffsiteReplicationStatus,
+  getScheduledReplicationStatus,
   getRestoreDrillStatus,
   importEncryptedReplication,
   loadReplicationDestinationConfiguration,
@@ -35,11 +36,63 @@ import {
   publishReplicationPackage,
   runAutomaticBackupIfDue,
   runOffsiteReplicationIfDue,
+  runScheduledReplicationIfDue,
   runRestoreDrillIfDue,
   verifyEncryptedReplication,
   verifyDatabaseAgainstManifest,
   type ReplicationDestinationAdapter,
 } from "../src/index.js";
+
+test("provider-neutral scheduled replication publishes, rematerializes, and detects a missing remote package", async () => {
+  const fixture = setup();
+  const backupDirectory = join(fixture.directory, "backups");
+  const remoteDirectory = join(fixture.directory, "remote");
+  mkdirSync(remoteDirectory);
+  const key = randomBytes(32);
+  try {
+    await createDatabaseSnapshot({
+      databasePath: fixture.databasePath,
+      now: new Date("2026-10-14T12:00:00.000Z"),
+      outputDirectory: backupDirectory,
+    });
+    const local = createLocalDirectoryReplicationAdapter(remoteDirectory);
+    const adapter: ReplicationDestinationAdapter = {
+      ...local,
+      adapterId: "test-remote",
+    };
+    const result = await runScheduledReplicationIfDue({
+      adapter,
+      databasePath: fixture.databasePath,
+      intervalHours: 24,
+      keyId: "test-key",
+      masterKey: key,
+      now: new Date("2026-10-14T12:01:00.000Z"),
+      sourceBackupDirectory: backupDirectory,
+    });
+    assert.equal(result.outcome, "replicated");
+    assert.equal(result.status.health, "healthy");
+    assert.equal(result.status.lastPackageAvailable, true);
+    assert.equal(result.verification?.passed, true);
+    assert.equal(result.status.adapterId, "test-remote");
+
+    const packageName = result.publication?.packageName;
+    assert.ok(packageName);
+    rmSync(join(remoteDirectory, packageName, "database.enc"));
+    const status = await getScheduledReplicationStatus({
+      adapter,
+      databasePath: fixture.databasePath,
+      intervalHours: 24,
+      now: new Date("2026-10-14T12:02:00.000Z"),
+      sourceBackupDirectory: backupDirectory,
+    });
+    assert.equal(status.health, "unavailable");
+    assert.equal(status.due, true);
+    assert.equal(status.lastPackageAvailable, false);
+  } finally {
+    key.fill(0);
+    rmSync(fixture.directory, { force: true, recursive: true });
+  }
+});
 
 function setup(): { databasePath: string; directory: string } {
   const directory = mkdtempSync(join(tmpdir(), "memtextual-safeguard-"));
