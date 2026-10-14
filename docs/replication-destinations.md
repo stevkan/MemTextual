@@ -150,5 +150,6 @@ back only the package created by that run.
 The safeguard CLI provides the scheduler-safe `offsite-run-if-due` hook. The
 separate Windows host installer can bind it to a confirmed dedicated-account
 schedule, protect the configured certificate path, and restore its original ACL
-during removal. Signed application bundle creation and file staging remain
-packaging work.
+during removal. The signed-manifest Windows directory-bundle workflow separately
+creates, verifies, and stages the application files; Authenticode and MSI/MSIX
+release packaging remain later work.

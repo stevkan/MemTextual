@@ -5,6 +5,17 @@ describe only the current design and behavior.
 
 ## Unreleased
 
+- Added a Windows x64 Continuity directory-bundle builder and verifier. It
+  validates the pinned runtime, includes its license plus explicit application
+  terms, selects production dependencies from lockfile version 3, rejects
+  links, signs a complete byte-and-SHA-256 inventory, excludes the private key,
+  and distinguishes self-consistent integrity from separately pinned publisher
+  trust.
+- Added preview-bound application-file staging that refuses existing or
+  overlapping targets, verifies the final copy, and removes only the new target
+  after failure. Bundle publication uses verified copying instead of directory
+  rename to avoid reproducible Windows `EPERM` behavior. Authenticode and
+  MSI/MSIX packaging remain explicitly separate.
 - Added a strict, secret-free Windows Continuity deployment format and
   `memtextual-windows-host` preview/apply CLI for local backup and optional
   encrypted offsite schedules. The fixed layout uses a bundled Node runtime,
@@ -46,9 +57,8 @@ describe only the current design and behavior.
   explicit read-or-modify ACLs, registers limited password-logon tasks, and
   verifies hashed ownership manifests before inspection or removal. Requests
   and secret values travel through standard input rather than command-line
-  arguments. The user-facing installer CLI and deployment contract are now
-  available; signed bundle creation and application-file staging remain
-  separate work.
+  arguments. The user-facing installer CLI and deployment contract were added
+  separately from the signed bundle and application-file staging workflow.
 - Preserved the validated v0.8.0 baseline in a dedicated safety branch and tag.
 - Added the initial MemTextual Continuity design and multi-persona isolation
   direction.

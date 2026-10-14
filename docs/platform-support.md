@@ -23,9 +23,9 @@ that operating system.
 | --- | --- | --- | --- |
 | Core TypeScript, SQLite, migrations, and tests | CI gate configured | CI gate configured | CI gate configured |
 | Developer source workflows | Initial target | Compatibility tracked | Compatibility tracked |
-| Continuity desktop packaging | Initial supported target | Deferred | Deferred |
-| Unattended scheduler integration | Adapter, confirmed orchestration, privileged executor, and preview-first installer CLI available; distributable bundle staging deferred | Deferred adapter | Deferred adapter |
-| Certificate credential provider | Core provider available; installer ACL setup deferred | Core provider available; packaging deferred | Core provider available; packaging deferred |
+| Continuity desktop packaging | Signed-manifest directory bundle and confirmed staging available; Authenticode and installer-container choice deferred | Deferred | Deferred |
+| Unattended scheduler integration | Adapter, confirmed orchestration, privileged executor, and preview-first installer CLI available; application bundle staged separately | Deferred adapter | Deferred adapter |
+| Certificate credential provider | Core provider and confirmed certificate-path ACL protection available | Core provider available; packaging deferred | Core provider available; packaging deferred |
 | Dedicated service identity | Planned where appropriate | Platform-specific decision deferred | Platform-specific decision deferred |
 
 The first Linux distribution targets will be selected before packaging work;
@@ -60,9 +60,11 @@ restored during rollback and removal. The privileged PowerShell executor now
 creates the marked local account, generates and DPAPI-protects its password,
 applies explicit ACLs, receives task secrets over standard input, and registers
 password-logon tasks with verified ownership manifests. The strict deployment
-layout and preview-first elevated installer CLI are available. Signed bundle
-creation, application-file staging, and distribution packaging are still
-required before this can be distributed as an end-user installation.
+layout and preview-first elevated installer CLI are available. A pinned-
+certificate signed-manifest directory bundle can be assembled, verified, and
+staged without overwrite. Authenticode, MSI/MSIX selection, installation UI,
+and public distribution validation are still required before describing a
+public end-user installer as supported.
 
 ## Release gates
 

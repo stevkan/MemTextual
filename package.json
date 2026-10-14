@@ -11,7 +11,8 @@
     "memtextual-review": "dist/src/cli/review.js",
     "memtextual-policy": "dist/src/cli/policy.js",
     "memtextual-continuity": "dist/src/cli/continuity-console.js",
-    "memtextual-windows-host": "dist/src/cli/windows-host.js"
+    "memtextual-windows-host": "dist/src/cli/windows-host.js",
+    "memtextual-windows-bundle": "dist/src/cli/windows-bundle.js"
   },
   "scripts": {
     "test": "node --import tsx --test test/**/*.test.ts",
@@ -25,6 +26,7 @@
     "privacy": "tsx src/cli/privacy.ts",
     "continuity": "tsx src/cli/continuity-console.ts",
     "windows-host": "tsx src/cli/windows-host.ts",
+    "windows-bundle": "tsx src/cli/windows-bundle.ts",
     "pretest": "node scripts/check-node.mjs",
     "prebuild": "node scripts/check-node.mjs"
   },

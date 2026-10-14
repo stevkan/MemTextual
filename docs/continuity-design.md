@@ -276,9 +276,13 @@ explicit bundled-runtime layout, database, backup location, optional offsite
 configuration, and intervals into managed schedules. The preview-first Windows
 installer CLI requires exact fresh confirmation for application and removal,
 validates recovery-key material before mutation, and restores recorded original
-ACLs during rollback and removal. Signed bundle creation, application-file
-staging, and distribution packaging remain separate work; no host change occurs
-merely by importing or configuring the orchestration layer.
+ACLs during rollback and removal. A Windows x64 directory-bundle builder now
+validates the pinned runtime, copies the lockfile-defined production dependency
+set, signs the exact byte-and-hash inventory, pins publisher trust by certificate
+fingerprint, and verifies both disposable staging and the final copy. File
+staging is separately previewed and confirmed and never overwrites an existing
+target. Authenticode, MSI/MSIX selection, and public release UX remain separate
+work; no host change occurs merely by importing or configuring these layers.
 
 ## Non-destructive migration contract
 

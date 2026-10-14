@@ -4,10 +4,11 @@ MemTextual Continuity has a preview-first Windows host installer CLI. It
 configures unattended local backups and, when explicitly included, encrypted
 off-device replication under one dedicated local account.
 
-The CLI does not download or copy application files, create Azure resources,
-choose storage locations, or generate the separately retained recovery key.
-Those inputs must exist before installation. A signed distributable bundle and
-file-staging installer remain packaging work.
+The host CLI does not download or copy application files, create Azure
+resources, choose storage locations, or generate the separately retained
+recovery key. Those inputs must exist before host installation. The separate
+[signed-bundle workflow](windows-continuity-bundle.md) can assemble, verify, and
+stage application files without selecting the user's data or service settings.
 
 ## Deployment layout
 

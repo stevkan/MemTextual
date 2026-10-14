@@ -62,6 +62,18 @@ export {
   type WindowsContinuityOffsiteDeployment,
 } from "./platform/windows-continuity-deployment.js";
 export {
+  applyWindowsContinuityBundleStage,
+  createWindowsContinuityBundle,
+  previewWindowsContinuityBundleStage,
+  verifyWindowsContinuityBundle,
+  windowsContinuityBundleFormatVersion,
+  type CreateWindowsContinuityBundleOptions,
+  type WindowsContinuityBundleFile,
+  type WindowsContinuityBundleManifest,
+  type WindowsContinuityBundleVerification,
+  type WindowsContinuityStagePreview,
+} from "./packaging/windows-continuity-bundle.js";
+export {
   memoryStatuses,
   memoryTypes,
   type CreateMemoryInput,

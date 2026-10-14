@@ -52,9 +52,9 @@ path in the installation plan.
 The user-facing deployment contract and elevated installer CLI are documented
 in [windows-continuity-deployment.md](windows-continuity-deployment.md). They
 bind explicit database, backup, schedule, destination, and credential-reference
-inputs to the host orchestration. The CLI does not copy application files or
-choose those inputs; signed bundle creation and file staging remain packaging
-work.
+inputs to the host orchestration. Application-file creation, verification, and
+staging are handled separately by the signed-manifest directory-bundle workflow
+documented in [windows-continuity-bundle.md](windows-continuity-bundle.md).
 
 ## Runtime compatibility
 
