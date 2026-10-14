@@ -9,6 +9,7 @@ param(
     "provision-identity",
     "remove-identity",
     "remove-schedule",
+    "restore-paths",
     "self-test"
   )]
   [string]$Action,
@@ -89,6 +90,10 @@ function Get-ScheduleManifestPath([string]$Id) {
   return Join-Path (Get-DirectStateDirectory $false) "schedule-$Id.json"
 }
 
+function Get-PathAclManifestPath([bool]$Create) {
+  return Join-Path (Get-DirectStateDirectory $Create) "protected-path-acls.json"
+}
+
 function Protect-Bytes([byte[]]$Bytes) {
   Add-Type -AssemblyName System.Security
   return [Security.Cryptography.ProtectedData]::Protect(
@@ -135,6 +140,32 @@ function Set-RestrictedAcl(
   if ($null -ne $ServiceSid) {
     $acl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new($ServiceSid, $ServiceRights, $inheritance, $propagation, $allow))
   }
+  Set-Acl -LiteralPath $Path -AclObject $acl
+}
+
+function Grant-ServiceAcl(
+  [string]$Path,
+  [Security.Principal.SecurityIdentifier]$ServiceSid,
+  [Security.AccessControl.FileSystemRights]$ServiceRights
+) {
+  $item = Get-Item -LiteralPath $Path -Force
+  if ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) {
+    throw "Windows protected path cannot be a reparse point: $Path."
+  }
+  $acl = Get-Acl -LiteralPath $Path
+  $inheritance = if ($item.PSIsContainer) {
+    [Security.AccessControl.InheritanceFlags]::ContainerInherit -bor [Security.AccessControl.InheritanceFlags]::ObjectInherit
+  } else {
+    [Security.AccessControl.InheritanceFlags]::None
+  }
+  $rule = [Security.AccessControl.FileSystemAccessRule]::new(
+    $ServiceSid,
+    $ServiceRights,
+    $inheritance,
+    [Security.AccessControl.PropagationFlags]::None,
+    [Security.AccessControl.AccessControlType]::Allow
+  )
+  $acl.SetAccessRule($rule)
   Set-Acl -LiteralPath $Path -AclObject $acl
 }
 
@@ -342,7 +373,8 @@ try {
     "protect-paths",
     "provision-identity",
     "remove-identity",
-    "remove-schedule"
+    "remove-schedule",
+    "restore-paths"
   )
   if ($mutations -contains $Action) {
     Assert-Administrator
@@ -511,21 +543,135 @@ try {
         throw "Managed Windows identity is unavailable."
       }
       $serviceSid = (Get-LocalUser -Name $identityName).SID
+      $manifestPath = Get-PathAclManifestPath $true
+      $requestedPaths = @($request.paths | ForEach-Object { "{0}|{1}|{2}" -f ([IO.Path]::GetFullPath([string]$_.path)), ([string]$_.access), ([string]$_.mode) })
+      if (Test-Path -LiteralPath $manifestPath -PathType Leaf) {
+        $existing = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+        $existingPaths = @($existing.entries | ForEach-Object { "{0}|{1}|{2}" -f ([string]$_.path), ([string]$_.access), ([string]$_.mode) })
+        if (
+          $existing.formatVersion -ne 1 -or
+          [string]$existing.identityName -ne $identityName -or
+          ($existingPaths -join "`n").ToLowerInvariant() -ne ($requestedPaths -join "`n").ToLowerInvariant()
+        ) {
+          throw "Windows protected-path ACL manifest does not match this installation."
+        }
+        foreach ($entry in @($request.paths)) {
+          $path = [IO.Path]::GetFullPath([string]$entry.path)
+          if (-not (Test-Path -LiteralPath $path)) {
+            throw "Windows protected path does not exist: $path."
+          }
+          $rights = if ([string]$entry.access -eq "modify") {
+            [Security.AccessControl.FileSystemRights]::Modify
+          } elseif ([string]$entry.access -eq "read") {
+            [Security.AccessControl.FileSystemRights]::ReadAndExecute
+          } else {
+            throw "Windows protected path access is invalid."
+          }
+          if ([string]$entry.mode -eq "grant") {
+            Grant-ServiceAcl $path $serviceSid $rights
+          } elseif ([string]$entry.mode -eq "restrict") {
+            Set-RestrictedAcl $path $serviceSid $rights
+          } else {
+            throw "Windows protected path mode is invalid."
+          }
+        }
+        Write-Result ([pscustomobject]@{ protected = $true; created = $false })
+        break
+      }
+      $aclEntries = [Collections.Generic.List[object]]::new()
       foreach ($entry in @($request.paths)) {
         $path = [IO.Path]::GetFullPath([string]$entry.path)
         if (-not (Test-Path -LiteralPath $path)) {
           throw "Windows protected path does not exist: $path."
         }
-        $rights = if ([string]$entry.access -eq "modify") {
-          [Security.AccessControl.FileSystemRights]::Modify
-        } elseif ([string]$entry.access -eq "read") {
-          [Security.AccessControl.FileSystemRights]::ReadAndExecute
-        } else {
-          throw "Windows protected path access is invalid."
+        $item = Get-Item -LiteralPath $path -Force
+        if ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) {
+          throw "Windows protected path cannot be a reparse point: $path."
         }
-        Set-RestrictedAcl $path $serviceSid $rights
+        $aclEntries.Add([pscustomobject]@{
+          access = [string]$entry.access
+          mode = [string]$entry.mode
+          path = $path
+          sddl = (Get-Acl -LiteralPath $path).Sddl
+        })
       }
-      Write-Result ([pscustomobject]@{ protected = $true })
+      $aclManifest = [ordered]@{
+        formatVersion = 1
+        identityName = $identityName
+        entries = @($aclEntries)
+      }
+      [IO.File]::WriteAllText($manifestPath, ($aclManifest | ConvertTo-Json -Depth 8), [Text.UTF8Encoding]::new($false))
+      try {
+        Set-RestrictedAcl $manifestPath $null ([Security.AccessControl.FileSystemRights]::Read)
+        foreach ($entry in @($request.paths)) {
+          $path = [IO.Path]::GetFullPath([string]$entry.path)
+          $rights = if ([string]$entry.access -eq "modify") {
+            [Security.AccessControl.FileSystemRights]::Modify
+          } elseif ([string]$entry.access -eq "read") {
+            [Security.AccessControl.FileSystemRights]::ReadAndExecute
+          } else {
+            throw "Windows protected path access is invalid."
+          }
+          if ([string]$entry.mode -eq "grant") {
+            Grant-ServiceAcl $path $serviceSid $rights
+          } elseif ([string]$entry.mode -eq "restrict") {
+            Set-RestrictedAcl $path $serviceSid $rights
+          } else {
+            throw "Windows protected path mode is invalid."
+          }
+        }
+      } catch {
+        $protectionError = $_.Exception.Message
+        $restoreFailures = [Collections.Generic.List[string]]::new()
+        foreach ($saved in $aclEntries) {
+          try {
+            $acl = Get-Acl -LiteralPath ([string]$saved.path)
+            $acl.SetSecurityDescriptorSddlForm([string]$saved.sddl)
+            Set-Acl -LiteralPath ([string]$saved.path) -AclObject $acl
+          } catch {
+            $restoreFailures.Add([string]$saved.path)
+          }
+        }
+        if ($restoreFailures.Count -eq 0) {
+          Remove-Item -LiteralPath $manifestPath -Force -ErrorAction SilentlyContinue
+          throw $protectionError
+        }
+        throw "Windows path protection failed and ACL rollback was incomplete. Protection error: $protectionError. ACL manifest retained at $manifestPath. Paths requiring review: $($restoreFailures -join ', ')."
+      }
+      Write-Result ([pscustomobject]@{ protected = $true; created = $true })
+    }
+    "restore-paths" {
+      $identityName = [string]$request.identityName
+      $manifestPath = Get-PathAclManifestPath $false
+      if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) {
+        $identityState = Get-ManagedIdentity $identityName
+        if ($identityState.available -and $identityState.managedByMemTextual) {
+          throw "Windows protected-path ACL manifest is missing; refusing to remove the managed identity without restoring original ACLs."
+        }
+        Write-Result ([pscustomobject]@{ restored = $false })
+        break
+      }
+      $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+      $requestedPaths = @($request.paths | ForEach-Object { "{0}|{1}|{2}" -f ([IO.Path]::GetFullPath([string]$_.path)), ([string]$_.access), ([string]$_.mode) })
+      $savedPaths = @($manifest.entries | ForEach-Object { "{0}|{1}|{2}" -f ([string]$_.path), ([string]$_.access), ([string]$_.mode) })
+      if (
+        $manifest.formatVersion -ne 1 -or
+        [string]$manifest.identityName -ne $identityName -or
+        ($savedPaths -join "`n").ToLowerInvariant() -ne ($requestedPaths -join "`n").ToLowerInvariant()
+      ) {
+        throw "Windows protected-path ACL manifest does not match this installation."
+      }
+      foreach ($saved in @($manifest.entries)) {
+        $path = [string]$saved.path
+        if (-not (Test-Path -LiteralPath $path)) {
+          throw "Windows protected path is missing and its ACL cannot be restored: $path."
+        }
+        $acl = Get-Acl -LiteralPath $path
+        $acl.SetSecurityDescriptorSddlForm([string]$saved.sddl)
+        Set-Acl -LiteralPath $path -AclObject $acl
+      }
+      Remove-Item -LiteralPath $manifestPath -Force
+      Write-Result ([pscustomobject]@{ restored = $true })
     }
   }
 } catch {

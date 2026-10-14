@@ -23,9 +23,9 @@ The executor:
 - accepts scheduled environment values only through the standard-input JSON
   request, protects them with DPAPI, and grants the service account read access
   only to the required protected values;
-- applies non-inheriting ACLs that retain Local System and Administrators while
-  granting the service identity either read or modify access as explicitly
-  configured;
+- applies either additive service-account ACL grants for ordinary application,
+  database, backup, and configuration paths or restrictive non-inheriting ACLs
+  for explicitly sensitive paths such as the certificate private key;
 - registers tasks under `\MemTextual\` with password logon, limited run level,
   missed-start recovery, single-instance behavior, and a two-hour execution
   limit; and
@@ -41,16 +41,20 @@ unsuitable for Azure replication.
 Install and removal remain explicit preview-and-apply operations. Existing
 local accounts or tasks without verified MemTextual ownership are never
 adopted, overwritten, or removed. A failed installation removes tasks and the
-identity created by that attempt. Removal unregisters only verified managed
-tasks and deletes only their DPAPI task-secret copies plus the generated
-account-password record. It preserves the SQLite database, backups, Azure
-certificate, destination configuration, recovery packages, and every path in
-the installation plan.
+identity created by that attempt. Original ACLs are retained in a restricted
+ownership manifest and restored during rollback when that attempt created the
+protection boundary. Removal restores those ACLs, unregisters only verified
+managed tasks, and deletes only their DPAPI task-secret copies plus the
+generated account-password record. It preserves the SQLite database, backups,
+Azure certificate, destination configuration, recovery packages, and every
+path in the installation plan.
 
-The current package provides the executor and programmatic bridge. It does not
-yet expose an elevated end-user installer command, copy application files into
-their final installation directory, or choose database, backup, retention, or
-schedule settings. Those remain explicit installer inputs in the next package.
+The user-facing deployment contract and elevated installer CLI are documented
+in [windows-continuity-deployment.md](windows-continuity-deployment.md). They
+bind explicit database, backup, schedule, destination, and credential-reference
+inputs to the host orchestration. The CLI does not copy application files or
+choose those inputs; signed bundle creation and file staging remain packaging
+work.
 
 ## Runtime compatibility
 

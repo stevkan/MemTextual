@@ -5,6 +5,19 @@ describe only the current design and behavior.
 
 ## Unreleased
 
+- Added a strict, secret-free Windows Continuity deployment format and
+  `memtextual-windows-host` preview/apply CLI for local backup and optional
+  encrypted offsite schedules. The fixed layout uses a bundled Node runtime,
+  refuses implicit destinations or credentials, validates recovery-key
+  material before mutation, and keeps every host change behind a fresh exact
+  confirmation.
+- Added ownership-tracked Windows ACL restoration. Original security
+  descriptors are stored in a restricted manifest and restored after a failed
+  new installation or confirmed removal. Ordinary data paths receive additive
+  service access so interactive user access is preserved; the certificate
+  private key uses the restrictive mode. Databases, backups,
+  certificates, configuration, recovery packages, and application files remain
+  preserved.
 - Formalized MemTextual Developer as the developer edition and MemTextual
   Continuity as the personal edition built on the same core.
 - Added Windows, macOS, and Linux CI for the shared TypeScript and SQLite core,
@@ -33,7 +46,8 @@ describe only the current design and behavior.
   explicit read-or-modify ACLs, registers limited password-logon tasks, and
   verifies hashed ownership manifests before inspection or removal. Requests
   and secret values travel through standard input rather than command-line
-  arguments. The end-user installer CLI and application-file deployment remain
+  arguments. The user-facing installer CLI and deployment contract are now
+  available; signed bundle creation and application-file staging remain
   separate work.
 - Preserved the validated v0.8.0 baseline in a dedicated safety branch and tag.
 - Added the initial MemTextual Continuity design and multi-persona isolation

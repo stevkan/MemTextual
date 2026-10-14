@@ -9,6 +9,8 @@ import type {
 import type {
   WindowsHostOperations,
   WindowsManagedScheduleState,
+  WindowsPathProtectionState,
+  WindowsPathRestorationState,
   WindowsProtectedPath,
 } from "./windows-host-integration.js";
 
@@ -19,7 +21,8 @@ export type WindowsPowerShellHostAction =
   | "protect-paths"
   | "provision-identity"
   | "remove-identity"
-  | "remove-schedule";
+  | "remove-schedule"
+  | "restore-paths";
 
 export interface WindowsPowerShellBridge {
   execute(action: WindowsPowerShellHostAction, payload: unknown): Promise<unknown>;
@@ -170,6 +173,7 @@ export function createWindowsPowerShellBridge(
     "provision-identity",
     "remove-identity",
     "remove-schedule",
+    "restore-paths",
   ]);
 
   return {
@@ -318,14 +322,15 @@ export class WindowsPowerShellHostOperations implements WindowsHostOperations {
   async protectPaths(
     paths: readonly WindowsProtectedPath[],
     identityName: string,
-  ): Promise<void> {
+  ): Promise<WindowsPathProtectionState> {
     const response = requireRecord(
       await this.#bridge.execute("protect-paths", { identityName, paths }),
       "path protection",
     );
-    if (response.protected !== true) {
+    if (response.protected !== true || typeof response.created !== "boolean") {
       throw new Error("Windows PowerShell did not confirm path protection.");
     }
+    return { created: response.created, protected: true };
   }
 
   async provisionIdentity(
@@ -346,5 +351,19 @@ export class WindowsPowerShellHostOperations implements WindowsHostOperations {
     return scheduleState(
       await this.#bridge.execute("remove-schedule", { scheduleId }),
     );
+  }
+
+  async restorePaths(
+    paths: readonly WindowsProtectedPath[],
+    identityName: string,
+  ): Promise<WindowsPathRestorationState> {
+    const response = requireRecord(
+      await this.#bridge.execute("restore-paths", { identityName, paths }),
+      "path restoration",
+    );
+    if (typeof response.restored !== "boolean") {
+      throw new Error("Windows PowerShell did not confirm path restoration.");
+    }
+    return { restored: response.restored };
   }
 }

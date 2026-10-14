@@ -13,6 +13,8 @@ import {
   type WindowsHostIntegrationConfiguration,
   type WindowsHostOperations,
   type WindowsManagedScheduleState,
+  type WindowsPathProtectionState,
+  type WindowsPathRestorationState,
   type WindowsProtectedPath,
 } from "../src/index.js";
 
@@ -21,6 +23,7 @@ class FakeWindowsHostOperations implements WindowsHostOperations {
   readonly identities = new Map<string, HostServiceIdentityState>();
   readonly schedules = new Map<string, WindowsManagedScheduleState>();
   failScheduleId: string | null = null;
+  pathProtectionCreated = true;
 
   async inspectIdentity(identityName: string): Promise<HostServiceIdentityState> {
     return this.identities.get(identityName) ?? {
@@ -61,8 +64,9 @@ class FakeWindowsHostOperations implements WindowsHostOperations {
   async protectPaths(
     paths: readonly WindowsProtectedPath[],
     identityName: string,
-  ): Promise<void> {
+  ): Promise<WindowsPathProtectionState> {
     this.calls.push(`protect:${identityName}:${paths.length}`);
+    return { created: this.pathProtectionCreated, protected: true };
   }
 
   async provisionIdentity(
@@ -97,6 +101,14 @@ class FakeWindowsHostOperations implements WindowsHostOperations {
       managedByMemTextual: false,
       scheduleId,
     };
+  }
+
+  async restorePaths(
+    paths: readonly WindowsProtectedPath[],
+    identityName: string,
+  ): Promise<WindowsPathRestorationState> {
+    this.calls.push(`restore-paths:${identityName}:${paths.length}`);
+    return { restored: true };
   }
 }
 
@@ -137,10 +149,12 @@ const configuration: WindowsHostIntegrationConfiguration = {
   protectedPaths: [
     {
       access: "read",
+      mode: "restrict",
       path: "C:\\ProgramData\\MemTextual\\credentials",
     },
     {
       access: "read",
+      mode: "restrict",
       path: "C:\\ProgramData\\MemTextual\\recovery-key.dpapi",
     },
   ],
@@ -246,9 +260,33 @@ describe("Windows host integration", () => {
       false,
     );
     assert.deepEqual(operations.calls.slice(-2), [
-      "remove:MemTextual-Backup",
+      "restore-paths:MemTextualSvc:2",
       "remove-identity:MemTextualSvc",
     ]);
+    assert.equal(operations.calls.includes("remove:MemTextual-Backup"), true);
+  });
+
+  it("does not restore a pre-existing path protection boundary after failure", async () => {
+    const operations = new FakeWindowsHostOperations();
+    operations.pathProtectionCreated = false;
+    operations.failScheduleId = "MemTextual-Backup";
+    const preview = await previewWindowsHostInstallation(
+      operations,
+      configuration,
+    );
+    await assert.rejects(
+      applyWindowsHostInstallation(
+        operations,
+        configuration,
+        preview.confirmation,
+        context,
+      ),
+      /failed and was rolled back/u,
+    );
+    assert.equal(
+      operations.calls.some((call) => call.startsWith("restore-paths:")),
+      false,
+    );
   });
 
   it("refuses to replace or remove identities and schedules it does not own", async () => {

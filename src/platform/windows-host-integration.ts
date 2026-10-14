@@ -28,12 +28,16 @@ export interface WindowsHostOperations {
   protectPaths(
     paths: readonly WindowsProtectedPath[],
     identityName: string,
-  ): Promise<void>;
+  ): Promise<WindowsPathProtectionState>;
   provisionIdentity(
     request: HostServiceIdentityRequest,
   ): Promise<HostServiceIdentityState>;
   removeIdentity(identityName: string): Promise<HostServiceIdentityState>;
   removeSchedule(scheduleId: string): Promise<WindowsManagedScheduleState>;
+  restorePaths(
+    paths: readonly WindowsProtectedPath[],
+    identityName: string,
+  ): Promise<WindowsPathRestorationState>;
 }
 
 export interface WindowsHostIntegrationConfiguration {
@@ -45,7 +49,17 @@ export interface WindowsHostIntegrationConfiguration {
 
 export interface WindowsProtectedPath {
   access: "modify" | "read";
+  mode: "grant" | "restrict";
   path: string;
+}
+
+export interface WindowsPathProtectionState {
+  created: boolean;
+  protected: true;
+}
+
+export interface WindowsPathRestorationState {
+  restored: boolean;
 }
 
 export interface WindowsHostInstallationPreview {
@@ -197,11 +211,16 @@ function validateConfiguration(
       typeof entry !== "object" ||
       entry === null ||
       (entry.access !== "read" && entry.access !== "modify") ||
+      (entry.mode !== "grant" && entry.mode !== "restrict") ||
       !win32.isAbsolute(entry.path)
     ) {
       throw new Error("Windows protected paths must be absolute.");
     }
-    return { access: entry.access, path: win32.resolve(entry.path) };
+    return {
+      access: entry.access,
+      mode: entry.mode,
+      path: win32.resolve(entry.path),
+    };
   });
   if (
     protectedPaths.length === 0 ||
@@ -434,16 +453,18 @@ export async function applyWindowsHostInstallation(
     validated.identity.identityName,
   );
   let provisionedIdentity = false;
+  let createdPathProtection = false;
   const installedScheduleIds: string[] = [];
   try {
     const identity = preview.identityWillBeProvisioned
       ? await identityAdapter.provision(validated.identity, context)
       : preview.currentIdentity;
     provisionedIdentity = preview.identityWillBeProvisioned;
-    await operations.protectPaths(
+    const pathProtection = await operations.protectPaths(
       validated.protectedPaths,
       validated.identity.identityName,
     );
+    createdPathProtection = pathProtection.created;
     const installedSchedules: WindowsManagedScheduleState[] = [];
     for (const definition of validated.schedules) {
       const wasInstalled = preview.currentSchedules.find(
@@ -467,6 +488,18 @@ export async function applyWindowsHostInstallation(
       } catch (rollbackError) {
         rollbackFailures.push(
           `${scheduleId}: ${rollbackError instanceof Error ? rollbackError.message : "unknown rollback failure"}`,
+        );
+      }
+    }
+    if (createdPathProtection) {
+      try {
+        await operations.restorePaths(
+          validated.protectedPaths,
+          validated.identity.identityName,
+        );
+      } catch (rollbackError) {
+        rollbackFailures.push(
+          `protected paths: ${rollbackError instanceof Error ? rollbackError.message : "unknown rollback failure"}`,
         );
       }
     }
@@ -553,6 +586,10 @@ export async function applyWindowsHostRemoval(
   for (const scheduleId of preview.schedulesWillBeRemoved) {
     removedSchedules.push(await operations.removeSchedule(scheduleId));
   }
+  await operations.restorePaths(
+    validated.protectedPaths,
+    validated.identity.identityName,
+  );
   const identity = preview.identityWillBeRemoved
     ? await operations.removeIdentity(validated.identity.identityName)
     : preview.currentIdentity;

@@ -24,7 +24,7 @@ that operating system.
 | Core TypeScript, SQLite, migrations, and tests | CI gate configured | CI gate configured | CI gate configured |
 | Developer source workflows | Initial target | Compatibility tracked | Compatibility tracked |
 | Continuity desktop packaging | Initial supported target | Deferred | Deferred |
-| Unattended scheduler integration | Adapter, confirmed orchestration, and privileged executor available; installer CLI deferred | Deferred adapter | Deferred adapter |
+| Unattended scheduler integration | Adapter, confirmed orchestration, privileged executor, and preview-first installer CLI available; distributable bundle staging deferred | Deferred adapter | Deferred adapter |
 | Certificate credential provider | Core provider available; installer ACL setup deferred | Core provider available; packaging deferred | Core provider available; packaging deferred |
 | Dedicated service identity | Planned where appropriate | Platform-specific decision deferred | Platform-specific decision deferred |
 
@@ -55,12 +55,14 @@ exact confirmation to that state and the requested definitions, refuses to
 adopt or remove resources without an explicit MemTextual ownership marker,
 and rolls back newly created tasks and identities after an installation
 failure. Removal intentionally preserves every configured data, certificate,
-configuration, and recovery-key path. The privileged PowerShell executor now
+configuration, and recovery-key path. Original ACLs are ownership-tracked and
+restored during rollback and removal. The privileged PowerShell executor now
 creates the marked local account, generates and DPAPI-protects its password,
 applies explicit ACLs, receives task secrets over standard input, and registers
-password-logon tasks with verified ownership manifests. An elevated installer
-CLI and final application deployment layout are still required before this can
-be described as an installable unattended Windows feature.
+password-logon tasks with verified ownership manifests. The strict deployment
+layout and preview-first elevated installer CLI are available. Signed bundle
+creation, application-file staging, and distribution packaging are still
+required before this can be distributed as an end-user installation.
 
 ## Release gates
 

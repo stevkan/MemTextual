@@ -271,9 +271,14 @@ The elevated PowerShell executor now implements account creation, random
 password generation, DPAPI-protected account and task secrets, explicit
 read-or-modify ACL application, and limited password-logon task registration.
 Its bounded TypeScript bridge keeps secrets off command lines and validates all
-executor responses. The next Windows package is the user-facing elevated
-installer CLI and final deployment layout; no host change occurs merely by
-importing or configuring the orchestration layer.
+executor responses. A strict secret-free deployment contract now maps an
+explicit bundled-runtime layout, database, backup location, optional offsite
+configuration, and intervals into managed schedules. The preview-first Windows
+installer CLI requires exact fresh confirmation for application and removal,
+validates recovery-key material before mutation, and restores recorded original
+ACLs during rollback and removal. Signed bundle creation, application-file
+staging, and distribution packaging remain separate work; no host change occurs
+merely by importing or configuring the orchestration layer.
 
 ## Non-destructive migration contract
 

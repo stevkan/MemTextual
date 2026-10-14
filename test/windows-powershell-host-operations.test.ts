@@ -99,6 +99,24 @@ describe("Windows PowerShell host operations", () => {
     );
   });
 
+  it("requires explicit protection and restoration receipts", async () => {
+    const bridge = new CapturingBridge();
+    bridge.responses.set("protect-paths", { created: true, protected: true });
+    bridge.responses.set("restore-paths", { restored: true });
+    const operations = new WindowsPowerShellHostOperations({ bridge });
+    const paths = [
+      { access: "read" as const, mode: "grant" as const, path: "C:\\MemTextual" },
+    ];
+    assert.deepEqual(
+      await operations.protectPaths(paths, "MemTextualSvc"),
+      { created: true, protected: true },
+    );
+    assert.deepEqual(
+      await operations.restorePaths(paths, "MemTextualSvc"),
+      { restored: true },
+    );
+  });
+
   it("keeps the executor protocol on stdin and reserves stdout for JSON", () => {
     const source = readFileSync(
       resolve("scripts", "windows-host-executor.ps1"),
@@ -110,6 +128,7 @@ describe("Windows PowerShell host operations", () => {
     assert.match(source, /ProtectedData\]::Protect/u);
     assert.match(source, /Register-ScheduledTask/u);
     assert.match(source, /Windows DPAPI self-test did not round-trip/u);
+    assert.match(source, /protected-path-acls\.json/u);
     assert.doesNotMatch(source, /Write-(?:Host|Output)/u);
   });
 });

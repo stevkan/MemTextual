@@ -36,6 +36,8 @@ export {
   type WindowsHostIntegrationConfiguration,
   type WindowsHostOperations,
   type WindowsManagedScheduleState,
+  type WindowsPathProtectionState,
+  type WindowsPathRestorationState,
   type WindowsProtectedPath,
   type WindowsHostRemovalPreview,
   type WindowsHostRemovalResult,
@@ -48,6 +50,17 @@ export {
   type WindowsPowerShellHostAction,
   type WindowsPowerShellHostOperationsOptions,
 } from "./platform/windows-powershell-host-operations.js";
+export {
+  createWindowsContinuityDeploymentPlan,
+  loadWindowsContinuityDeploymentConfiguration,
+  parseWindowsContinuityDeploymentConfiguration,
+  validateWindowsContinuityDeploymentEnvironment,
+  validateWindowsContinuityDeploymentPlan,
+  windowsContinuityDeploymentFormatVersion,
+  type WindowsContinuityDeploymentConfiguration,
+  type WindowsContinuityDeploymentPlan,
+  type WindowsContinuityOffsiteDeployment,
+} from "./platform/windows-continuity-deployment.js";
 export {
   memoryStatuses,
   memoryTypes,

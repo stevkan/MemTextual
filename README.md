@@ -67,6 +67,7 @@ docs/legacy-migration.md   Legacy export format and migration workflow
 docs/continuity-design.md  Continuity product plan and non-destructive contract
 docs/platform-support.md   Edition names, portability boundary, and release gates
 docs/windows-host-integration.md Windows identity, ACL, and task safeguards
+docs/windows-continuity-deployment.md Windows deployment layout and installer CLI
 docs/continuity-control.md Persona-scoped review and lifecycle control contract
 docs/continuity-console.md Local graphical review and memory-inspection console
 docs/context-composition.md Bounded persona-memory context payload contract
@@ -268,6 +269,6 @@ cloud provider.
 Concrete vendor extractor and host-event clients, vendor-specific legacy-export
 adapters, graphical source-series privacy workflows, standalone-source deletion,
 additional cloud destination adapters, resumable imports, streamable HTTP,
-REST API, admin UI, concrete vendor embedding provider, concrete host
-the elevated Windows installer CLI and packaging UX, additional secure
+REST API, admin UI, concrete vendor embedding provider, concrete host capture
+integrations, signed Windows bundle creation and file-staging UX, additional secure
 credential-store providers, and the broader packaging strategy remain open.

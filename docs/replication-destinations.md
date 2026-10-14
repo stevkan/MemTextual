@@ -147,6 +147,8 @@ decrypts and verifies the complete recovery point, removes the disposable
 copy, and records append-only local health. A failure after publication rolls
 back only the package created by that run.
 
-The CLI provides the scheduler-safe `offsite-run-if-due` hook; it does not
-install or enable an operating-system schedule. Dedicated-account creation,
-certificate ACL setup, and schedule installation remain installer work.
+The safeguard CLI provides the scheduler-safe `offsite-run-if-due` hook. The
+separate Windows host installer can bind it to a confirmed dedicated-account
+schedule, protect the configured certificate path, and restore its original ACL
+during removal. Signed application bundle creation and file staging remain
+packaging work.
