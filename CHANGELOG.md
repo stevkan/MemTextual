@@ -5,6 +5,14 @@ describe only the current design and behavior.
 
 ## Unreleased
 
+- Added the provider-neutral `ConversationHost` contract and an initial Codex
+  App Server JSONL stdio adapter. It performs the required handshake, supports
+  thread creation and resumption, streams assistant deltas, accepts final text
+  only from authoritative completed items, fails closed on unsupported server
+  requests and malformed protocol data, and reconnects cleanly after process
+  failure. Fake-server tests cover creation, turn submission, streaming,
+  completion, errors, concurrency, and restart. Persona binding and ambient
+  capture routing remain separate client-integration work.
 - Added explicit persona-memory creation to the local Continuity console. The
   user must select the memory class, type, sensitivity, retrieval policy, and
   optional pin/protection state; the server fixes persona ownership and records

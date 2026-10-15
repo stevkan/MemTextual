@@ -23,6 +23,24 @@ export {
   type HostServiceIdentityState,
 } from "./platform/host-platform.js";
 export {
+  conversationTurnStatuses,
+  type CompletedConversationTurn,
+  type ConversationHost,
+  type ConversationHostEvent,
+  type ConversationHostIdentity,
+  type ConversationSession,
+  type ConversationTurnStatus,
+  type SendConversationTurnInput,
+  type StartConversationInput,
+} from "./domain/conversation-host.js";
+export {
+  CodexAppServerConversationHost,
+  CodexAppServerError,
+  type CodexAppServerConversationHostOptions,
+  type CodexAppServerProcess,
+  type CodexAppServerProcessFactory,
+} from "./hosts/codex-app-server-conversation-host.js";
+export {
   WindowsServiceIdentityAdapter,
   WindowsTaskSchedulerAdapter,
   applyWindowsHostInstallation,

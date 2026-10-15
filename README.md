@@ -43,6 +43,8 @@ The system provides:
 - persona-aware retrieval with default-deny cross-persona isolation;
 - provider-neutral ambient extraction into persona-bound review candidates;
 - strict asynchronous extraction-provider and authorized host-event adapters;
+- a provider-neutral conversation-host contract with an initial local Codex App
+  Server stdio adapter;
 - an explicit, persona-scoped user-control service for review and lifecycle actions;
 - a local, persona-bound Continuity control console for explicit memory creation,
   review, and inspection;
@@ -80,6 +82,7 @@ docs/replication-destinations.md Encrypted destination-adapter contract
 docs/personas.md           Continuity identity and persona-scope foundations
 docs/ambient-memory.md     Persona-bound ambient candidate capture contract
 docs/host-capture.md       Explicitly authorized host-event capture contract
+docs/conversation-host.md  Client conversation-host contract and Codex adapter
 docs/migration-safety.md   Snapshot, upgrade-copy, and verification workflow
 docs/privacy.md            Recoverable deletion and memory-purge contract
 docs/semantic-matching.md  Provider-neutral advisory matching contract

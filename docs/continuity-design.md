@@ -72,11 +72,13 @@ data model and isolation rules from the start.
 ## Conversation-host boundary
 
 The Continuity conversational client will own the conversations conducted
-through it and submit each completed turn to the ambient-memory pipeline. A
-provider-neutral `ConversationHost` contract will isolate that runtime; the
-initial concrete implementation targets Codex App Server only. Other cloud
-providers and local models are outside the initial scope and may be reconsidered
-only in response to demonstrated need.
+through it and submit each completed turn to the ambient-memory pipeline. The
+provider-neutral `ConversationHost` contract now isolates that runtime, and its
+initial concrete adapter implements Codex App Server's local JSONL stdio
+protocol. The adapter foundation is not yet the Continuity client: persona
+binding, context composition, chat presentation, and ambient-capture routing
+remain integration work. Other cloud providers and local models are outside the
+initial scope and may be reconsidered only in response to demonstrated need.
 
 As of October 15, 2026, OpenAI's official ChatGPT desktop, web, and mobile
 clients expose no supported outbound conversation-turn API or webhook through
