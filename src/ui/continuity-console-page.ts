@@ -22,6 +22,7 @@ export const continuityConsoleHtml = `<!doctype html>
       </div>
       <button class="nav active" data-view="candidates">Review queue <span id="candidate-count">0</span></button>
       <button class="nav" data-view="memories">Memories <span id="memory-count">0</span></button>
+      <button id="create-memory-button" class="utility" type="button">Create memory</button>
       <button id="export-button" class="utility" type="button">Export persona memories</button>
       <p class="boundary">This console is bound to one persona and this local session.</p>
     </aside>
@@ -82,6 +83,7 @@ aside { padding: 24px 16px; border-right: 1px solid var(--line); background: rgb
 .warning { padding: 12px; border-left: 3px solid var(--danger); background: #211817; color: #ffd2ca; line-height: 1.5; }
 .check { display: flex; align-items: flex-start; gap: 9px; margin-top: 12px; color: var(--muted); line-height: 1.4; }
 .check input { width: auto; margin: 3px 0 0; }
+.field { display: block; margin-top: 14px; color: var(--muted); font-size: 13px; }
 .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 18px; }
 button.action { border: 1px solid var(--line); border-radius: 8px; padding: 9px 12px; background: #2a352a; color: inherit; cursor: pointer; }
 button.action:hover { border-color: var(--accent); }
@@ -212,6 +214,110 @@ export const continuityConsoleJavaScript = `
       finally { button.disabled = false; }
     });
     return button;
+  }
+
+  function selectField(labelText, values) {
+    const label = node("label", labelText, "field");
+    const select = document.createElement("select");
+    const placeholder = document.createElement("option");
+    placeholder.value = "";
+    placeholder.textContent = "Select one";
+    placeholder.disabled = true;
+    placeholder.selected = true;
+    select.append(placeholder);
+    values.forEach(([value, text]) => {
+      const option = document.createElement("option");
+      option.value = value;
+      option.textContent = text;
+      select.append(option);
+    });
+    label.append(select);
+    return { label, select };
+  }
+
+  function showCreateMemory() {
+    detailPanel.className = "detail";
+    detailPanel.replaceChildren(node("h2", "Create persona memory"));
+    detailPanel.append(node("p", "This creates a memory directly from your explicit entry. It will not have source evidence attached.", "meta"));
+
+    const assertionLabel = node("label", "Memory assertion", "field");
+    const assertion = document.createElement("textarea");
+    assertion.rows = 6;
+    assertion.maxLength = 50000;
+    assertion.placeholder = "State one fact, preference, decision, goal, or other memory clearly.";
+    assertionLabel.append(assertion);
+    detailPanel.append(assertionLabel);
+
+    const memoryClass = selectField("Memory class", [
+      ["durable", "Durable — stable knowledge for future interactions"],
+      ["episodic", "Episodic — a bounded event or interaction"],
+    ]);
+    const type = selectField("Memory type", [
+      ["preference", "Preference"], ["fact", "Fact"],
+      ["decision", "Decision"], ["entity", "Entity"],
+      ["task_context", "Task context"], ["instruction", "Instruction"],
+      ["goal", "Goal"], ["relationship", "Relationship"], ["other", "Other"],
+    ]);
+    const sensitivity = selectField("Sensitivity", [
+      ["normal", "Normal"],
+      ["sensitive", "Sensitive"],
+      ["restricted", "Restricted"],
+    ]);
+    const retrievalPolicy = selectField("Retrieval policy", [
+      ["include", "Include — eligible for normal retrieval"],
+      ["manual", "Manual — return only through explicit management"],
+      ["exclude", "Exclude — do not return through retrieval"],
+    ]);
+    detailPanel.append(
+      memoryClass.label,
+      type.label,
+      sensitivity.label,
+      retrievalPolicy.label,
+    );
+
+    const pinnedLabel = node("label", undefined, "check");
+    const pinned = document.createElement("input");
+    pinned.type = "checkbox";
+    pinnedLabel.append(pinned, document.createTextNode("Pin this memory."));
+    const protectedLabel = node("label", undefined, "check");
+    const protected_ = document.createElement("input");
+    protected_.type = "checkbox";
+    protectedLabel.append(
+      protected_,
+      document.createTextNode("Protect this memory from ordinary lifecycle changes."),
+    );
+    detailPanel.append(pinnedLabel, protectedLabel);
+
+    const actions = node("div", undefined, "actions");
+    actions.append(actionButton("Create memory", async () => {
+      const text = assertion.value.trim();
+      if (!text) throw new Error("A memory assertion is required.");
+      if (!memoryClass.select.value) throw new Error("Select a memory class.");
+      if (!type.select.value) throw new Error("Select a memory type.");
+      if (!sensitivity.select.value) throw new Error("Select a sensitivity.");
+      if (!retrievalPolicy.select.value) throw new Error("Select a retrieval policy.");
+      const created = await api("/api/memories", {
+        method: "POST",
+        body: JSON.stringify({
+          assertion: text,
+          memoryClass: memoryClass.select.value,
+          type: type.select.value,
+          sensitivity: sensitivity.select.value,
+          retrievalPolicy: retrievalPolicy.select.value,
+          isPinned: pinned.checked,
+          isProtected: protected_.checked,
+        }),
+      });
+      setNotice("Persona memory created from your explicit entry.");
+      state.view = "memories";
+      document.querySelectorAll(".nav").forEach((item) => item.classList.remove("active"));
+      document.querySelector('.nav[data-view="memories"]').classList.add("active");
+      await refreshDashboard();
+      await showMemory(created.memory.id);
+    }));
+    actions.append(actionButton("Cancel", async () => clearDetail()));
+    detailPanel.append(actions);
+    assertion.focus();
   }
 
   async function showCandidate(id) {
@@ -525,6 +631,10 @@ export const continuityConsoleJavaScript = `
     try { await downloadPersonaExport(); }
     catch (error) { setNotice(error.message, true); }
     finally { button.disabled = false; }
+  });
+
+  document.getElementById("create-memory-button").addEventListener("click", () => {
+    showCreateMemory();
   });
 
   refreshDashboard().catch((error) => {

@@ -5,6 +5,10 @@ describe only the current design and behavior.
 
 ## Unreleased
 
+- Added explicit persona-memory creation to the local Continuity console. The
+  user must select the memory class, type, sensitivity, retrieval policy, and
+  optional pin/protection state; the server fixes persona ownership and records
+  the entry as an explicit user action without fabricating source evidence.
 - Added a safeguarded, idempotent Continuity onboarding CLI for inspecting,
   creating, or selecting the local user and persona. Setup requires a verified
   pre-change snapshot, rejects ambiguous or conflicting identity selections,

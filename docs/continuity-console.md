@@ -21,6 +21,10 @@ for an available port.
 
 ## Current controls
 
+- Create a persona memory directly from an explicit user entry. The user must
+  choose its episodic or durable class, memory type, sensitivity, retrieval
+  policy, and optional pinned or protected state. Direct entries have no source
+  evidence attached and are recorded as explicit user-created memories.
 - Inspect the selected persona's pending candidates and their retained evidence.
 - Inspect exact or semantic match suggestions for a candidate.
 - Accept, reject, or ignore a candidate, with an optional review note.

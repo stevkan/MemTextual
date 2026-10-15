@@ -43,6 +43,27 @@ const emptySchema = z.object({}).strict();
 const correctionSchema = z
   .object({ assertion: z.string().trim().min(1).max(50_000) })
   .strict();
+const createMemorySchema = z
+  .object({
+    assertion: z.string().trim().min(1).max(50_000),
+    memoryClass: z.enum(["episodic", "durable"]),
+    type: z.enum([
+      "preference",
+      "fact",
+      "decision",
+      "entity",
+      "task_context",
+      "instruction",
+      "goal",
+      "relationship",
+      "other",
+    ]),
+    sensitivity: z.enum(["normal", "sensitive", "restricted"]),
+    retrievalPolicy: z.enum(["include", "exclude", "manual"]),
+    isPinned: z.boolean(),
+    isProtected: z.boolean(),
+  })
+  .strict();
 const deletionSchema = z
   .object({
     reason: z.string().trim().min(1).max(1_000),
@@ -418,6 +439,27 @@ export function createContinuityConsoleApplication(
         }
         requireMutationOrigin(headers, origin);
         const body = readJson(request, headers);
+        if (url.pathname === "/api/memories") {
+          const input = parseBody(createMemorySchema, body);
+          return jsonResponse(
+            201,
+            options.control.createMemory(
+              {
+                personaId,
+                assertion: input.assertion,
+                memoryClass: input.memoryClass,
+                type: input.type,
+                sensitivity: input.sensitivity,
+                retrievalPolicy: input.retrievalPolicy,
+                explicitness: "explicit",
+                confidence: 1,
+                isPinned: input.isPinned,
+                isProtected: input.isProtected,
+              },
+              { actor: "user", explicitUserAction: true },
+            ),
+          );
+        }
         const reviewId = routeId(url.pathname, "/resolve");
         if (reviewId !== null && url.pathname.startsWith("/api/candidates/")) {
           const input = parseBody(reviewSchema, body);

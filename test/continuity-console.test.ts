@@ -20,9 +20,14 @@ import {
   type ContinuityConsoleApplication,
   type ContinuityConsoleRequest,
 } from "../src/index.js";
+import { continuityConsoleJavaScript } from "../src/ui/continuity-console-page.js";
 
 const origin = "http://127.0.0.1:47321";
 const host = "127.0.0.1:47321";
+
+test("Continuity console browser script parses as JavaScript", () => {
+  assert.doesNotThrow(() => new Function(continuityConsoleJavaScript));
+});
 
 function fixture() {
   const database = openMemTextualDatabase({
@@ -204,6 +209,116 @@ test("Continuity console requires its session token and persona boundary", async
       url: "http://attacker.example/api/dashboard",
     });
     assert.equal(absoluteUrl.status, 421);
+  } finally {
+    setup.database.close();
+  }
+});
+
+test("Continuity console creates explicit persona memories with selected controls", async () => {
+  const setup = fixture();
+  const token = "m".repeat(32);
+  try {
+    const application = createContinuityConsoleApplication(
+      { control: setup.control, personaContext: setup.skylar },
+      token,
+    );
+    const mutation = {
+      method: "POST",
+      url: "/api/memories",
+      headers: { "content-type": "application/json", origin },
+    };
+
+    const invalid = await request(application, token, {
+      ...mutation,
+      body: JSON.stringify({
+        assertion: "Incomplete explicit memory.",
+        memoryClass: "durable",
+        type: "fact",
+        sensitivity: "normal",
+        isPinned: false,
+        isProtected: false,
+      }),
+    });
+    assert.equal(invalid.status, 400);
+    assert.equal(setup.control.listMemories(setup.skylar.persona.id).length, 0);
+
+    const wrongOrigin = await request(application, token, {
+      ...mutation,
+      headers: { "content-type": "application/json", origin: "http://attacker.example" },
+      body: JSON.stringify({
+        assertion: "Origin-rejected memory.",
+        memoryClass: "durable",
+        type: "fact",
+        sensitivity: "normal",
+        retrievalPolicy: "include",
+        isPinned: false,
+        isProtected: false,
+      }),
+    });
+    assert.equal(wrongOrigin.status, 403);
+
+    const response = await request(application, token, {
+      ...mutation,
+      body: JSON.stringify({
+        assertion: "Steve prefers concise answers.",
+        memoryClass: "durable",
+        type: "preference",
+        sensitivity: "sensitive",
+        retrievalPolicy: "manual",
+        isPinned: true,
+        isProtected: true,
+      }),
+    });
+    assert.equal(response.status, 201);
+    const created = JSON.parse(response.body) as {
+      personaId: string;
+      memoryClass: string;
+      memory: {
+        id: string;
+        assertion: string;
+        type: string;
+        sensitivity: string;
+        retrievalPolicy: string;
+        explicitness: string;
+        confidence: number;
+        isPinned: boolean;
+        isProtected: boolean;
+      };
+    };
+    assert.equal(created.personaId, setup.skylar.persona.id);
+    assert.equal(created.memoryClass, "durable");
+    assert.deepEqual(
+      {
+        assertion: created.memory.assertion,
+        type: created.memory.type,
+        sensitivity: created.memory.sensitivity,
+        retrievalPolicy: created.memory.retrievalPolicy,
+        explicitness: created.memory.explicitness,
+        confidence: created.memory.confidence,
+        isPinned: created.memory.isPinned,
+        isProtected: created.memory.isProtected,
+      },
+      {
+        assertion: "Steve prefers concise answers.",
+        type: "preference",
+        sensitivity: "sensitive",
+        retrievalPolicy: "manual",
+        explicitness: "explicit",
+        confidence: 1,
+        isPinned: true,
+        isProtected: true,
+      },
+    );
+    assert.equal(setup.control.listMemories(setup.advisor.persona.id).length, 0);
+
+    const detailResponse = await request(application, token, {
+      method: "GET",
+      url: `/api/memories/${created.memory.id}`,
+    });
+    const detail = JSON.parse(detailResponse.body) as {
+      history: Array<{ createdBy: string }>;
+    };
+    assert.equal(detail.history[0]?.createdBy, "user");
   } finally {
     setup.database.close();
   }

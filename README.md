@@ -44,7 +44,8 @@ The system provides:
 - provider-neutral ambient extraction into persona-bound review candidates;
 - strict asynchronous extraction-provider and authorized host-event adapters;
 - an explicit, persona-scoped user-control service for review and lifecycle actions;
-- a local, persona-bound Continuity control console for review and inspection;
+- a local, persona-bound Continuity control console for explicit memory creation,
+  review, and inspection;
 - explicit temporal validity, non-destructive review hints, and as-of retrieval;
 - sensitivity, retrieval, pinning, and protection controls;
 - policy-aware FTS5 retrieval and retrieval audits;
