@@ -5,6 +5,11 @@ describe only the current design and behavior.
 
 ## Unreleased
 
+- Added a safeguarded, idempotent Continuity onboarding CLI for inspecting,
+  creating, or selecting the local user and persona. Setup requires a verified
+  pre-change snapshot, rejects ambiguous or conflicting identity selections,
+  validates integrity and foreign keys transactionally, and prints the exact
+  persona-bound console launch command without enabling ambient capture.
 - Adopted a proprietary-first distribution baseline. Package metadata now
   combines npm's publication block with `UNLICENSED`; public application
   packaging continues to require separately approved proprietary terms and

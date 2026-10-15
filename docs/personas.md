@@ -99,6 +99,8 @@ medical state from text.
 
 The current package establishes identities, isolated scope topology, explicit
 episodic-versus-durable classification, persona-aware lexical and optional
-hybrid retrieval, and a local Continuity control console. Persona management,
-hybrid retrieval, ranking configuration, and emotional annotation are not
-exposed through MCP; authenticated distribution remains a later phase.
+hybrid retrieval, safeguarded first-run user and persona onboarding, and a local
+Continuity control console. Persona management is available through the local
+onboarding CLI but is not exposed through MCP. Hybrid retrieval, ranking
+configuration, and emotional annotation are also not exposed through MCP;
+authenticated distribution remains a later phase.

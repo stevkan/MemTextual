@@ -356,6 +356,12 @@ export {
 } from "./services/review-automation-service.js";
 export { PersonaService } from "./services/persona-service.js";
 export {
+  ContinuityOnboardingService,
+  type ContinuityOnboardingInput,
+  type ContinuityOnboardingResult,
+  type ContinuityOnboardingUserStatus,
+} from "./services/continuity-onboarding-service.js";
+export {
   formatCandidateForReview,
   reviewPendingCandidates,
   type CandidateReviewIO,

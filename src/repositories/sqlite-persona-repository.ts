@@ -118,6 +118,10 @@ function mapRelationship(row: RelationshipRow): PersonaRelationship {
 export class SqlitePersonaRepository implements PersonaRepository {
   public constructor(private readonly database: Database.Database) {}
 
+  public runInTransaction<T>(operation: () => T): T {
+    return this.database.transaction(operation)();
+  }
+
   public createUser(input: CreateContinuityUserInput): ContinuityUser {
     const displayName = requiredText(input.displayName, "A user display name");
     const externalId = optionalText(input.externalId);

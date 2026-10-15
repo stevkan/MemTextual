@@ -6,6 +6,7 @@ import type {
 } from "../domain/persona.js";
 
 export interface PersonaRepository {
+  runInTransaction<T>(operation: () => T): T;
   createUser(input: CreateContinuityUserInput): ContinuityUser;
   getUser(id: string): ContinuityUser | null;
   listUsers(): ContinuityUser[];

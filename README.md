@@ -72,6 +72,7 @@ docs/windows-continuity-deployment.md Windows deployment layout and installer CL
 docs/windows-continuity-bundle.md Signed Windows bundle verification and staging
 docs/continuity-control.md Persona-scoped review and lifecycle control contract
 docs/continuity-console.md Local graphical review and memory-inspection console
+docs/continuity-setup.md   Safeguarded first-run user and persona onboarding
 docs/context-composition.md Bounded persona-memory context payload contract
 docs/automatic-backups.md  Opt-in everyday backup orchestration and health
 docs/replication-destinations.md Encrypted destination-adapter contract
@@ -151,6 +152,8 @@ npm run safeguard -- offsite-status --database .\data\memtextual.db --source D:\
 npm run safeguard -- offsite-verify --package E:\MemTextualOffsite\PACKAGE_DIRECTORY --key-env MEMTEXTUAL_OFFSITE_KEY
 npm run safeguard -- offsite-import --database .\data\memtextual.db --package E:\MemTextualOffsite\PACKAGE_DIRECTORY --destination D:\MemTextualBackups --key-env MEMTEXTUAL_OFFSITE_KEY
 npm run privacy -- preview --id MEMORY_ID --database .\data\memtextual.db --migrations .\migrations
+npm run continuity-setup -- status -- --database .\data\memtextual.db --migrations .\migrations
+npm run continuity-setup -- setup -- --user-name "Steve" --persona-name "Skylar" --backup-directory D:\MemTextualBackups --database .\data\memtextual.db --migrations .\migrations
 npm run continuity -- --persona PERSONA_ID --database .\data\memtextual.db --migrations .\migrations
 ```
 
@@ -161,7 +164,9 @@ source import, candidate proposal, and explicit-user review. Database-specific
 behavior remains behind repository interfaces.
 
 `PersonaService` creates Continuity users and multiple personas with an
-enforced user -> persona -> relationship scope hierarchy.
+enforced user -> persona -> relationship scope hierarchy. The safeguarded
+`continuity-setup` CLI creates or reuses the initial user and persona, refuses
+ambiguous selections, and prints the matching persona-bound console command.
 `ContinuityMemoryService` transactionally binds explicitly episodic or durable
 memories to one relationship and retrieves them by persona identity without
 accepting caller-selected scope IDs.
