@@ -40,9 +40,9 @@ explicit user-controlled shared scope.
    retention and recovery controls, and optional encrypted off-device
    redundancy for everyday use.
 7. **Distribution:** proprietary-first licensing, authenticated streamable HTTP,
-   ChatGPT integration, installers, and separately packaged Developer and
-   Continuity editions. Opening selected components later remains an explicit
-   owner decision rather than a release prerequisite.
+   explicit ChatGPT MCP/plugin integration, installers, and separately packaged
+   Developer and Continuity editions. Opening selected components later remains
+   an explicit owner decision rather than a release prerequisite.
 8. **Expansion:** legacy adapters, administration, and a public REST interface.
 
 ## Platform delivery strategy
@@ -68,6 +68,25 @@ validation. The current support matrix and release gates are recorded in
 
 The first vertical slice targets one persona while retaining the multi-persona
 data model and isolation rules from the start.
+
+## Conversation-host boundary
+
+The Continuity conversational client will own the conversations conducted
+through it and submit each completed turn to the ambient-memory pipeline. A
+provider-neutral `ConversationHost` contract will isolate that runtime; the
+initial concrete implementation targets Codex App Server only. Other cloud
+providers and local models are outside the initial scope and may be reconsidered
+only in response to demonstrated need.
+
+As of October 15, 2026, OpenAI's official ChatGPT desktop, web, and mobile
+clients expose no supported outbound conversation-turn API or webhook through
+which MemTextual could passively receive every completed turn. Ordinary ChatGPT
+passive capture is therefore an unavailable external-platform capability, not
+deferred MemTextual work. ChatGPT MCP/plugin integration may support explicit or
+model-selected tool calls, but it must not be described as passive or complete
+turn capture. Browser scraping, desktop interception, and other unsupported
+observation mechanisms are outside the product design. This boundary should be
+reassessed only if OpenAI documents a suitable authorized event interface.
 
 ## Distribution ownership
 

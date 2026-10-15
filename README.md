@@ -281,3 +281,9 @@ REST API, admin UI, concrete vendor embedding provider, concrete host capture
 integrations, Authenticode and MSI/MSIX release packaging, additional secure
 credential-store providers, final proprietary legal terms, and public-release
 validation remain open.
+
+Ordinary ChatGPT passive capture is not on this deferred roadmap. OpenAI's
+official ChatGPT clients currently provide no supported outbound completed-turn
+interface for third-party capture, so MemTextual cannot implement that behavior
+unless the platform boundary changes. Explicit or model-selected ChatGPT
+MCP/plugin calls remain a different, supported integration category.
