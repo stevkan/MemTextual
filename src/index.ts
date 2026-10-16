@@ -429,6 +429,7 @@ export {
   type ContinuityConversationProtectedGrantResolver,
   type ContinuityConversationProtectedLifecycle,
   type OpenProtectedContinuityConversationInput,
+  type RetryProtectedContinuityConversationCaptureInput,
   type SendProtectedContinuityConversationTurnInput,
   type StartProtectedContinuityConversationInput,
 } from "./services/continuity-conversation-protected-client.js";
@@ -461,6 +462,7 @@ export {
   createContinuityConsoleApplication,
   startContinuityConsole,
   type ContinuityConsoleApplication,
+  type ContinuityConsoleConversationRuntime,
   type ContinuityConsoleHandle,
   type ContinuityConsoleRequest,
   type ContinuityConsoleResponse,

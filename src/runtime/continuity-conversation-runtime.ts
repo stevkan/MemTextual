@@ -49,6 +49,7 @@ export interface ContinuityConversationRuntimeOptions {
 export interface ContinuityConversationRuntime {
   authorizations: ContinuityConversationAuthorizationService;
   client: ContinuityConversationProtectedClient;
+  hostIdentity: ConversationHost["identity"];
   close(): Promise<void>;
 }
 
@@ -134,6 +135,7 @@ export function createContinuityConversationRuntime(
   return {
     authorizations,
     client,
+    hostIdentity: { ...options.host.identity },
     async close(): Promise<void> {
       if (closed) {
         return;

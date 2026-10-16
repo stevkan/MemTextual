@@ -221,6 +221,12 @@ supports evidence-backed candidate acceptance or rejection plus memory history,
 candidate reconciliation, immutable correction, pinning, protection, archive,
 restore, persona-memory export, recoverable deletion, and safeguarded permanent
 purge controls.
+The console server also defines an optional grantless conversation API for
+server-fixed authorization, start, reopen, leave, and completed-turn submission.
+Failed capture can be retried from its exact journal without another model
+response. The API never accepts or returns the protected host grant. The
+packaged CLI and page do not enable these live routes yet; they remain read-only
+until explicit runtime configuration and browser controls are added.
 `AmbientMemoryService` imports a recorded interaction, invokes a configured
 versioned extractor, and creates idempotent candidates bound to that persona's
 relationship and evidence. It defaults extracted claims to inferred and pending;

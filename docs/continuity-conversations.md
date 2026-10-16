@@ -161,10 +161,15 @@ The runtime owns and closes its host, but never closes the caller-owned database
 No embedding provider is required, and absent sensitivity classification still
 fails closed to sensitive, pending candidates.
 
-The graphical console remains a read-only conversation catalog; it does not yet
-start, reopen, or send turns. Live chat remains disabled until server-side
-authorization and conversation operations, configuration, and failure states
-are exposed through the local console without revealing bearer grants.
+The local console server now exposes optional, same-origin, token-protected
+authorization and conversation operations without accepting or returning host
+bearer grants. It fixes persona and host authority server-side and preserves a
+completed model response in a structured recovery response if ambient capture
+fails. A grantless retry operation can recapture that exact journaled turn
+without another model response. The packaged CLI does not yet construct this
+optional runtime, and the graphical page remains a read-only conversation
+catalog. Live chat stays
+disabled until runtime configuration and the browser controls are added.
 Coordinated host-thread deletion controls also remain open.
 
 Codex App Server threads are persistent local records outside the MemTextual

@@ -5,6 +5,15 @@ describe only the current design and behavior.
 
 ## Unreleased
 
+- Added an optional grantless conversation API to the loopback Continuity
+  console server. Token-protected, same-origin routes can explicitly create,
+  list, and revoke persona-bound host authorization; start, reopen, leave, and
+  send conversations; retry failed capture without another model response; and
+  surface recovery-required states. Browser inputs
+  cannot select user, persona, relationship, host, event permissions, or raw
+  grants. A completed model response remains visible if ambient capture fails,
+  while the raw exception stays server-side. The packaged CLI and graphical
+  page remain disabled until runtime configuration and chat controls are added.
 - Added trusted Continuity conversation runtime composition. A single
   server-side boundary now wires the Codex conversation host and structured
   ambient extractor to persona behavior, local lexical memory context,

@@ -1,5 +1,6 @@
 import type {
   ContinuityConversation,
+  ContinuityConversationCaptureRetryResult,
   ContinuityConversationTurnResult,
   OpenContinuityConversationResult,
   SendContinuityConversationTurnInput,
@@ -14,6 +15,12 @@ export type StartProtectedContinuityConversationInput = Omit<
 >;
 
 export interface OpenProtectedContinuityConversationInput {
+  conversationId: string;
+  personaId: string;
+}
+
+export interface RetryProtectedContinuityConversationCaptureInput {
+  captureId: string;
   conversationId: string;
   personaId: string;
 }
@@ -43,6 +50,11 @@ export interface ContinuityConversationProtectedLifecycle {
   sendTurn(
     input: SendContinuityConversationTurnInput,
   ): Promise<ContinuityConversationTurnResult>;
+  retryCapture(input: {
+    captureId: string;
+    personaId: string;
+    grant: string;
+  }): Promise<ContinuityConversationCaptureRetryResult>;
   leaveConversation(conversationId: string, personaId: string): void;
 }
 
@@ -134,6 +146,25 @@ export class ContinuityConversationProtectedClient {
     return result;
   }
 
+  public async retryCapture(
+    input: RetryProtectedContinuityConversationCaptureInput,
+  ): Promise<ContinuityConversationCaptureRetryResult> {
+    const conversation = this.requireConversation(
+      input.conversationId,
+      input.personaId,
+    );
+    const grant = requireGrant(
+      await this.#authorizations.resolveForConversation(conversation),
+    );
+    const result = await this.#lifecycle.retryCapture({
+      captureId: requiredText(input.captureId, "captureId"),
+      personaId: conversation.personaId,
+      grant,
+    });
+    requireSameConversationBinding(result.conversation, conversation, "retry");
+    return result;
+  }
+
   public leaveConversation(conversationId: string, personaId: string): void {
     const conversation = this.requireConversation(conversationId, personaId);
     this.#lifecycle.leaveConversation(conversation.id, conversation.personaId);
@@ -192,7 +223,7 @@ function requireConversationMatchesAuthorization(
 function requireSameConversationBinding(
   actual: ContinuityConversation,
   expected: ContinuityConversation,
-  operation: "open" | "turn",
+  operation: "open" | "retry" | "turn",
 ): void {
   if (
     actual.id !== expected.id ||

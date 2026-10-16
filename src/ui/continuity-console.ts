@@ -7,9 +7,22 @@ import {
 } from "node:http";
 import type { AddressInfo } from "node:net";
 import { z } from "zod";
+import { conversationGrantBindingFromAuthorization } from "../domain/conversation-grant-store.js";
+import {
+  continuityConversationTurnEventKind,
+  type ContinuityConversationTurnResult,
+} from "../domain/continuity-conversation.js";
+import type { ConversationHostIdentity } from "../domain/conversation-host.js";
 import type { PersonaContext } from "../domain/persona.js";
 import type { ContinuityControlService } from "../services/continuity-control-service.js";
+import type { ContinuityConversationAuthorizationService } from "../services/continuity-conversation-authorization-service.js";
 import type { ContinuityConversationCatalogService } from "../services/continuity-conversation-catalog-service.js";
+import { ContinuityConversationOpenRecoveryRequiredError } from "../services/continuity-conversation-client-coordinator.js";
+import type { ContinuityConversationProtectedClient } from "../services/continuity-conversation-protected-client.js";
+import {
+  ContinuityConversationCaptureError,
+  ContinuityConversationReconciliationCaptureError,
+} from "../services/continuity-conversation-service.js";
 import type { ContinuityPersonaBehaviorService } from "../services/continuity-persona-behavior-service.js";
 import {
   continuityConsoleCss,
@@ -94,6 +107,18 @@ const personaBehaviorSchema = z
   .refine(({ instructions }) => instructions.trim().length > 0, {
     message: "Persona behavior instructions must not be empty.",
   });
+const conversationAuthorizationSchema = z
+  .object({ expiresAt: z.string().trim().min(1).max(100).optional() })
+  .strict();
+const conversationStartSchema = z
+  .object({
+    authorizationId: z.string().trim().min(1).max(500),
+    model: z.string().trim().min(1).max(180).optional(),
+  })
+  .strict();
+const conversationTurnSchema = z
+  .object({ text: z.string().trim().min(1).max(50_000) })
+  .strict();
 
 class HttpError extends Error {
   public constructor(
@@ -109,9 +134,26 @@ export interface StartContinuityConsoleOptions {
   behaviors: ContinuityPersonaBehaviorService;
   conversations: ContinuityConversationCatalogService;
   control: ContinuityControlService;
+  conversationRuntime?: ContinuityConsoleConversationRuntime;
   personaContext: PersonaContext;
   port?: number;
   token?: string;
+}
+
+export interface ContinuityConsoleConversationRuntime {
+  authorizations: Pick<
+    ContinuityConversationAuthorizationService,
+    "authorize" | "listForPersona" | "revoke"
+  >;
+  client: Pick<
+    ContinuityConversationProtectedClient,
+    | "leaveConversation"
+    | "openConversation"
+    | "retryCapture"
+    | "sendTurn"
+    | "startConversation"
+  >;
+  hostIdentity: ConversationHostIdentity;
 }
 
 export interface ContinuityConsoleHandle {
@@ -269,6 +311,31 @@ function routeId(
   }
 }
 
+function conversationCaptureRoute(
+  pathname: string,
+): { captureId: string; conversationId: string } | null {
+  const match =
+    /^\/api\/conversations\/([^/]+)\/captures\/([^/]+)\/retry$/u.exec(pathname);
+  if (match?.[1] === undefined || match[2] === undefined) {
+    return null;
+  }
+  try {
+    const conversationId = decodeURIComponent(match[1]).trim();
+    const captureId = decodeURIComponent(match[2]).trim();
+    if (
+      conversationId.length === 0 ||
+      conversationId.length > 500 ||
+      captureId.length === 0 ||
+      captureId.length > 500
+    ) {
+      return null;
+    }
+    return { captureId, conversationId };
+  } catch {
+    return null;
+  }
+}
+
 function statusForError(error: unknown): number {
   if (error instanceof HttpError) {
     return error.status;
@@ -351,10 +418,47 @@ function exportFilename(personaName: string): string {
   return `memtextual-continuity-${slug || "persona"}-memories.json`;
 }
 
+function requireConversationRuntime(
+  runtime: ContinuityConsoleConversationRuntime | undefined,
+): ContinuityConsoleConversationRuntime {
+  if (runtime === undefined) {
+    throw new HttpError(503, "The Continuity conversation runtime is not enabled.");
+  }
+  return runtime;
+}
+
+function listPersonaHostAuthorizations(
+  runtime: ContinuityConsoleConversationRuntime,
+  persona: PersonaContext,
+  includeRevoked = false,
+) {
+  return runtime.authorizations
+    .listForPersona(persona, includeRevoked)
+    .filter(({ hostId }) => hostId === runtime.hostIdentity.adapterId);
+}
+
+function conversationTurnResponse(result: ContinuityConversationTurnResult) {
+  return {
+    conversation: result.conversation,
+    turn: result.turn,
+    context: {
+      formatVersion: result.context.payload.formatVersion,
+      itemCount: result.context.payload.items.length,
+      omittedCount: result.context.omittedCount,
+    },
+    capture: result.capture,
+    captureRecord: result.captureRecord,
+  };
+}
+
 export function createContinuityConsoleApplication(
   options: Pick<
     StartContinuityConsoleOptions,
-    "behaviors" | "conversations" | "control" | "personaContext"
+    | "behaviors"
+    | "conversations"
+    | "control"
+    | "conversationRuntime"
+    | "personaContext"
   >,
   token: string,
 ): ContinuityConsoleApplication {
@@ -411,7 +515,25 @@ export function createContinuityConsoleApplication(
             }),
             memories: options.control.listMemories(personaId),
             conversations: options.conversations.listConversations(personaId),
+            conversationRuntime: {
+              enabled: options.conversationRuntime !== undefined,
+            },
           });
+        }
+
+        if (
+          request.method === "GET" &&
+          url.pathname === "/api/conversation-authorizations"
+        ) {
+          const runtime = requireConversationRuntime(options.conversationRuntime);
+          return jsonResponse(
+            200,
+            listPersonaHostAuthorizations(
+              runtime,
+              options.personaContext,
+              true,
+            ),
+          );
         }
 
         if (request.method === "GET" && url.pathname === "/api/export") {
@@ -477,6 +599,158 @@ export function createContinuityConsoleApplication(
         }
         requireMutationOrigin(headers, origin);
         const body = readJson(request, headers);
+        if (url.pathname === "/api/conversation-authorizations") {
+          const runtime = requireConversationRuntime(options.conversationRuntime);
+          const input = parseBody(conversationAuthorizationSchema, body);
+          return jsonResponse(
+            201,
+            await runtime.authorizations.authorize(
+              {
+                userId: options.personaContext.persona.userId,
+                personaId,
+                hostId: runtime.hostIdentity.adapterId,
+                allowedEventKinds: [continuityConversationTurnEventKind],
+                ...(input.expiresAt === undefined
+                  ? {}
+                  : { expiresAt: input.expiresAt }),
+              },
+              { actor: "user", explicitUserAction: true },
+            ),
+          );
+        }
+        const revokeAuthorizationId = routeId(
+          url.pathname,
+          "/revoke",
+          "conversation-authorizations",
+        );
+        if (revokeAuthorizationId !== null) {
+          parseBody(emptySchema, body);
+          const runtime = requireConversationRuntime(options.conversationRuntime);
+          const authorization = listPersonaHostAuthorizations(
+            runtime,
+            options.personaContext,
+            true,
+          ).find(({ id }) => id === revokeAuthorizationId);
+          if (authorization === undefined) {
+            throw new HttpError(404, "Host authorization not found.");
+          }
+          return jsonResponse(
+            200,
+            await runtime.authorizations.revoke(
+              conversationGrantBindingFromAuthorization(authorization),
+              { actor: "user", explicitUserAction: true },
+            ),
+          );
+        }
+        if (url.pathname === "/api/conversations") {
+          const runtime = requireConversationRuntime(options.conversationRuntime);
+          const input = parseBody(conversationStartSchema, body);
+          return jsonResponse(
+            201,
+            await runtime.client.startConversation({
+              personaId,
+              authorizationId: input.authorizationId,
+              ...(input.model === undefined ? {} : { model: input.model }),
+            }),
+          );
+        }
+        const openConversationId = routeId(
+          url.pathname,
+          "/open",
+          "conversations",
+        );
+        if (openConversationId !== null) {
+          parseBody(emptySchema, body);
+          const runtime = requireConversationRuntime(options.conversationRuntime);
+          try {
+            return jsonResponse(
+              200,
+              await runtime.client.openConversation({
+                conversationId: openConversationId,
+                personaId,
+              }),
+            );
+          } catch (error) {
+            if (error instanceof ContinuityConversationOpenRecoveryRequiredError) {
+              return jsonResponse(409, {
+                status: "recovery_required",
+                conversationId: error.conversationId,
+                captures: error.captures,
+              });
+            }
+            if (error instanceof ContinuityConversationReconciliationCaptureError) {
+              return jsonResponse(409, {
+                status: "reconciliation_capture_failed",
+                conversation: error.conversation,
+                turn: error.turn,
+                captureRecord: error.captureRecord,
+              });
+            }
+            throw error;
+          }
+        }
+        const conversationTurnId = routeId(
+          url.pathname,
+          "/turns",
+          "conversations",
+        );
+        if (conversationTurnId !== null) {
+          const input = parseBody(conversationTurnSchema, body);
+          const runtime = requireConversationRuntime(options.conversationRuntime);
+          try {
+            return jsonResponse(
+              200,
+              conversationTurnResponse(
+                await runtime.client.sendTurn({
+                  conversationId: conversationTurnId,
+                  personaId,
+                  text: input.text,
+                }),
+              ),
+            );
+          } catch (error) {
+            if (error instanceof ContinuityConversationCaptureError) {
+              return jsonResponse(409, {
+                status: "capture_failed",
+                conversation: error.conversation,
+                turn: error.turn,
+                context: {
+                  formatVersion: error.context.payload.formatVersion,
+                  itemCount: error.context.payload.items.length,
+                  omittedCount: error.context.omittedCount,
+                },
+                captureRecord: error.captureRecord,
+              });
+            }
+            throw error;
+          }
+        }
+        const captureRetry = conversationCaptureRoute(url.pathname);
+        if (captureRetry !== null) {
+          parseBody(emptySchema, body);
+          const runtime = requireConversationRuntime(options.conversationRuntime);
+          return jsonResponse(
+            200,
+            await runtime.client.retryCapture({
+              ...captureRetry,
+              personaId,
+            }),
+          );
+        }
+        const leaveConversationId = routeId(
+          url.pathname,
+          "/leave",
+          "conversations",
+        );
+        if (leaveConversationId !== null) {
+          parseBody(emptySchema, body);
+          const runtime = requireConversationRuntime(options.conversationRuntime);
+          runtime.client.leaveConversation(leaveConversationId, personaId);
+          return jsonResponse(200, {
+            conversationId: leaveConversationId,
+            left: true,
+          });
+        }
         if (url.pathname === "/api/behavior") {
           const input = parseBody(personaBehaviorSchema, body);
           return jsonResponse(

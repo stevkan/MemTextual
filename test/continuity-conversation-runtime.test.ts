@@ -2,12 +2,22 @@ import assert from "node:assert/strict";
 import { resolve } from "node:path";
 import test from "node:test";
 import {
+  ContinuityControlService,
+  ContinuityConversationCatalogService,
+  ContinuityMemoryService,
+  ContinuityPersonaBehaviorService,
   IngestionService,
+  MemoryService,
   PersonaService,
+  SqliteContinuityControlRepository,
+  SqliteContinuityConversationRepository,
+  SqliteContinuityMemoryRepository,
+  SqliteContinuityPersonaBehaviorRepository,
   SqliteIngestionRepository,
   SqliteMemoryRepository,
   SqlitePersonaRepository,
   continuityConversationTurnEventKind,
+  createContinuityConsoleApplication,
   createContinuityConversationRuntime,
   openMemTextualDatabase,
   type CodexAppServerStructuredTaskInput,
@@ -71,6 +81,8 @@ class RuntimeHost implements StructuredConversationHost {
   readonly structuredTasks: CodexAppServerStructuredTaskInput[] = [];
   readonly history: HistoricalCompletedConversationTurn[] = [];
   closeCalls = 0;
+  failStructuredTask = false;
+  nextTurn = 1;
 
   async startConversation(): Promise<ConversationSession> {
     return { id: "host-conversation-1" };
@@ -83,7 +95,7 @@ class RuntimeHost implements StructuredConversationHost {
   async sendTurn(input: SendConversationTurnInput): Promise<CompletedConversationTurn> {
     const turn = {
       conversationId: input.conversationId,
-      turnId: "host-turn-1",
+      turnId: `host-turn-${this.nextTurn++}`,
       userText: input.text,
       assistantText: "I will remember that.",
       status: "completed" as const,
@@ -115,6 +127,9 @@ class RuntimeHost implements StructuredConversationHost {
     input: CodexAppServerStructuredTaskInput,
   ): Promise<string> {
     this.structuredTasks.push(input);
+    if (this.failStructuredTask) {
+      throw new Error("structured extraction unavailable");
+    }
     const payload = JSON.parse(input.input) as {
       records: Array<{ id: string; authorRole: string; content: string }>;
     };
@@ -124,14 +139,16 @@ class RuntimeHost implements StructuredConversationHost {
     return JSON.stringify({
       proposals: [
         {
-          assertion: "Steve prefers tea.",
+          assertion: userRecord.content.includes("tea")
+            ? "Steve prefers tea."
+            : "Steve prefers coffee.",
           type: "preference",
           memoryClass: "durable",
           evidence: [
             {
               sourceRecordId: userRecord.id,
               role: "supports",
-              excerpt: "I prefer tea.",
+              excerpt: userRecord.content,
             },
           ],
           explicitness: "explicit",
@@ -217,6 +234,217 @@ test("production runtime composes protected conversation and ambient capture bou
     await runtime.close();
     assert.equal(host.closeCalls, 1);
     assert.doesNotThrow(() => database.prepare("SELECT 1").get());
+  } finally {
+    await runtime.close();
+    database.close();
+  }
+});
+
+test("console conversation API keeps identity and grants behind the loopback boundary", async () => {
+  const database = openMemTextualDatabase({
+    filename: ":memory:",
+    migrationsDirectory: resolve("migrations"),
+  });
+  const hostAdapter = new RuntimeHost();
+  const runtime = createContinuityConversationRuntime({
+    database,
+    extractionModel: "gpt-runtime-test",
+    grantStore: new MemoryGrantStore(),
+    host: hostAdapter,
+    now: () => new Date("2026-10-15T12:00:00.000Z"),
+  });
+  try {
+    const memories = new SqliteMemoryRepository(database);
+    const personasRepository = new SqlitePersonaRepository(database);
+    const personas = new PersonaService(personasRepository);
+    const user = personas.createUser({ displayName: "Steve" });
+    const persona = personas.createPersona({ userId: user.id, name: "Skylar" });
+    const ingestion = new IngestionService(
+      new SqliteIngestionRepository(database, memories),
+    );
+    const control = new ContinuityControlService(
+      new SqliteContinuityControlRepository(database),
+      personasRepository,
+      new ContinuityMemoryService(
+        new SqliteContinuityMemoryRepository(database, memories),
+      ),
+      new MemoryService(memories),
+      ingestion,
+    );
+    const application = createContinuityConsoleApplication(
+      {
+        behaviors: new ContinuityPersonaBehaviorService(
+          new SqliteContinuityPersonaBehaviorRepository(database),
+        ),
+        conversations: new ContinuityConversationCatalogService(
+          new SqliteContinuityConversationRepository(database),
+          personasRepository,
+        ),
+        control,
+        conversationRuntime: runtime,
+        personaContext: persona,
+      },
+      "t".repeat(32),
+    );
+    const origin = "http://127.0.0.1:47321";
+    const request = (url: string, body?: unknown, method = "POST") =>
+      application.handle(
+        {
+          method,
+          url,
+          headers: {
+            authorization: `Bearer ${"t".repeat(32)}`,
+            host: "127.0.0.1:47321",
+            ...(body === undefined
+              ? {}
+              : {
+                  "content-type": "application/json",
+                  origin,
+                }),
+          },
+          ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+        },
+        origin,
+      );
+
+    const dashboard = await request("/api/dashboard", undefined, "GET");
+    assert.equal(dashboard.status, 200);
+    assert.deepEqual(
+      (JSON.parse(dashboard.body) as { conversationRuntime: unknown })
+        .conversationRuntime,
+      { enabled: true },
+    );
+
+    const rejectedIdentityOverride = await request(
+      "/api/conversation-authorizations",
+      { personaId: "another-persona" },
+    );
+    assert.equal(rejectedIdentityOverride.status, 400);
+
+    const authorizationResponse = await request(
+      "/api/conversation-authorizations",
+      {},
+    );
+    assert.equal(authorizationResponse.status, 201);
+    assert.equal(authorizationResponse.body.includes("mthg_"), false);
+    const authorization = JSON.parse(authorizationResponse.body) as {
+      id: string;
+      hostId: string;
+      personaId: string;
+    };
+    assert.equal(authorization.hostId, hostAdapter.identity.adapterId);
+    assert.equal(authorization.personaId, persona.persona.id);
+
+    const listedResponse = await request(
+      "/api/conversation-authorizations",
+      undefined,
+      "GET",
+    );
+    assert.equal(listedResponse.status, 200);
+    assert.equal(listedResponse.body.includes("mthg_"), false);
+    assert.deepEqual(
+      (JSON.parse(listedResponse.body) as Array<{ id: string }>).map(({ id }) => id),
+      [authorization.id],
+    );
+
+    const startResponse = await request("/api/conversations", {
+      authorizationId: authorization.id,
+    });
+    assert.equal(startResponse.status, 201);
+    assert.equal(startResponse.body.includes("mthg_"), false);
+    const conversation = JSON.parse(startResponse.body) as { id: string };
+
+    const rejectedGrantInput = await request(
+      `/api/conversations/${encodeURIComponent(conversation.id)}/turns`,
+      { text: "I prefer tea.", grant: `mthg_${"a".repeat(43)}` },
+    );
+    assert.equal(rejectedGrantInput.status, 400);
+    assert.equal(hostAdapter.structuredTasks.length, 0);
+
+    const turnResponse = await request(
+      `/api/conversations/${encodeURIComponent(conversation.id)}/turns`,
+      { text: "I prefer tea." },
+    );
+    assert.equal(turnResponse.status, 200);
+    assert.equal(turnResponse.body.includes("mthg_"), false);
+    assert.equal(hostAdapter.structuredTasks.length, 1);
+    assert.equal(ingestion.listCandidates().length, 1);
+
+    const leaveResponse = await request(
+      `/api/conversations/${encodeURIComponent(conversation.id)}/leave`,
+      {},
+    );
+    assert.equal(leaveResponse.status, 200);
+    const openResponse = await request(
+      `/api/conversations/${encodeURIComponent(conversation.id)}/open`,
+      {},
+    );
+    assert.equal(openResponse.status, 200);
+
+    hostAdapter.failStructuredTask = true;
+    const failedCaptureResponse = await request(
+      `/api/conversations/${encodeURIComponent(conversation.id)}/turns`,
+      { text: "I also prefer coffee." },
+    );
+    assert.equal(failedCaptureResponse.status, 409);
+    assert.equal(failedCaptureResponse.body.includes("mthg_"), false);
+    const failedCapture = JSON.parse(failedCaptureResponse.body) as {
+      status: string;
+      turn: { assistantText: string };
+      captureRecord: { id: string; status: string; failureCode: string };
+      cause?: unknown;
+    };
+    assert.equal(failedCapture.status, "capture_failed");
+    assert.equal(failedCapture.turn.assistantText, "I will remember that.");
+    assert.equal(failedCapture.captureRecord.status, "failed");
+    assert.equal(failedCapture.captureRecord.failureCode, "ambient_capture_failed");
+    assert.equal(failedCapture.cause, undefined);
+
+    const recoveryResponse = await request(
+      `/api/conversations/${encodeURIComponent(conversation.id)}/open`,
+      {},
+    );
+    assert.equal(recoveryResponse.status, 409);
+    assert.equal(
+      (JSON.parse(recoveryResponse.body) as { status: string }).status,
+      "recovery_required",
+    );
+
+    hostAdapter.failStructuredTask = false;
+    const retryResponse = await request(
+      `/api/conversations/${encodeURIComponent(conversation.id)}/captures/${encodeURIComponent(failedCapture.captureRecord.id)}/retry`,
+      {},
+    );
+    assert.equal(retryResponse.status, 200);
+    assert.equal(retryResponse.body.includes("mthg_"), false);
+    assert.equal(
+      (JSON.parse(retryResponse.body) as { captureRecord: { status: string } })
+        .captureRecord.status,
+      "captured",
+    );
+
+    const recoveredOpenResponse = await request(
+      `/api/conversations/${encodeURIComponent(conversation.id)}/open`,
+      {},
+    );
+    assert.equal(recoveredOpenResponse.status, 200);
+
+    const secondLeave = await request(
+      `/api/conversations/${encodeURIComponent(conversation.id)}/leave`,
+      {},
+    );
+    assert.equal(secondLeave.status, 200);
+    const revokeResponse = await request(
+      `/api/conversation-authorizations/${encodeURIComponent(authorization.id)}/revoke`,
+      {},
+    );
+    assert.equal(revokeResponse.status, 200);
+    assert.equal(revokeResponse.body.includes("mthg_"), false);
+    assert.equal(
+      (JSON.parse(revokeResponse.body) as { authorization: { status: string } })
+        .authorization.status,
+      "revoked",
+    );
   } finally {
     await runtime.close();
     database.close();

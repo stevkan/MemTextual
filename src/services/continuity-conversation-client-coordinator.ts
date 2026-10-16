@@ -1,10 +1,12 @@
 import type {
   ContinuityConversation,
+  ContinuityConversationCaptureRetryResult,
   ContinuityConversationReconciliationResult,
   ContinuityConversationTurnCapture,
   ContinuityConversationTurnResult,
   OpenContinuityConversationResult,
   ReconcileContinuityConversationInput,
+  RetryContinuityConversationCaptureInput,
   ResumeContinuityConversationInput,
   SendContinuityConversationTurnInput,
   StartContinuityConversationInput,
@@ -24,6 +26,9 @@ export interface ContinuityConversationClientOperations {
   sendTurn(
     input: SendContinuityConversationTurnInput,
   ): Promise<ContinuityConversationTurnResult>;
+  retryCapture(
+    input: RetryContinuityConversationCaptureInput,
+  ): Promise<ContinuityConversationCaptureRetryResult>;
 }
 
 interface OpenConversationState {
@@ -139,6 +144,18 @@ export class ContinuityConversationClientCoordinator {
       this.#open.delete(conversationId);
       throw error;
     }
+  }
+
+  public async retryCapture(
+    input: RetryContinuityConversationCaptureInput,
+  ): Promise<ContinuityConversationCaptureRetryResult> {
+    const personaId = requiredText(input.personaId, "personaId");
+    const captureId = requiredText(input.captureId, "captureId");
+    return this.conversations.retryCapture({
+      captureId,
+      personaId,
+      grant: input.grant,
+    });
   }
 
   public leaveConversation(conversationId: string, personaId: string): void {

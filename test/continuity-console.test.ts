@@ -257,6 +257,7 @@ test("Continuity console requires its session token and persona boundary", async
       persona: { id: string; name: string };
       candidates: Array<{ candidate: { id: string } }>;
       memories: unknown[];
+      conversationRuntime: { enabled: boolean };
     };
     assert.deepEqual(dashboard.persona, {
       id: setup.skylar.persona.id,
@@ -267,6 +268,15 @@ test("Continuity console requires its session token and persona boundary", async
       [skylarCapture.candidates[0]!.id],
     );
     assert.equal(dashboard.memories.length, 0);
+    assert.deepEqual(dashboard.conversationRuntime, { enabled: false });
+
+    const disabledConversationRuntime = await request(application, token, {
+      method: "POST",
+      url: "/api/conversation-authorizations",
+      headers: { "content-type": "application/json", origin },
+      body: "{}",
+    });
+    assert.equal(disabledConversationRuntime.status, 503);
 
     const reviewResponse = await request(application, token, {
       method: "GET",

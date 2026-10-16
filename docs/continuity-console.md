@@ -51,14 +51,25 @@ for an available port.
 The trusted privacy CLI remains available for the same memory operations and
 for source-series privacy workflows.
 
-The conversation view is read-only. It is not a complete mirror of the host:
-the host can contain additional completed turns until history reconciliation
-runs. Starting, reopening, and sending conversation turns remain unavailable
-until the grantless conversational runtime is composed with both the protected
-grant store and the concrete Codex App Server ambient extraction provider. Both
-parts are implemented but are not yet wired into the console process. The raw
-grant is intentionally absent from browser requests, the database, browser
-state, and command-line arguments.
+The browser conversation view remains read-only. It is not a complete mirror of
+the host: the host can contain additional completed turns until history
+reconciliation runs.
+
+The loopback server now has an optional conversation API boundary for explicit
+authorization creation, authorization listing and revocation, conversation
+start, reopen, leave, completed-turn submission, and failed-capture retry. It
+fixes the user, persona, relationship, host, and allowed event kind on the
+server. Strict browser inputs cannot supply those values or a raw host grant.
+If capture fails after a model response completes, the API returns the exact
+completed turn and a generic recoverable capture record without returning the
+internal exception or grant. Retrying reuses that journaled turn and does not
+generate another model response.
+
+The packaged console command does not enable this optional runtime yet, and the
+page does not call these routes. Until runtime configuration and browser controls
+are added, the dashboard reports conversations as disabled and the mutation
+routes return a service-unavailable response. Raw grants remain absent from the
+database, browser requests, browser state, responses, and command-line arguments.
 
 ## Persona-memory export
 
@@ -107,6 +118,9 @@ outside the operation and are disclosed rather than silently claimed as erased.
   persona; browser requests cannot select another persona.
 - Conversation summaries and journal details are also resolved against the
   server-bound persona; cross-persona IDs return a not-found response.
+- When enabled, conversation authorization and lifecycle routes derive identity,
+  relationship, host, and event permissions from the server-bound runtime and
+  reject extra browser-selected fields.
 - API requests require the per-launch bearer token.
 - Mutations also require an exact same-origin browser request.
 - Host validation, strict JSON schemas, a 64 KiB body limit, no-store responses,

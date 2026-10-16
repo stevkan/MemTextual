@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   ContinuityConversationProtectedClient,
   type ContinuityConversation,
+  type ContinuityConversationCaptureRetryResult,
   type ContinuityConversationProtectedGrantResolver,
   type ContinuityConversationProtectedLifecycle,
   type ContinuityConversationReconciliationResult,
@@ -68,6 +69,7 @@ const reconciliation: ContinuityConversationReconciliationResult = {
   existingCaptureCount: 0,
   recovered: [],
 };
+const captureRetryResult = { conversation } as ContinuityConversationCaptureRetryResult;
 
 class FakeGrantResolver implements ContinuityConversationProtectedGrantResolver {
   readonly calls: string[] = [];
@@ -104,6 +106,11 @@ class FakeLifecycle implements ContinuityConversationProtectedLifecycle {
   async sendTurn(input: Parameters<ContinuityConversationProtectedLifecycle["sendTurn"]>[0]) {
     this.calls.push({ operation: "send", input });
     return { conversation } as ContinuityConversationTurnResult;
+  }
+
+  async retryCapture(input: Parameters<ContinuityConversationProtectedLifecycle["retryCapture"]>[0]) {
+    this.calls.push({ operation: "retry", input });
+    return captureRetryResult;
   }
 
   leaveConversation(conversationId: string, personaId: string): void {
@@ -192,6 +199,29 @@ test("protected client resolves a stored grant internally for open and send", as
       },
     ],
   );
+});
+
+test("protected client resolves capture retry grants without exposing them", async () => {
+  const setup = fixture();
+  assert.equal(
+    await setup.client.retryCapture({
+      captureId: "capture-1",
+      conversationId: conversation.id,
+      personaId: persona.persona.id,
+    }),
+    captureRetryResult,
+  );
+  assert.deepEqual(setup.grants.calls, ["conversation:conversation-1"]);
+  assert.deepEqual(setup.lifecycle.calls, [
+    {
+      operation: "retry",
+      input: {
+        captureId: "capture-1",
+        personaId: persona.persona.id,
+        grant,
+      },
+    },
+  ]);
 });
 
 test("protected client denies cross-persona IDs before grant resolution", async () => {

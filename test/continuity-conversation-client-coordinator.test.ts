@@ -4,6 +4,7 @@ import {
   ContinuityConversationClientCoordinator,
   ContinuityConversationOpenRecoveryRequiredError,
   type ContinuityConversation,
+  type ContinuityConversationCaptureRetryResult,
   type ContinuityConversationClientOperations,
   type ContinuityConversationReconciliationResult,
   type ContinuityConversationTurnCapture,
@@ -35,6 +36,7 @@ const reconciliation: ContinuityConversationReconciliationResult = {
 };
 
 const turnResult = Object.freeze({}) as ContinuityConversationTurnResult;
+const retryResult = Object.freeze({}) as ContinuityConversationCaptureRetryResult;
 
 class FakeConversationOperations implements ContinuityConversationClientOperations {
   readonly calls: string[] = [];
@@ -79,6 +81,11 @@ class FakeConversationOperations implements ContinuityConversationClientOperatio
     this.calls.push("send");
     return this.sendTurnImplementation(input);
   }
+
+  async retryCapture(): Promise<ContinuityConversationCaptureRetryResult> {
+    this.calls.push("retry");
+    return retryResult;
+  }
 }
 
 const openInput: ResumeContinuityConversationInput = {
@@ -91,6 +98,20 @@ const sendInput: SendContinuityConversationTurnInput = {
   ...openInput,
   text: "Please remember this turn.",
 };
+
+test("capture retry delegates without changing conversation readiness", async () => {
+  const operations = new FakeConversationOperations();
+  const coordinator = new ContinuityConversationClientCoordinator(operations);
+  assert.equal(
+    await coordinator.retryCapture({
+      captureId: "capture-1",
+      personaId: conversation.personaId,
+      grant: "grant-1",
+    }),
+    retryResult,
+  );
+  assert.deepEqual(operations.calls, ["retry"]);
+});
 
 test("open reconciles authoritative history before resuming and enables turns", async () => {
   const operations = new FakeConversationOperations();

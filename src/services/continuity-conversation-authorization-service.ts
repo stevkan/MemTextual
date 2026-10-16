@@ -66,6 +66,19 @@ export class ContinuityConversationAuthorizationService {
     );
   }
 
+  public listForPersona(
+    persona: PersonaContext,
+    includeRevoked = false,
+  ): HostAuthorization[] {
+    return this.authorizations
+      .list(requiredIdentifier(persona.persona.userId, "userId"), includeRevoked)
+      .filter(
+        (authorization) =>
+          authorization.personaId === persona.persona.id &&
+          authorization.relationshipId === persona.relationship.id,
+      );
+  }
+
   public async resolveForPersonaAuthorization(
     authorizationId: string,
     persona: PersonaContext,
