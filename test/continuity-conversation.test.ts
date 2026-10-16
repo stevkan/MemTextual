@@ -97,6 +97,7 @@ class FakeContextProvider {
 }
 
 function fixture(options: { failExtraction?: boolean } = {}) {
+  const extractionState = { fail: options.failExtraction === true };
   const database = openMemTextualDatabase({
     filename: ":memory:",
     migrationsDirectory: resolve("migrations"),
@@ -129,7 +130,7 @@ function fixture(options: { failExtraction?: boolean } = {}) {
       id: "test.conversation-extractor",
       version: "1",
       extract: async ({ records }) => {
-        if (options.failExtraction === true) {
+        if (extractionState.fail) {
           throw new Error("extraction unavailable");
         }
         return JSON.stringify({
@@ -178,6 +179,7 @@ function fixture(options: { failExtraction?: boolean } = {}) {
     conversations,
     contexts,
     database,
+    extractionState,
     host,
     ingestion,
     skylar,
@@ -210,6 +212,12 @@ test("binds a host conversation to one persona and captures an exact completed t
     assert.equal(setup.host.sent[0]?.memoryContext?.contentRole, "memory_data");
     assert.equal(result.capture.createdCandidateCount, 1);
     assert.equal(result.capture.receipt.personaId, setup.skylar.persona.id);
+    assert.equal(result.captureRecord.status, "captured");
+    assert.equal(result.captureRecord.attemptCount, 1);
+    assert.equal(result.captureRecord.receiptId, result.capture.receipt.id);
+    assert.equal(result.captureRecord.userText, "Please keep your responses concise.");
+    assert.equal(result.captureRecord.assistantText, "I will keep that in mind.");
+    assert.deepEqual(setup.conversations.listRecoverableCaptures(setup.skylar.persona.id), []);
 
     const source = setup.ingestion.listSources()[0];
     assert.ok(source);
@@ -325,12 +333,215 @@ test("preserves a completed response when ambient capture fails visibly", async 
       (error: unknown) => {
         assert.ok(error instanceof ContinuityConversationCaptureError);
         assert.equal(error.turn.assistantText, "I will keep that in mind.");
+        assert.equal(error.captureRecord.status, "failed");
+        assert.equal(error.captureRecord.attemptCount, 1);
+        assert.equal(error.captureRecord.failureCode, "ambient_capture_failed");
+        assert.equal(error.captureRecord.receiptId, null);
         assert.match(String(error.cause), /extraction unavailable/u);
         return true;
       },
     );
     assert.equal(setup.ingestion.listSources().length, 1);
     assert.equal(setup.ingestion.listCandidates().length, 0);
+    const [recoverable] = setup.conversations.listRecoverableCaptures(
+      setup.skylar.persona.id,
+    );
+    assert.ok(recoverable);
+    assert.equal(recoverable.userText, "Remember this.");
+    assert.equal(recoverable.assistantText, "I will keep that in mind.");
+    assert.equal(
+      setup.conversations.listRecoverableCaptures(setup.advisor.persona.id).length,
+      0,
+    );
+  } finally {
+    setup.database.close();
+  }
+});
+
+test("retries a durable failed capture without regenerating the host response", async () => {
+  const setup = fixture({ failExtraction: true });
+  try {
+    const conversation = await setup.conversations.startConversation({
+      personaId: setup.skylar.persona.id,
+      authorizationId: setup.authorization.authorization.id,
+      grant: setup.authorization.grant,
+    });
+    let failedCaptureId = "";
+    await assert.rejects(
+      setup.conversations.sendTurn({
+        conversationId: conversation.id,
+        personaId: setup.skylar.persona.id,
+        grant: setup.authorization.grant,
+        text: "Remember this without another model turn.",
+      }),
+      (error: unknown) => {
+        assert.ok(error instanceof ContinuityConversationCaptureError);
+        failedCaptureId = error.captureRecord.id;
+        return true;
+      },
+    );
+    setup.extractionState.fail = false;
+    const result = await setup.conversations.retryCapture({
+      captureId: failedCaptureId,
+      personaId: setup.skylar.persona.id,
+      grant: setup.authorization.grant,
+    });
+
+    assert.equal(setup.host.sent.length, 1);
+    assert.equal(result.captureRecord.status, "captured");
+    assert.equal(result.captureRecord.attemptCount, 2);
+    assert.equal(result.captureRecord.failureCode, null);
+    assert.equal(result.captureRecord.receiptId, result.capture.receipt.id);
+    assert.equal(setup.ingestion.listCandidates().length, 1);
+    assert.deepEqual(setup.conversations.listRecoverableCaptures(setup.skylar.persona.id), []);
+
+    const replay = await setup.conversations.retryCapture({
+      captureId: failedCaptureId,
+      personaId: setup.skylar.persona.id,
+      grant: setup.authorization.grant,
+    });
+    assert.equal(replay.capture.reused, true);
+    assert.equal(replay.captureRecord.attemptCount, 2);
+    assert.equal(setup.host.sent.length, 1);
+  } finally {
+    setup.database.close();
+  }
+});
+
+test("denies cross-persona and revoked recovery before retrying capture", async () => {
+  const setup = fixture({ failExtraction: true });
+  try {
+    const conversation = await setup.conversations.startConversation({
+      personaId: setup.skylar.persona.id,
+      authorizationId: setup.authorization.authorization.id,
+      grant: setup.authorization.grant,
+    });
+    let failedCaptureId = "";
+    await assert.rejects(
+      setup.conversations.sendTurn({
+        conversationId: conversation.id,
+        personaId: setup.skylar.persona.id,
+        grant: setup.authorization.grant,
+        text: "Keep the failed record isolated.",
+      }),
+      (error: unknown) => {
+        assert.ok(error instanceof ContinuityConversationCaptureError);
+        failedCaptureId = error.captureRecord.id;
+        return true;
+      },
+    );
+    await assert.rejects(
+      setup.conversations.retryCapture({
+        captureId: failedCaptureId,
+        personaId: setup.advisor.persona.id,
+        grant: setup.authorization.grant,
+      }),
+      /capture not found/u,
+    );
+    setup.authorizations.revoke(setup.authorization.authorization.id, {
+      actor: "user",
+      explicitUserAction: true,
+    });
+    await assert.rejects(
+      setup.conversations.retryCapture({
+        captureId: failedCaptureId,
+        personaId: setup.skylar.persona.id,
+        grant: setup.authorization.grant,
+      }),
+      /authorization was rejected/u,
+    );
+    assert.equal(
+      setup.conversations.listRecoverableCaptures(setup.skylar.persona.id)[0]
+        ?.attemptCount,
+      1,
+    );
+  } finally {
+    setup.database.close();
+  }
+});
+
+test("database constraints preserve capture payloads and reject mismatched receipts", async () => {
+  const setup = fixture({ failExtraction: true });
+  try {
+    const conversation = await setup.conversations.startConversation({
+      personaId: setup.skylar.persona.id,
+      authorizationId: setup.authorization.authorization.id,
+      grant: setup.authorization.grant,
+    });
+    let failedCaptureId = "";
+    await assert.rejects(
+      setup.conversations.sendTurn({
+        conversationId: conversation.id,
+        personaId: setup.skylar.persona.id,
+        grant: setup.authorization.grant,
+        text: "Immutable failed turn.",
+      }),
+      (error: unknown) => {
+        assert.ok(error instanceof ContinuityConversationCaptureError);
+        failedCaptureId = error.captureRecord.id;
+        return true;
+      },
+    );
+    assert.throws(
+      () =>
+        setup.database
+          .prepare(
+            `UPDATE continuity_conversation_turn_captures
+             SET user_text = 'Changed' WHERE id = ?`,
+          )
+          .run(failedCaptureId),
+      /payload cannot be changed/u,
+    );
+    assert.throws(
+      () =>
+        setup.database
+          .prepare(
+            `INSERT INTO continuity_conversation_turn_captures (
+               id, conversation_id, external_turn_id, external_event_id,
+               user_text, assistant_text, completed_at, context_format_version,
+               memory_revision_ids_json
+             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)` ,
+          )
+          .run(
+            "invalid-revisions",
+            conversation.id,
+            "invalid-turn",
+            "invalid-event",
+            "User text",
+            "Assistant text",
+            "2026-10-15T12:00:00.000Z",
+            1,
+            JSON.stringify(["duplicate", "duplicate"]),
+          ),
+      /memory revisions are invalid/u,
+    );
+
+    setup.extractionState.fail = false;
+    const successful = await setup.conversations.sendTurn({
+      conversationId: conversation.id,
+      personaId: setup.skylar.persona.id,
+      grant: setup.authorization.grant,
+      text: "A different successful turn.",
+    });
+    assert.throws(
+      () =>
+        setup.database
+          .prepare(
+            `UPDATE continuity_conversation_turn_captures
+             SET status = 'captured', attempt_count = attempt_count + 1,
+                 last_attempt_at = ?, failure_code = NULL, receipt_id = ?,
+                 captured_at = ?, updated_at = ?
+             WHERE id = ?`,
+          )
+          .run(
+            "2026-10-15T12:01:00.000Z",
+            successful.capture.receipt.id,
+            "2026-10-15T12:01:00.000Z",
+            "2026-10-15T12:01:00.000Z",
+            failedCaptureId,
+          ),
+      /receipt does not match/u,
+    );
   } finally {
     setup.database.close();
   }

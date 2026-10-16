@@ -34,12 +34,18 @@ export {
   type StartConversationInput,
 } from "./domain/conversation-host.js";
 export {
+  continuityConversationCaptureStatuses,
   continuityConversationTurnEventKind,
   type ContinuityConversation,
+  type ContinuityConversationCaptureRetryResult,
+  type ContinuityConversationCaptureStatus,
+  type ContinuityConversationTurnCapture,
   type ContinuityConversationTurnPayload,
   type ContinuityConversationTurnResult,
   type CreateContinuityConversationRecordInput,
+  type CreateContinuityConversationTurnCaptureInput,
   type ResumeContinuityConversationInput,
+  type RetryContinuityConversationCaptureInput,
   type SendContinuityConversationTurnInput,
   type StartContinuityConversationInput,
 } from "./domain/continuity-conversation.js";

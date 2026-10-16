@@ -30,8 +30,10 @@ For each turn, the service:
 4. resumes the opaque host conversation and submits the context plus the exact
    user text;
 5. waits for authoritative successful host completion; and
-6. captures the exact user and assistant messages through
-   `AuthorizedHostEventCaptureService`.
+6. writes the exact completed turn to the durable capture journal; and
+7. captures the exact user and assistant messages through
+   `AuthorizedHostEventCaptureService`, then links its immutable receipt to the
+   journal entry.
 
 The Codex adapter sends memory JSON as a separate text item with an explicit
 untrusted-data warning. It does not rewrite the user's text. The adapter also
@@ -46,20 +48,37 @@ Candidate extraction, sensitivity classification, temporal handling, and review
 automation then follow the existing ambient-memory rules. A successfully
 completed turn does not imply that every proposal is automatically accepted.
 
-If host generation fails or is interrupted, no completed-turn capture runs. If
-the host succeeds but capture fails, the service throws
-`ContinuityConversationCaptureError`, which retains the completed response and
-context for the caller and does not report capture success. When source import
-completed before an extraction failure, the exact source records remain durable
-and a provider extraction failure creates no candidates.
+If host generation fails or is interrupted, no completed-turn capture runs.
+Migration 018 adds `continuity_conversation_turn_captures`, an immutable-payload
+journal with visible `pending`, `failed`, and `captured` states. Each entry
+stores the exact completed dialogue, original completion time, context format,
+and revision identifiers. It never stores the bearer grant or raw exception
+text. Failed attempts retain only the generic `ambient_capture_failed` code.
+
+If the host succeeds but capture fails, the service throws
+`ContinuityConversationCaptureError`, which retains the completed response,
+context, and durable journal entry without reporting capture success.
+`listRecoverableCaptures` exposes pending and failed entries only within the
+selected persona. `retryCapture` rechecks the original authorization and reuses
+the original event identity and dialogue; it does not submit another model
+turn. Deterministic source and event identities make retries idempotent. When
+source import completed before an extraction failure, the exact source records
+remain durable and a provider extraction failure creates no candidates.
+
+The journal duplicates exact dialogue inside the MemTextual database and is
+therefore included in database snapshots and encrypted replication. Deletion
+and retention controls must account for both this journal and the separately
+stored host thread.
 
 ## Current boundary
 
 This package provides library orchestration, not the graphical conversational
 client. It does not yet provide chat presentation, persona-behavior prompting,
-conversation lists or deletion controls, a durable failed-capture retry queue,
-or recovery reconciliation against host history. Those client and reliability
-layers remain explicit work.
+conversation lists or deletion controls, or recovery reconciliation against
+host history. There remains a narrow process
+loss window after the host reports completion but before the journal insert;
+host-history reconciliation is the separate work needed to close it. The
+remaining client and reliability layers stay explicit work.
 
 Codex App Server threads are persistent local records outside the MemTextual
 database. They contain the submitted user text, memory-context item, and model

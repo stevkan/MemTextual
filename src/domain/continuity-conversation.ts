@@ -5,6 +5,15 @@ import type { HostEventCaptureResult } from "./host-event.js";
 export const continuityConversationTurnEventKind =
   "conversation.turn.completed" as const;
 
+export const continuityConversationCaptureStatuses = [
+  "pending",
+  "failed",
+  "captured",
+] as const;
+
+export type ContinuityConversationCaptureStatus =
+  (typeof continuityConversationCaptureStatuses)[number];
+
 export interface ContinuityConversation {
   id: string;
   userId: string;
@@ -18,6 +27,38 @@ export interface ContinuityConversation {
 
 export interface CreateContinuityConversationRecordInput
   extends Omit<ContinuityConversation, "createdAt"> {}
+
+export interface ContinuityConversationTurnCapture {
+  id: string;
+  conversationId: string;
+  externalTurnId: string;
+  externalEventId: string;
+  userText: string;
+  assistantText: string;
+  completedAt: string;
+  contextFormatVersion: number;
+  memoryRevisionIds: string[];
+  status: ContinuityConversationCaptureStatus;
+  attemptCount: number;
+  lastAttemptAt: string | null;
+  failureCode: string | null;
+  receiptId: string | null;
+  capturedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateContinuityConversationTurnCaptureInput {
+  id: string;
+  conversationId: string;
+  externalTurnId: string;
+  externalEventId: string;
+  userText: string;
+  assistantText: string;
+  completedAt: string;
+  contextFormatVersion: number;
+  memoryRevisionIds: string[];
+}
 
 export interface StartContinuityConversationInput {
   personaId: string;
@@ -41,6 +82,12 @@ export interface SendContinuityConversationTurnInput {
   onEvent?: (event: ConversationHostEvent) => void;
 }
 
+export interface RetryContinuityConversationCaptureInput {
+  captureId: string;
+  personaId: string;
+  grant: string;
+}
+
 export interface ContinuityConversationTurnPayload {
   conversationId: string;
   externalConversationId: string;
@@ -58,4 +105,11 @@ export interface ContinuityConversationTurnResult {
   turn: CompletedConversationTurn;
   context: ContinuityContextComposition;
   capture: HostEventCaptureResult;
+  captureRecord: ContinuityConversationTurnCapture;
+}
+
+export interface ContinuityConversationCaptureRetryResult {
+  conversation: ContinuityConversation;
+  capture: HostEventCaptureResult;
+  captureRecord: ContinuityConversationTurnCapture;
 }

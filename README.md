@@ -47,6 +47,7 @@ The system provides:
   Server stdio adapter;
 - immutable persona-to-host conversation bindings and authorized completed-turn
   orchestration into the ambient-memory pipeline;
+- a durable completed-turn capture journal with persona-bound, idempotent retry;
 - an explicit, persona-scoped user-control service for review and lifecycle actions;
 - a local, persona-bound Continuity control console for explicit memory creation,
   review, and inspection;
@@ -127,6 +128,7 @@ python -m sqlite3 memtextual.db ".read migrations/014_authorized_host_capture.sq
 python -m sqlite3 memtextual.db ".read migrations/015_persona_ranking.sql"
 python -m sqlite3 memtextual.db ".read migrations/016_emotional_relevance.sql"
 python -m sqlite3 memtextual.db ".read migrations/017_continuity_conversations.sql"
+python -m sqlite3 memtextual.db ".read migrations/018_conversation_capture_recovery.sql"
 python -m sqlite3 memtextual.db ".read examples/seed-v0.1.sql"
 ```
 

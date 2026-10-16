@@ -76,9 +76,11 @@ through it and submit each completed turn to the ambient-memory pipeline. The
 provider-neutral `ConversationHost` contract now isolates that runtime, and its
 initial concrete adapter implements Codex App Server's local JSONL stdio
 protocol. Persona binding, context composition, and authorized ambient-capture
-routing are now implemented in the library orchestration layer, while chat
+routing are now implemented in the library orchestration layer. Completed turns
+are journaled before extraction, failed capture is visible and retriable without
+another model turn, and retry remains authorization- and persona-bound. Chat
 presentation, persona-behavior prompting, conversation controls, and
-failed-capture recovery remain integration work. Other cloud providers and
+host-history reconciliation remain integration work. Other cloud providers and
 local models are outside the initial scope and may be reconsidered only in
 response to demonstrated need.
 

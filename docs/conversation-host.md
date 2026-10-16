@@ -72,7 +72,9 @@ The persona-bound orchestration layer now persists immutable conversation
 bindings, composes bounded context, and routes successful turns into authorized
 ambient capture. It remains a library rather than the Continuity conversational
 client: chat presentation, persona-behavior prompting, conversation controls,
-and failed-capture recovery are not yet implemented.
+and host-history reconciliation are not yet implemented. Completed turns are
+now journaled before extraction, and failed capture can be listed and retried
+without asking the host to generate the response again.
 
 OpenAI Responses API hosting, bring-your-own-key configuration,
 MemTextual-managed inference, other cloud providers, and local models remain

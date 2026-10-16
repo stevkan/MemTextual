@@ -126,6 +126,15 @@ relationship, and host-capture authorization. A uniqueness constraint prevents
 one host conversation from being rebound, and a trigger rejects any owner,
 persona, relationship, authorization, or host mismatch.
 
+Migration 018 adds `continuity_conversation_turn_captures`. It journals exact
+completed user and assistant text before ambient extraction, preserves the
+original event identity and context revision IDs, and exposes constrained
+pending, failed, or captured states. Payload fields are immutable; transitions
+increment the attempt count; successful entries must link to a host-event
+receipt matching the conversation's authorization, host, persona, relationship,
+event kind, and external event ID. Failed entries retain only a bounded generic
+failure code, not raw exception details or bearer grants.
+
 ### Entity and relationship
 
 Entities normalize people, organizations, projects, products, places, and

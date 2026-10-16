@@ -139,7 +139,12 @@ test("snapshot creates an integrity-checked backup, manifest, and durable export
       result.manifest.protectedTables.continuity_conversations?.rowCount,
       0,
     );
-    assert.equal(result.manifest.migrations.length, 17);
+    assert.equal(
+      result.manifest.protectedTables.continuity_conversation_turn_captures
+        ?.rowCount,
+      0,
+    );
+    assert.equal(result.manifest.migrations.length, 18);
 
     const export_ = JSON.parse(readFileSync(result.exportPath, "utf8")) as {
       tables: { scopes: Array<{ id: string }> };

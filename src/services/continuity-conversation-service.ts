@@ -7,9 +7,12 @@ import type { ConversationHost } from "../domain/conversation-host.js";
 import {
   continuityConversationTurnEventKind,
   type ContinuityConversation,
+  type ContinuityConversationCaptureRetryResult,
+  type ContinuityConversationTurnCapture,
   type ContinuityConversationTurnPayload,
   type ContinuityConversationTurnResult,
   type ResumeContinuityConversationInput,
+  type RetryContinuityConversationCaptureInput,
   type SendContinuityConversationTurnInput,
   type StartContinuityConversationInput,
 } from "../domain/continuity-conversation.js";
@@ -31,6 +34,7 @@ export class ContinuityConversationCaptureError extends Error {
     public readonly conversation: ContinuityConversation,
     public readonly turn: ContinuityConversationTurnResult["turn"],
     public readonly context: ContinuityContextComposition,
+    public readonly captureRecord: ContinuityConversationTurnCapture,
     options?: ErrorOptions,
   ) {
     super(message, options);
@@ -125,38 +129,122 @@ export class ContinuityConversationService {
       ...(input.onEvent === undefined ? {} : { onEvent: input.onEvent }),
     });
 
+    const completedAt = this.#now().toISOString();
+    const captureRecord = this.repository.createTurnCapture({
+      id: randomUUID(),
+      conversationId: conversation.id,
+      externalTurnId: turn.turnId,
+      externalEventId: eventId(conversation, turn.turnId),
+      userText: turn.userText,
+      assistantText: turn.assistantText,
+      completedAt,
+      contextFormatVersion: context.payload.formatVersion,
+      memoryRevisionIds: context.payload.items.map(({ revisionId }) => revisionId),
+    });
+
     try {
-      const captured = await this.capture.capture({
-        authorizationId: conversation.authorizationId,
-        grant: input.grant,
-        personaId: conversation.personaId,
-        event: {
-          id: eventId(conversation, turn.turnId),
-          kind: continuityConversationTurnEventKind,
-          occurredAt: this.#now().toISOString(),
-          payload: {
-            conversationId: conversation.id,
-            externalConversationId: conversation.externalConversationId,
-            turnId: turn.turnId,
-            userText: turn.userText,
-            assistantText: turn.assistantText,
-            context: {
-              formatVersion: context.payload.formatVersion,
-              memoryRevisionIds: context.payload.items.map(({ revisionId }) => revisionId),
-            },
-          },
-        },
-      });
-      return { conversation, turn, context, capture: captured };
+      const captured = await this.captureTurn(conversation, captureRecord, input.grant);
+      const stored = this.repository.markTurnCaptureCaptured(
+        captureRecord.id,
+        this.#now().toISOString(),
+        captured.receipt.id,
+      );
+      return { conversation, turn, context, capture: captured, captureRecord: stored };
     } catch (error) {
+      const failed = this.markCaptureFailed(captureRecord);
       throw new ContinuityConversationCaptureError(
         "The host turn completed, but ambient capture failed.",
         conversation,
         turn,
         context,
+        failed,
         { cause: error },
       );
     }
+  }
+
+  public listRecoverableCaptures(
+    personaId: string,
+  ): ContinuityConversationTurnCapture[] {
+    const normalizedPersonaId = requiredText(personaId, "personaId");
+    this.requirePersona(normalizedPersonaId);
+    return this.repository.listRecoverableTurnCaptures(normalizedPersonaId);
+  }
+
+  public async retryCapture(
+    input: RetryContinuityConversationCaptureInput,
+  ): Promise<ContinuityConversationCaptureRetryResult> {
+    const captureId = requiredText(input.captureId, "captureId");
+    const personaId = requiredText(input.personaId, "personaId");
+    const captureRecord = this.repository.getTurnCapture(captureId);
+    if (captureRecord === null) {
+      throw new Error(`Conversation capture not found: ${captureId}`);
+    }
+    const conversation = this.repository.getConversation(captureRecord.conversationId);
+    if (
+      conversation === null ||
+      conversation.personaId !== personaId ||
+      conversation.hostId !== this.host.identity.adapterId
+    ) {
+      throw new Error(`Conversation capture not found: ${captureId}`);
+    }
+    this.assertConversationAuthorized(conversation, input.grant);
+    try {
+      const captured = await this.captureTurn(conversation, captureRecord, input.grant);
+      const stored = this.repository.markTurnCaptureCaptured(
+        captureRecord.id,
+        this.#now().toISOString(),
+        captured.receipt.id,
+      );
+      return { conversation, capture: captured, captureRecord: stored };
+    } catch (error) {
+      const failed = this.markCaptureFailed(captureRecord);
+      throw new Error(
+        `Conversation capture retry failed and remains recoverable: ${failed.id}`,
+        { cause: error },
+      );
+    }
+  }
+
+  private async captureTurn(
+    conversation: ContinuityConversation,
+    record: ContinuityConversationTurnCapture,
+    grant: string,
+  ) {
+    return this.capture.capture({
+      authorizationId: conversation.authorizationId,
+      grant,
+      personaId: conversation.personaId,
+      event: {
+        id: record.externalEventId,
+        kind: continuityConversationTurnEventKind,
+        occurredAt: record.completedAt,
+        payload: {
+          conversationId: conversation.id,
+          externalConversationId: conversation.externalConversationId,
+          turnId: record.externalTurnId,
+          userText: record.userText,
+          assistantText: record.assistantText,
+          context: {
+            formatVersion: record.contextFormatVersion,
+            memoryRevisionIds: record.memoryRevisionIds,
+          },
+        },
+      },
+    });
+  }
+
+  private markCaptureFailed(
+    record: ContinuityConversationTurnCapture,
+  ): ContinuityConversationTurnCapture {
+    if (record.status === "captured") {
+      return record;
+    }
+    return this.repository.markTurnCaptureFailed(
+      record.id,
+      this.#now().toISOString(),
+      "ambient_capture_failed",
+    );
   }
 
   private requirePersona(personaId: string) {

@@ -5,6 +5,12 @@ describe only the current design and behavior.
 
 ## Unreleased
 
+- Added durable completed-turn capture recovery. Schema 18 journals exact
+  completed dialogue before ambient extraction, records visible generic failure
+  state without grants or raw exceptions, and links successful attempts to a
+  matching immutable host-event receipt. Persona-bound listing and authorized,
+  idempotent retry reuse the original event without generating another model
+  response. Host-history reconciliation remains separate work.
 - Added persona-bound Continuity conversation orchestration. Immutable schema-17
   bindings connect one host conversation to one persona relationship and
   explicit capture authorization; each turn preflights authorization, composes
@@ -12,8 +18,8 @@ describe only the current design and behavior.
   authoritative host completion, and captures exact user/assistant records
   through the existing ambient safeguards. Cross-persona, revoked, malformed,
   interrupted, and failed-capture paths fail visibly, while the Codex adapter
-  applies a restricted read-only sandbox with no approval requests. The chat UI,
-  persona-behavior prompting, and durable failed-capture recovery remain open.
+  applies a restricted read-only sandbox with no approval requests. The chat UI
+  and persona-behavior prompting remain open.
 - Added the provider-neutral `ConversationHost` contract and an initial Codex
   App Server JSONL stdio adapter. It performs the required handshake, supports
   thread creation and resumption, streams assistant deltas, accepts final text
