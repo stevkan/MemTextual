@@ -166,6 +166,21 @@ export {
   type WindowsContinuityStagePreview,
 } from "./packaging/windows-continuity-bundle.js";
 export {
+  WindowsSignToolOperations,
+  applyWindowsAuthenticodeSigning,
+  previewWindowsAuthenticodeSigning,
+  windowsAuthenticodeReportFormatVersion,
+  type ApplyWindowsAuthenticodeSigningOptions,
+  type WindowsAuthenticodeOperations,
+  type WindowsAuthenticodeSignRequest,
+  type WindowsAuthenticodeSigningOptions,
+  type WindowsAuthenticodeSigningPreview,
+  type WindowsAuthenticodeSigningReport,
+  type WindowsCertificateStore,
+  type WindowsSignToolOperationsOptions,
+  type WindowsSignToolRunner,
+} from "./packaging/windows-authenticode.js";
+export {
   memoryStatuses,
   memoryTypes,
   type CreateMemoryInput,

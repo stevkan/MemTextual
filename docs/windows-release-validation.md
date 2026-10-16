@@ -114,6 +114,7 @@ never part of the ordinary automated test suite and must be run only after an
 explicit preview review on a disposable release target.
 
 Passing this harness is engineering evidence, not by itself a statement that
-the public installer or release is ready. Authenticode, installer-container,
+the public installer or release is ready. Production-certificate Authenticode
+evidence, installer-container,
 legal, privacy, dependency-notice, and production-signing gates remain as
 documented in `proprietary-distribution.md` and `platform-support.md`.

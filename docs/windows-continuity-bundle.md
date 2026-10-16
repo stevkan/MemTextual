@@ -10,6 +10,10 @@ channel. It is not Windows Authenticode signing, an MSI, an MSIX, or a SmartScre
 reputation mechanism. Those public-distribution choices remain separate release
 engineering work and must not be inferred from a successful bundle verification.
 
+The separate [Windows Authenticode workflow](windows-authenticode.md) now signs
+and verifies a future installer artifact without re-signing the bundled
+third-party Node runtime. Installer-container selection remains pending.
+
 ## Required release inputs
 
 Bundle creation requires:

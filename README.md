@@ -83,6 +83,7 @@ docs/continuity-first-use.md Supported Windows first-use and acceptance workflow
 docs/windows-continuity-lifecycle.md Side-by-side upgrade, rollback, and removal
 docs/windows-continuity-bundle.md Signed Windows bundle verification and staging
 docs/windows-release-validation.md Disposable release-candidate lifecycle gate
+docs/windows-authenticode.md Format-neutral Windows installer signing boundary
 docs/continuity-control.md Persona-scoped review and lifecycle control contract
 docs/continuity-console.md Local graphical review and memory-inspection console
 docs/continuity-setup.md   Safeguarded first-run user and persona onboarding

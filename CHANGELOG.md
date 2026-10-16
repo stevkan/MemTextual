@@ -5,6 +5,15 @@ describe only the current design and behavior.
 
 ## Unreleased
 
+- Added a format-neutral Windows Authenticode boundary for a future installer
+  artifact. A read-only preview binds the exact unsigned artifact, SignTool
+  executable, certificate-store thumbprint, timestamp URL, and output path to a
+  confirmation token. Apply signs only a new copy with SHA-256 and an RFC 3161
+  timestamp, requires Authenticode policy verification, rechecks the untouched
+  source, and removes incomplete output on failure. No private-key material or
+  PFX password is accepted through the command interface; production-certificate
+  execution and MSI/MSIX selection remain release gates.
+
 - Added a separately confirmed elevated Windows host lifecycle validator. It
   binds a release-validated synthetic workspace to the exact signed candidate,
   refuses production-style identities and pre-existing resources, provisions
