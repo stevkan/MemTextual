@@ -62,12 +62,56 @@ Neither report contains the ephemeral replication key.
 
 ## Separate elevated host gate
 
-The harness does not create a dedicated local account, modify ACLs, or install
-Task Scheduler entries. Its report records that this privileged host validation
-was not run. Exercise the preview-first host installation, acceptance, and
-removal workflow from `windows-continuity-deployment.md` separately on the
-actual Windows release target with explicit elevation and disposable host
-resources.
+The non-privileged harness does not create a dedicated local account, modify
+ACLs, or install Task Scheduler entries. Its report records that this privileged
+host validation was not run. A separate preview-first command can exercise
+those boundaries on a disposable Windows release target.
+
+Create an empty `host-validation-backups` directory inside the completed
+release-validation workspace. Leave `host-validation-state` absent. Create a
+backup-only deployment file with:
+
+- `applicationDirectory` set to the same signed candidate bundle recorded by
+  the workspace marker;
+- `databasePath` set to `WORKSPACE\data\memtextual.db`;
+- `backupDirectory` set to `WORKSPACE\host-validation-backups`;
+- `stateDirectory` set to `WORKSPACE\host-validation-state`;
+- a unique identity beginning with `MTValidate`, using no more than 20 safe
+  characters; and
+- no `offsite` section.
+
+Run the read-only preview from a normal terminal:
+
+```powershell
+npm run windows-host-validation -- preview `
+  --config "D:\release-validation\host-validation-deployment.json" `
+  --workspace "D:\release-validation\continuity-0.9.0-run-001"
+```
+
+Review the exact identity, ACL paths, backup schedule, preservation boundary,
+and combined lifecycle confirmation. Then run apply from an elevated terminal
+with that unchanged token:
+
+```powershell
+npm run windows-host-validation -- apply `
+  --config "D:\release-validation\host-validation-deployment.json" `
+  --workspace "D:\release-validation\continuity-0.9.0-run-001" `
+  --confirm VALIDATE-WINDOWS-HOST-EXACT_TOKEN `
+  --actor local-user
+```
+
+Apply refuses pre-existing identities or schedules. It installs the dedicated
+account and schedule, verifies host acceptance, starts the managed schedule and
+requires a successful result plus a new recovery point, then removes the task
+and account, restores recorded ACLs, and proves the synthetic database remains.
+It attempts ownership-checked cleanup after a failure and records any incomplete
+cleanup as requiring immediate manual attention. Success writes
+`elevated-host-validation-report.json`; failure writes
+`elevated-host-validation-failure.json`.
+
+This operation changes Windows accounts, ACLs, and Task Scheduler state. It is
+never part of the ordinary automated test suite and must be run only after an
+explicit preview review on a disposable release target.
 
 Passing this harness is engineering evidence, not by itself a statement that
 the public installer or release is ready. Authenticode, installer-container,

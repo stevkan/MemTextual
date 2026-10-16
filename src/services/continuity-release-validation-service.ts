@@ -29,6 +29,16 @@ import { verifyContinuityDatabaseAcceptance } from "./continuity-installation-ac
 import { MemoryService } from "./memory-service.js";
 
 export const continuityReleaseValidationFormatVersion = 1 as const;
+export const continuityReleaseWorkspaceMarkerFormatVersion = 1 as const;
+export const continuityReleaseWorkspaceMarkerFilename =
+  ".memtextual-release-validation.json";
+
+export interface ContinuityReleaseWorkspaceMarker {
+  candidateManifestSha256: string;
+  candidatePublisherFingerprint256: string;
+  formatVersion: typeof continuityReleaseWorkspaceMarkerFormatVersion;
+  syntheticDataOnly: true;
+}
 
 export interface ContinuityReleaseValidationOptions {
   baselineMigrationsDirectory: string;
@@ -152,7 +162,7 @@ export async function validateContinuityReleaseCandidate(
       targetDirectory: stagedApplication,
       trustedCertificateFingerprint256: options.trustedCertificateFingerprint256,
     });
-    await applyWindowsContinuityBundleStage({
+    const staged = await applyWindowsContinuityBundleStage({
       bundleDirectory,
       confirmation: stagePreview.confirmation,
       targetDirectory: stagedApplication,
@@ -306,6 +316,16 @@ export async function validateContinuityReleaseCandidate(
     }
     phases.push({ id: "data-preserving-uninstall", passed: true, summary: "Removed only the staged signed application and preserved the external synthetic database and recovery artifacts." });
 
+    const marker: ContinuityReleaseWorkspaceMarker = {
+      candidateManifestSha256: staged.manifestSha256,
+      candidatePublisherFingerprint256: staged.signingCertificateFingerprint256,
+      formatVersion: continuityReleaseWorkspaceMarkerFormatVersion,
+      syntheticDataOnly: true,
+    };
+    writeReport(
+      join(workspaceDirectory, continuityReleaseWorkspaceMarkerFilename),
+      marker,
+    );
     const report: ContinuityReleaseValidationReport = {
       completedAt: new Date().toISOString(),
       formatVersion: continuityReleaseValidationFormatVersion,

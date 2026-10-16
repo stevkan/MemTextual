@@ -25,7 +25,43 @@ export type WindowsPowerShellHostAction =
   | "remove-identity"
   | "remove-schedule"
   | "restore-paths"
-  | "store-conversation-grant";
+  | "store-conversation-grant"
+  | "validate-schedule";
+
+export interface WindowsManagedScheduleValidation {
+  lastRunTime: string;
+  lastTaskResult: 0;
+  passed: true;
+  scheduleId: string;
+}
+
+export async function validateWindowsManagedSchedule(
+  bridge: WindowsPowerShellBridge,
+  scheduleId: string,
+): Promise<WindowsManagedScheduleValidation> {
+  if (!safeIdentifier.test(scheduleId)) {
+    throw new Error("Windows schedule identifier is invalid.");
+  }
+  const response = requireRecord(
+    await bridge.execute("validate-schedule", { scheduleId }),
+    "schedule validation",
+  );
+  if (
+    response.passed !== true ||
+    response.scheduleId !== scheduleId ||
+    response.lastTaskResult !== 0 ||
+    typeof response.lastRunTime !== "string" ||
+    Number.isNaN(Date.parse(response.lastRunTime))
+  ) {
+    throw new Error("Windows PowerShell schedule validation response is invalid.");
+  }
+  return {
+    lastRunTime: response.lastRunTime,
+    lastTaskResult: 0,
+    passed: true,
+    scheduleId,
+  };
+}
 
 export interface WindowsPowerShellBridge {
   execute(action: WindowsPowerShellHostAction, payload: unknown): Promise<unknown>;
@@ -180,6 +216,7 @@ export function createWindowsPowerShellBridge(
     "remove-schedule",
     "restore-paths",
     "store-conversation-grant",
+    "validate-schedule",
   ]);
 
   return {

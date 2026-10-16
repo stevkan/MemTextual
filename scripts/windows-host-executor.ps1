@@ -13,7 +13,8 @@ param(
     "remove-schedule",
     "restore-paths",
     "self-test",
-    "store-conversation-grant"
+    "store-conversation-grant",
+    "validate-schedule"
   )]
   [string]$Action,
 
@@ -470,13 +471,46 @@ try {
     "provision-identity",
     "remove-identity",
     "remove-schedule",
-    "restore-paths"
+    "restore-paths",
+    "validate-schedule"
   )
   if ($mutations -contains $Action) {
     Assert-Administrator
   }
 
   switch ($Action) {
+    "validate-schedule" {
+      $scheduleId = [string]$request.scheduleId
+      Assert-SafeIdentifier $scheduleId "Windows schedule identifier"
+      $current = Get-ManagedSchedule $scheduleId
+      if (-not $current.installed -or -not $current.managedByMemTextual) {
+        throw "Windows schedule is not installed and managed by MemTextual."
+      }
+      $before = Get-ScheduledTaskInfo -TaskName $scheduleId -TaskPath $taskPath
+      Start-ScheduledTask -TaskName $scheduleId -TaskPath $taskPath
+      $deadline = (Get-Date).AddSeconds(90)
+      do {
+        Start-Sleep -Milliseconds 250
+        $task = Get-ScheduledTask -TaskName $scheduleId -TaskPath $taskPath
+        $info = Get-ScheduledTaskInfo -TaskName $scheduleId -TaskPath $taskPath
+        $completed =
+          $task.State -ne "Running" -and
+          $task.State -ne "Queued" -and
+          $info.LastRunTime -gt $before.LastRunTime
+      } while (-not $completed -and (Get-Date) -lt $deadline)
+      if (-not $completed) {
+        throw "Windows managed schedule validation timed out."
+      }
+      if ([int]$info.LastTaskResult -ne 0) {
+        throw "Windows managed schedule exited with code $([int]$info.LastTaskResult)."
+      }
+      Write-Result ([pscustomobject]@{
+        lastRunTime = $info.LastRunTime.ToUniversalTime().ToString("o")
+        lastTaskResult = 0
+        passed = $true
+        scheduleId = $scheduleId
+      })
+    }
     "store-conversation-grant" {
       Assert-ConversationGrantBinding $request
       if ([string]$request.grant -notmatch '^mthg_[A-Za-z0-9_-]{43}$') {

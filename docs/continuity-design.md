@@ -66,7 +66,8 @@ an older application is reactivated, and application removal is separately
 confirmed from host removal while external data is preserved. A non-privileged
 release-candidate harness now exercises that lifecycle with synthetic data and
 retained evidence. The separately approved elevated dedicated-account and Task
-Scheduler exercise remains a release gate.
+Scheduler validator is now available, while executing it on the actual Windows
+release target and retaining its evidence remains a release gate.
 
 MemTextual Developer uses the same portability boundary. Source-level
 compatibility may become available before an officially supported packaged

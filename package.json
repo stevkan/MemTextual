@@ -17,6 +17,7 @@
     "memtextual-continuity-release": "dist/src/cli/continuity-release-validation.js",
     "memtextual-continuity": "dist/src/cli/continuity-console.js",
     "memtextual-windows-host": "dist/src/cli/windows-host.js",
+    "memtextual-windows-host-validation": "dist/src/cli/windows-elevated-host-validation.js",
     "memtextual-windows-bundle": "dist/src/cli/windows-bundle.js"
   },
   "scripts": {
@@ -35,6 +36,7 @@
     "privacy": "tsx src/cli/privacy.ts",
     "continuity": "tsx src/cli/continuity-console.ts",
     "windows-host": "tsx src/cli/windows-host.ts",
+    "windows-host-validation": "tsx src/cli/windows-elevated-host-validation.ts",
     "windows-bundle": "tsx src/cli/windows-bundle.ts",
     "pretest": "node scripts/check-node.mjs",
     "prebuild": "node scripts/check-node.mjs"

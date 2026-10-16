@@ -61,6 +61,14 @@ inputs to the host orchestration. Application-file creation, verification, and
 staging are handled separately by the signed-manifest directory-bundle workflow
 documented in [windows-continuity-bundle.md](windows-continuity-bundle.md).
 
+Elevated release validation is separately opt-in. A synthetic-workspace-bound
+preview issues one exact confirmation for installing the dedicated validation
+identity and backup schedule, verifying host acceptance, executing the managed
+task, and removing only the resources created by that run. It refuses
+pre-existing resources and records incomplete cleanup instead of claiming
+success. See
+[windows-release-validation.md](windows-release-validation.md).
+
 ## Runtime compatibility
 
 The bridge invokes 64-bit Windows PowerShell 5.1 with profiles disabled and a

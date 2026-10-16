@@ -5,6 +5,14 @@ describe only the current design and behavior.
 
 ## Unreleased
 
+- Added a separately confirmed elevated Windows host lifecycle validator. It
+  binds a release-validated synthetic workspace to the exact signed candidate,
+  refuses production-style identities and pre-existing resources, provisions
+  the dedicated account and backup task, verifies host acceptance, requires the
+  managed task to create a recovery point successfully, then removes the task
+  and account, restores ACLs, and preserves the synthetic database. Ordinary
+  tests never invoke this elevated mutation path.
+
 - Added a non-privileged Windows Continuity release-candidate validation
   harness. Against an explicitly selected signed bundle, prior migration set,
   and absent workspace, it uses synthetic data to exercise signed staging,

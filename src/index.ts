@@ -132,10 +132,12 @@ export {
 export {
   WindowsPowerShellHostOperations,
   createWindowsPowerShellBridge,
+  validateWindowsManagedSchedule,
   type WindowsPowerShellBridge,
   type WindowsPowerShellBridgeOptions,
   type WindowsPowerShellHostAction,
   type WindowsPowerShellHostOperationsOptions,
+  type WindowsManagedScheduleValidation,
 } from "./platform/windows-powershell-host-operations.js";
 export {
   createWindowsContinuityDeploymentPlan,
@@ -545,11 +547,22 @@ export {
 } from "./services/memory-service.js";
 export {
   continuityReleaseValidationFormatVersion,
+  continuityReleaseWorkspaceMarkerFilename,
+  continuityReleaseWorkspaceMarkerFormatVersion,
   validateContinuityReleaseCandidate,
   type ContinuityReleaseValidationOptions,
   type ContinuityReleaseValidationPhase,
   type ContinuityReleaseValidationReport,
+  type ContinuityReleaseWorkspaceMarker,
 } from "./services/continuity-release-validation-service.js";
+export {
+  applyWindowsElevatedHostValidation,
+  previewWindowsElevatedHostValidation,
+  windowsElevatedHostValidationFormatVersion,
+  type WindowsElevatedHostValidationOptions,
+  type WindowsElevatedHostValidationPreview,
+  type WindowsElevatedHostValidationReport,
+} from "./services/windows-elevated-host-validation-service.js";
 export {
   createDatabaseSnapshot,
   databaseSafeguardIdentity,

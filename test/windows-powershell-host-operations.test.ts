@@ -5,6 +5,7 @@ import { describe, it } from "node:test";
 
 import {
   WindowsPowerShellHostOperations,
+  validateWindowsManagedSchedule,
   type HostScheduleDefinition,
   type WindowsPowerShellBridge,
   type WindowsPowerShellHostAction,
@@ -117,6 +118,25 @@ describe("Windows PowerShell host operations", () => {
     );
   });
 
+  it("validates an explicitly run managed schedule receipt", async () => {
+    const bridge = new CapturingBridge();
+    bridge.responses.set("validate-schedule", {
+      lastRunTime: "2027-02-03T01:02:03.000Z",
+      lastTaskResult: 0,
+      passed: true,
+      scheduleId: "MemTextual-Backup",
+    });
+    assert.deepEqual(
+      await validateWindowsManagedSchedule(bridge, "MemTextual-Backup"),
+      {
+        lastRunTime: "2027-02-03T01:02:03.000Z",
+        lastTaskResult: 0,
+        passed: true,
+        scheduleId: "MemTextual-Backup",
+      },
+    );
+  });
+
   it("keeps the executor protocol on stdin and reserves stdout for JSON", () => {
     const source = readFileSync(
       resolve("scripts", "windows-host-executor.ps1"),
@@ -128,6 +148,7 @@ describe("Windows PowerShell host operations", () => {
     assert.match(source, /ProtectedData\]::Protect/u);
     assert.match(source, /Register-ScheduledTask/u);
     assert.match(source, /Windows DPAPI self-test did not round-trip/u);
+    assert.match(source, /Start-ScheduledTask/u);
     assert.match(source, /protected-path-acls\.json/u);
     assert.doesNotMatch(source, /Write-(?:Host|Output)/u);
   });

@@ -111,6 +111,10 @@ function createMinimalSource(source: string): void {
     join(source, "dist", "src", "cli", "windows-host.js"),
     "export const host = true;\n",
   );
+  write(
+    join(source, "dist", "src", "cli", "windows-elevated-host-validation.js"),
+    "export const hostValidation = true;\n",
+  );
   write(join(source, "migrations", "001_initial.sql"), "SELECT 1;\n");
   write(
     join(source, "scripts", "windows-host-executor.ps1"),

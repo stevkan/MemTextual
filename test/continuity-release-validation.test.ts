@@ -71,6 +71,7 @@ function createCandidateSource(source: string): void {
     "continuity-upgrade",
     "safeguard",
     "windows-host",
+    "windows-elevated-host-validation",
   ]) {
     write(join(source, "dist", "src", "cli", `${name}.js`), "export {};\n");
   }
@@ -144,6 +145,10 @@ describe("Continuity release-candidate validation", () => {
       assert.equal(existsSync(join(workspace, "application")), false);
       assert.equal(existsSync(join(workspace, "data", "memtextual.db")), true);
       assert.equal(existsSync(report.reportPath), true);
+      assert.equal(
+        existsSync(join(workspace, ".memtextual-release-validation.json")),
+        true,
+      );
       assert.equal(
         readFileSync(report.reportPath, "utf8").includes("PRIVATE KEY"),
         false,
