@@ -484,6 +484,9 @@ export const continuityConsoleJavaScript = `
       } else if (summary.hostDeletion && summary.hostDeletion.status !== "deleted") {
         detailPanel.append(node("p", "The most recent host-thread deletion attempt is " + summary.hostDeletion.status + ". No complete-erasure claim is being made.", "warning"));
       }
+      if (summary.journalPurge) {
+        detailPanel.append(node("p", "The active-database conversation journal was permanently purged on " + new Date(summary.journalPurge.purgedAt).toLocaleString() + ". Receipt " + summary.journalPurge.receiptId + ". Snapshots, backups, exports, and other external copies were not modified.", "warning"));
+      }
       if (summary.unresolvedCaptureCount > 0) {
         detailPanel.append(node("p", summary.unresolvedCaptureCount + " turn capture" + (summary.unresolvedCaptureCount === 1 ? " requires" : "s require") + " recovery before the conversation can safely resume.", "warning"));
       }
@@ -670,6 +673,74 @@ export const continuityConsoleJavaScript = `
         }, true));
       }
       detailPanel.append(hostDeletion);
+
+      const journalPurge = node("div", undefined, "section");
+      journalPurge.append(node("h3", "Permanent local journal purge"));
+      journalPurge.append(node("p", "This can remove the exact turn journal, its captured source messages, host-event receipts, and related unaccepted candidates from the active database. It cannot modify snapshots, backups, exports, or other external copies.", "warning"));
+      if (summary.journalPurge) {
+        journalPurge.append(node("p", "This local journal has already been purged. The immutable receipt remains for accountability.", "meta"));
+      } else {
+        journalPurge.append(actionButton("Preview permanent journal purge", async () => {
+          const preview = await api("/api/conversations/" + encodeURIComponent(id) + "/journal-purge-preview");
+          journalPurge.replaceChildren(node("h3", "Confirm permanent local journal purge"));
+          journalPurge.append(node("p", preview.turnCount + " turn journal entr" + (preview.turnCount === 1 ? "y" : "ies") + ", " + preview.sourceRecordCount + " captured source record" + (preview.sourceRecordCount === 1 ? "" : "s") + ", " + preview.hostEventCount + " host-event receipt" + (preview.hostEventCount === 1 ? "" : "s") + ", and " + preview.candidateCount + " related candidate" + (preview.candidateCount === 1 ? "" : "s") + " would be removed from the active database.", "warning"));
+          if (!preview.canPurge) {
+            preview.blockers.forEach((blocker) => journalPurge.append(node("p", blocker, "warning")));
+            if (preview.dependentMemoryIds.length) journalPurge.append(node("p", "Dependent memories: " + preview.dependentMemoryIds.join(", "), "meta"));
+            if (preview.activeReviewPolicyIds.length) journalPurge.append(node("p", "Blocking review policies: " + preview.activeReviewPolicyIds.join(", "), "meta"));
+            return;
+          }
+
+          const reasonLabel = node("label", "Reason", "field");
+          const reason = document.createElement("textarea");
+          reason.rows = 2;
+          reason.maxLength = 1000;
+          reasonLabel.append(reason);
+          journalPurge.append(reasonLabel);
+
+          const confirmationLabel = node("label", "Type this exact confirmation: " + preview.confirmation, "field");
+          const confirmation = document.createElement("input");
+          confirmation.type = "text";
+          confirmation.autocomplete = "off";
+          confirmationLabel.append(confirmation);
+          journalPurge.append(confirmationLabel);
+
+          const permanentLabel = node("label", undefined, "check");
+          const permanentAcknowledgement = document.createElement("input");
+          permanentAcknowledgement.type = "checkbox";
+          permanentLabel.append(permanentAcknowledgement, document.createTextNode("I understand this permanently removes these records from the active database."));
+          journalPurge.append(permanentLabel);
+
+          const externalLabel = node("label", undefined, "check");
+          const externalAcknowledgement = document.createElement("input");
+          externalAcknowledgement.type = "checkbox";
+          externalLabel.append(externalAcknowledgement, document.createTextNode("I understand snapshots, backups, exports, and other external copies may remain."));
+          journalPurge.append(externalLabel);
+
+          const purgeActions = node("div", undefined, "actions");
+          purgeActions.append(actionButton("Permanently purge local journal", async () => {
+            if (!reason.value.trim()) throw new Error("Enter a reason for the purge.");
+            if (confirmation.value !== preview.confirmation) throw new Error("Type the exact preview confirmation.");
+            if (!permanentAcknowledgement.checked || !externalAcknowledgement.checked) throw new Error("Acknowledge both purge disclosures.");
+            if (!window.confirm("Permanently purge this conversation journal from the active database?")) return;
+            const receipt = await api("/api/conversations/" + encodeURIComponent(id) + "/journal-purge", {
+              method: "POST",
+              body: JSON.stringify({
+                reason: reason.value,
+                confirmation: confirmation.value,
+                acknowledgePermanentActiveDatabaseDeletion: permanentAcknowledgement.checked,
+                acknowledgeExternalCopiesMayRemain: externalAcknowledgement.checked,
+              }),
+            });
+            setNotice("Local conversation journal purged. Receipt " + receipt.receiptId + "; external copies were not modified.");
+            await refreshDashboard();
+            await showConversation(id);
+          }, true));
+          journalPurge.append(purgeActions);
+          reason.focus();
+        }, true));
+      }
+      detailPanel.append(journalPurge);
     } catch (error) { setNotice(error.message, true); }
   }
 

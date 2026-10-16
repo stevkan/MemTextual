@@ -18,6 +18,7 @@ import type { ContinuityControlService } from "../services/continuity-control-se
 import type { ContinuityConversationAuthorizationService } from "../services/continuity-conversation-authorization-service.js";
 import type { ContinuityConversationCatalogService } from "../services/continuity-conversation-catalog-service.js";
 import type { ContinuityConversationHostDeletionService } from "../services/continuity-conversation-host-deletion-service.js";
+import type { ContinuityConversationJournalPrivacyService } from "../services/continuity-conversation-journal-privacy-service.js";
 import { ContinuityConversationOpenRecoveryRequiredError } from "../services/continuity-conversation-client-coordinator.js";
 import type { ContinuityConversationProtectedClient } from "../services/continuity-conversation-protected-client.js";
 import {
@@ -127,6 +128,14 @@ const conversationHostDeletionSchema = z
     acknowledgeBackupsMayRemain: z.boolean(),
   })
   .strict();
+const conversationJournalPurgeSchema = z
+  .object({
+    reason: z.string().trim().min(1).max(1_000),
+    confirmation: z.string().min(1).max(1_000),
+    acknowledgePermanentActiveDatabaseDeletion: z.boolean(),
+    acknowledgeExternalCopiesMayRemain: z.boolean(),
+  })
+  .strict();
 
 class HttpError extends Error {
   public constructor(
@@ -141,6 +150,7 @@ class HttpError extends Error {
 export interface StartContinuityConsoleOptions {
   behaviors: ContinuityPersonaBehaviorService;
   conversations: ContinuityConversationCatalogService;
+  conversationPrivacy: ContinuityConversationJournalPrivacyService;
   control: ContinuityControlService;
   conversationRuntime?: ContinuityConsoleConversationRuntime;
   personaContext: PersonaContext;
@@ -468,6 +478,7 @@ export function createContinuityConsoleApplication(
     StartContinuityConsoleOptions,
     | "behaviors"
     | "conversations"
+    | "conversationPrivacy"
     | "control"
     | "conversationRuntime"
     | "personaContext"
@@ -572,6 +583,18 @@ export function createContinuityConsoleApplication(
           return jsonResponse(
             200,
             runtime.hostDeletion.preview(hostDeletionPreviewId, personaId),
+          );
+        }
+
+        const journalPurgePreviewId = routeId(
+          url.pathname,
+          "/journal-purge-preview",
+          "conversations",
+        );
+        if (request.method === "GET" && journalPurgePreviewId !== null) {
+          return jsonResponse(
+            200,
+            options.conversationPrivacy.preview(journalPurgePreviewId, personaId),
           );
         }
 
@@ -793,6 +816,30 @@ export function createContinuityConsoleApplication(
                 confirmation: input.confirmation,
                 acknowledgeLocalDataRemains: input.acknowledgeLocalDataRemains,
                 acknowledgeBackupsMayRemain: input.acknowledgeBackupsMayRemain,
+              },
+              { actor: "user", explicitUserAction: true },
+            ),
+          );
+        }
+        const journalPurgeId = routeId(
+          url.pathname,
+          "/journal-purge",
+          "conversations",
+        );
+        if (journalPurgeId !== null) {
+          const input = parseBody(conversationJournalPurgeSchema, body);
+          return jsonResponse(
+            200,
+            options.conversationPrivacy.purge(
+              {
+                conversationId: journalPurgeId,
+                personaId,
+                reason: input.reason,
+                confirmation: input.confirmation,
+                acknowledgePermanentActiveDatabaseDeletion:
+                  input.acknowledgePermanentActiveDatabaseDeletion,
+                acknowledgeExternalCopiesMayRemain:
+                  input.acknowledgeExternalCopiesMayRemain,
               },
               { actor: "user", explicitUserAction: true },
             ),

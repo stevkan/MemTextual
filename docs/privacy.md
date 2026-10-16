@@ -107,10 +107,31 @@ create a new retained copy during an erasure request. It explicitly reports that
 source records, exports, snapshots, filesystem copies, and off-device backups
 are not modified.
 
+## Conversation-journal privacy controls
+
+External host-thread deletion and local journal purge are separate explicit
+actions. The local Continuity console permits journal purge only after the host
+reports that its thread was deleted. A fresh persona-bound preview counts the
+matching turn captures, host events, source series, source records, and
+candidate lineage and supplies state-bound exact confirmation.
+
+Purge is blocked while retained memories depend on those source records, while
+an active review policy trusts a matching source identity, or when a captured
+turn lacks its expected provenance. With an operational reason, exact
+confirmation, both permanent-deletion acknowledgements, and a visible user
+action, one transaction writes an immutable assertion-free receipt and removes
+the owned active-database copies. The conversation binding and host-deletion
+record remain; retained memories are not silently changed.
+
+The operation does not alter exports, snapshots, encrypted replicas,
+filesystem copies, off-device backups, or provider-retained data. Applying
+retention policy to those copies is a separate action.
+
 ## Current boundary
 
-Memory and source-series deletion and purge are implemented. Verified local
-snapshot retention is available through the separate preview-and-confirm
-safeguard workflow; memory purge does not invoke it automatically. Standalone
-sources without an external series identity, off-device retention, bulk
-operations, and graphical source-series privacy controls remain separate work.
+Memory, source-series, and provider-confirmed conversation-journal purge are
+implemented. Verified local snapshot retention is available through the
+separate preview-and-confirm safeguard workflow; privacy purge does not invoke
+it automatically. Standalone sources without an external series identity,
+off-device retention, bulk operations, and graphical source-series privacy
+controls remain separate work.

@@ -5,6 +5,15 @@ describe only the current design and behavior.
 
 ## Unreleased
 
+- Added permanent local conversation-journal purge after provider-confirmed
+  host deletion. A persona-bound, state-fingerprinted preview counts captured
+  turns, host events, source lineage, and candidates; retained-memory evidence,
+  trusted-source policies, incomplete provenance, and repeat purge attempts
+  block the action. Exact confirmation and retained-copy acknowledgements gate
+  one transactional deletion, while immutable conversation, host-deletion, and
+  assertion-free purge receipts remain and external backups are not claimed as
+  erased.
+
 - Added coordinated external host-thread deletion for Continuity conversations.
   A persona-bound preview supplies state-sensitive exact confirmation; the user
   must acknowledge retained local data and backups before deletion. Attempts are

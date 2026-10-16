@@ -118,6 +118,31 @@ MemTextual journal, candidates, memories, exports, snapshots, backups, or other
 provider-controlled retained copies. Automatic retention schedules are not
 installed or inferred.
 
+## Local conversation-journal purge
+
+Migration 021 adds an optional second privacy operation after provider-confirmed
+host deletion. A persona-bound preview identifies every matching active-database
+turn capture, host-event receipt, chat source series, source record, and memory
+candidate. Its exact confirmation is bound to a fingerprint of that impact.
+
+Purge is blocked when the host deletion is not confirmed, a retained memory
+still depends on the captured evidence, an active review policy trusts one of
+the source identities, a captured turn has incomplete source provenance, or a
+purge receipt already exists. The repository rechecks the fingerprint and all
+blockers inside the deletion transaction.
+
+After a visible user action, exact confirmation, operational reason, and two
+retained-copy acknowledgements, one transaction writes an immutable receipt and
+removes the owned dialogue copies and their candidate lineage from the active
+database. The immutable conversation binding and host-deletion journal remain,
+so the catalog can show what action occurred without retaining the dialogue.
+Retained memories are never silently detached from evidence.
+
+This operation does not modify exported files, SQLite snapshots, encrypted or
+off-device backups, filesystem copies, or copies retained by the provider. The
+console states that boundary before confirmation and never describes the action
+as complete erasure.
+
 ## Host-history reconciliation
 
 `reconcileConversationHistory` closes the process-loss gap between host
@@ -164,8 +189,10 @@ authorization or stored-conversation binding.
 `ContinuityConversationCatalogService` lists persisted conversation summaries
 for one validated persona and returns persona-bound detail from the durable
 capture journal. Summaries include the journaled-turn count, the pending or
-failed capture count, and the most recent locally known activity time. Detail
-preserves the exact journaled user and assistant text in chronological order.
+failed capture count, any immutable local-purge receipt, and the most recent
+locally known activity time. Before purge, detail preserves the exact journaled
+user and assistant text in chronological order; afterward, the turn list is
+empty while the binding and receipt remain.
 
 The local Continuity control console presents this catalog and unresolved
 recovery state without contacting the host. It describes the result as a local
@@ -197,12 +224,14 @@ explicit grantless authorization, start, open-and-reconcile, send, leave, and
 capture-retry controls while continuing to render the exact durable journal.
 Completed output remains visible when capture fails, and the page requires
 recovery before reopening rather than silently retrying or regenerating a turn.
-The same page exposes preview-bound external host-thread deletion with explicit
-retained-copy acknowledgements and provider-confirmed status.
+The same page exposes preview-bound external host-thread deletion and the
+separate preview-bound local journal purge, each with explicit retained-copy
+acknowledgements and durable status.
 
 Codex App Server threads are persistent local records outside the MemTextual
 database. They contain the submitted user text, memory-context item, and model
 output, so MemTextual database deletion or restore does not alter those copies.
-The coordinated control can delete the host thread, but it does not alter the
-separate MemTextual journal or retained backup copies and is not presented as a
-complete privacy-erasure workflow.
+The coordinated control can delete the host thread. Only after that deletion is
+provider-confirmed can a separate action purge the active MemTextual journal;
+neither action alters retained backup copies or is presented as a complete
+privacy-erasure workflow.

@@ -79,7 +79,7 @@ test("migration and seed preserve schema integrity", () => {
     const violations = database.prepare("PRAGMA foreign_key_check").all();
 
     assert.equal(memoryCount.count, 10);
-    assert.equal(migrationCount.count, 20);
+    assert.equal(migrationCount.count, 21);
     assert.deepEqual(violations, []);
     assert.throws(
       () =>
@@ -1096,6 +1096,127 @@ test("host deletion migration preserves schema 19 conversations", () => {
   }
 });
 
+test("conversation journal purge migration preserves schema 20 journal data", () => {
+  const temporaryDirectory = mkdtempSync(join(tmpdir(), "memtextual-migrate-"));
+  const oldMigrations = join(temporaryDirectory, "old-migrations");
+  const databasePath = join(temporaryDirectory, "existing.db");
+  mkdirSync(oldMigrations);
+  for (const filename of readdirSync(resolve("migrations"))) {
+    const version = Number.parseInt(filename.slice(0, 3), 10);
+    if (Number.isSafeInteger(version) && version <= 20) {
+      copyFileSync(resolve("migrations", filename), join(oldMigrations, filename));
+    }
+  }
+
+  try {
+    const oldDatabase = openMemTextualDatabase({
+      filename: databasePath,
+      migrationsDirectory: oldMigrations,
+    });
+    const personas = new PersonaService(new SqlitePersonaRepository(oldDatabase));
+    const user = personas.createUser({ displayName: "Existing user" });
+    const persona = personas.createPersona({ userId: user.id, name: "Skylar" });
+    oldDatabase
+      .prepare(
+        `INSERT INTO continuity_host_authorizations (
+           id, user_id, persona_id, relationship_id, host_id, grant_hash,
+           allowed_event_kinds_json
+         ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        "authorization-schema-20",
+        user.id,
+        persona.persona.id,
+        persona.relationship.id,
+        "test.conversation-host",
+        "e".repeat(64),
+        JSON.stringify([continuityConversationTurnEventKind]),
+      );
+    oldDatabase
+      .prepare(
+        `INSERT INTO continuity_conversations (
+           id, user_id, persona_id, relationship_id, authorization_id,
+           host_id, external_conversation_id
+         ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        "conversation-schema-20",
+        user.id,
+        persona.persona.id,
+        persona.relationship.id,
+        "authorization-schema-20",
+        "test.conversation-host",
+        "external-schema-20",
+      );
+    oldDatabase
+      .prepare(
+        `INSERT INTO continuity_conversation_turn_captures (
+           id, conversation_id, external_turn_id, external_event_id,
+           user_text, assistant_text, completed_at, context_format_version,
+           memory_revision_ids_json
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, 1, '[]')`,
+      )
+      .run(
+        "capture-schema-20",
+        "conversation-schema-20",
+        "turn-schema-20",
+        "event-schema-20",
+        "Preserved user text.",
+        "Preserved assistant text.",
+        "2026-10-16T10:00:00.000Z",
+      );
+    oldDatabase.close();
+
+    const upgraded = openMemTextualDatabase({
+      filename: databasePath,
+      migrationsDirectory: resolve("migrations"),
+    });
+    try {
+      assert.deepEqual(
+        upgraded.prepare("SELECT name FROM schema_migrations WHERE version = 21").get(),
+        { name: "conversation_journal_purge_v0.9" },
+      );
+      assert.deepEqual(
+        upgraded
+          .prepare(
+            `SELECT user_text, assistant_text
+             FROM continuity_conversation_turn_captures WHERE id = ?`,
+          )
+          .get("capture-schema-20"),
+        {
+          user_text: "Preserved user text.",
+          assistant_text: "Preserved assistant text.",
+        },
+      );
+      assert.equal(
+        (
+          upgraded
+            .prepare(
+              "SELECT count(*) AS count FROM continuity_conversation_journal_purge_receipts",
+            )
+            .get() as { count: number }
+        ).count,
+        0,
+      );
+      assert.throws(
+        () =>
+          upgraded
+            .prepare("DELETE FROM continuity_conversation_turn_captures WHERE id = ?")
+            .run("capture-schema-20"),
+        /require a purge receipt/u,
+      );
+      assert.deepEqual(upgraded.pragma("integrity_check"), [
+        { integrity_check: "ok" },
+      ]);
+      assert.deepEqual(upgraded.prepare("PRAGMA foreign_key_check").all(), []);
+    } finally {
+      upgraded.close();
+    }
+  } finally {
+    rmSync(temporaryDirectory, { force: true, recursive: true });
+  }
+});
+
 test("review automation migration upgrades an existing candidate database", () => {
   const temporaryDirectory = mkdtempSync(join(tmpdir(), "memtextual-migrate-"));
   const oldMigrations = join(temporaryDirectory, "old-migrations");
@@ -1205,6 +1326,9 @@ test("review automation migration upgrades an existing candidate database", () =
       const hostDeletionMigration = upgraded
         .prepare("SELECT name FROM schema_migrations WHERE version = 20")
         .get() as { name: string };
+      const conversationJournalPurgeMigration = upgraded
+        .prepare("SELECT name FROM schema_migrations WHERE version = 21")
+        .get() as { name: string };
 
       assert.equal(candidate.assertion, "Preserve this candidate.");
       assert.equal(candidate.proposer_id, null);
@@ -1254,6 +1378,10 @@ test("review automation migration upgrades an existing candidate database", () =
       assert.equal(
         hostDeletionMigration.name,
         "conversation_host_deletion_v0.9",
+      );
+      assert.equal(
+        conversationJournalPurgeMigration.name,
+        "conversation_journal_purge_v0.9",
       );
       assert.deepEqual(
         upgraded

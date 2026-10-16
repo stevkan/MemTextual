@@ -7,6 +7,7 @@ import { resolveMcpRuntimeConfig } from "../mcp/config.js";
 import { createWindowsPowerShellBridge } from "../platform/windows-powershell-host-operations.js";
 import { SqliteContinuityControlRepository } from "../repositories/sqlite-continuity-control-repository.js";
 import { SqliteContinuityConversationRepository } from "../repositories/sqlite-continuity-conversation-repository.js";
+import { SqliteContinuityConversationJournalPrivacyRepository } from "../repositories/sqlite-continuity-conversation-journal-privacy-repository.js";
 import { SqliteContinuityMemoryRepository } from "../repositories/sqlite-continuity-memory-repository.js";
 import { SqliteContinuityPersonaBehaviorRepository } from "../repositories/sqlite-continuity-persona-behavior-repository.js";
 import { SqliteIngestionRepository } from "../repositories/sqlite-ingestion-repository.js";
@@ -14,6 +15,7 @@ import { SqliteMemoryRepository } from "../repositories/sqlite-memory-repository
 import { SqlitePersonaRepository } from "../repositories/sqlite-persona-repository.js";
 import { ContinuityControlService } from "../services/continuity-control-service.js";
 import { ContinuityConversationCatalogService } from "../services/continuity-conversation-catalog-service.js";
+import { ContinuityConversationJournalPrivacyService } from "../services/continuity-conversation-journal-privacy-service.js";
 import { ContinuityMemoryService } from "../services/continuity-memory-service.js";
 import { ContinuityPersonaBehaviorService } from "../services/continuity-persona-behavior-service.js";
 import { IngestionService } from "../services/ingestion-service.js";
@@ -169,6 +171,9 @@ async function main(): Promise<void> {
     new SqliteContinuityConversationRepository(database),
     personaRepository,
   );
+  const conversationPrivacy = new ContinuityConversationJournalPrivacyService(
+    new SqliteContinuityConversationJournalPrivacyRepository(database),
+  );
   let conversationRuntime: ContinuityConversationRuntime | undefined;
   try {
     if (conversationConfiguration !== undefined) {
@@ -191,6 +196,7 @@ async function main(): Promise<void> {
     handle = await startContinuityConsole({
       behaviors,
       conversations,
+      conversationPrivacy,
       control,
       ...(conversationRuntime === undefined ? {} : { conversationRuntime }),
       personaContext,

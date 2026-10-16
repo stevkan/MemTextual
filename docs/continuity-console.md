@@ -78,6 +78,10 @@ the listener stops first, followed by the Codex host and then SQLite.
   user and assistant text held in MemTextual's durable local capture journal.
   Each conversation shows its journaled-turn count and any pending or failed
   captures that require recovery.
+- After provider-confirmed host-thread deletion, preview and permanently purge
+  the conversation's owned active-database journal, sources, host-event
+  receipts, and candidate lineage when no retained memory or trusted policy
+  blocks removal. The immutable conversation and purge receipt remain.
 - When the conversation runtime is explicitly enabled, create, inspect, and
   revoke persona-bound host authorizations without exposing their protected
   grants; start a conversation; open an existing conversation through host
@@ -135,6 +139,22 @@ Successful provider deletion is journaled and disables reopen and send controls.
 The exact local conversation journal remains visible. Derived memories, exports,
 database snapshots, encrypted replicas, filesystem copies, and provider backup
 retention are outside this action and are never reported as erased.
+
+## Local conversation-journal purge
+
+After host deletion succeeds, the console offers a separate fresh purge
+preview. It reports exact active-database row counts, dependent-memory and
+trusted-policy blockers, and a state-bound confirmation phrase. Purge requires
+an operational reason, that exact phrase, acknowledgement that active-database
+deletion is permanent, acknowledgement that external copies may remain, and a
+final browser confirmation.
+
+The operation removes exact captured dialogue and its owned source, event, and
+candidate lineage from the active database in one transaction. It refuses to
+silently break retained-memory evidence or trusted-source policy references.
+The conversation binding, provider-deletion record, and assertion-free purge
+receipt remain visible. Exports, snapshots, encrypted replicas, filesystem
+copies, off-device backups, and provider-retained copies are not modified.
 
 ## Persona-memory export
 

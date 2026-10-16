@@ -2,6 +2,7 @@ import type Database from "better-sqlite3";
 import type {
   ContinuityConversation,
   ContinuityConversationHostDeletion,
+  ContinuityConversationJournalPurgeReceipt,
   ContinuityConversationSummary,
   ContinuityConversationTurnCapture,
   CreateContinuityConversationRecordInput,
@@ -49,6 +50,10 @@ interface ConversationSummaryRow extends ConversationRow {
   deletion_failure_code: string | null;
   host_deleted_at: string | null;
   deletion_updated_at: string | null;
+  journal_purge_id: string | null;
+  journal_purge_persona_id: string | null;
+  journal_purge_counts_json: string | null;
+  journal_purged_at: string | null;
   turn_count: number;
   unresolved_capture_count: number;
   last_activity_at: string;
@@ -150,9 +155,36 @@ function mapConversationSummary(
             deleted_at: row.host_deleted_at,
             updated_at: row.deletion_updated_at!,
           }),
+    journalPurge:
+      row.journal_purge_id === null
+        ? null
+        : mapJournalPurgeReceipt({
+            id: row.journal_purge_id,
+            conversationId: row.id,
+            personaId: row.journal_purge_persona_id!,
+            countsJson: row.journal_purge_counts_json!,
+            purgedAt: row.journal_purged_at!,
+          }),
     turnCount: row.turn_count,
     unresolvedCaptureCount: row.unresolved_capture_count,
     lastActivityAt: row.last_activity_at,
+  };
+}
+
+function mapJournalPurgeReceipt(input: {
+  id: string;
+  conversationId: string;
+  personaId: string;
+  countsJson: string;
+  purgedAt: string;
+}): ContinuityConversationJournalPurgeReceipt {
+  return {
+    receiptId: input.id,
+    conversationId: input.conversationId,
+    personaId: input.personaId,
+    purgedAt: input.purgedAt,
+    deletedRowCounts: JSON.parse(input.countsJson) as Record<string, number>,
+    externalCopiesNotModified: true,
   };
 }
 
@@ -291,19 +323,26 @@ export class SqliteContinuityConversationRepository
                 deletion.failure_code AS deletion_failure_code,
                 deletion.deleted_at AS host_deleted_at,
                 deletion.updated_at AS deletion_updated_at,
+                purge.id AS journal_purge_id,
+                purge.persona_id AS journal_purge_persona_id,
+                purge.deleted_row_counts_json AS journal_purge_counts_json,
+                purge.purged_at AS journal_purged_at,
                 COUNT(capture.id) AS turn_count,
                 COALESCE(SUM(CASE WHEN capture.status IN ('pending', 'failed')
                                   THEN 1 ELSE 0 END), 0)
                   AS unresolved_capture_count,
                 MAX(
                   conversation.created_at,
-                  COALESCE(MAX(capture.completed_at), conversation.created_at)
+                  COALESCE(MAX(capture.completed_at), conversation.created_at),
+                  COALESCE(purge.purged_at, conversation.created_at)
                 ) AS last_activity_at
          FROM continuity_conversations conversation
          LEFT JOIN continuity_conversation_turn_captures capture
            ON capture.conversation_id = conversation.id
          LEFT JOIN continuity_conversation_host_deletions deletion
            ON deletion.conversation_id = conversation.id
+         LEFT JOIN continuity_conversation_journal_purge_receipts purge
+           ON purge.conversation_id = conversation.id
          WHERE conversation.persona_id = ?
          GROUP BY conversation.id
          ORDER BY last_activity_at DESC, conversation.id DESC`,

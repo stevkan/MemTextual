@@ -57,6 +57,43 @@ export interface DeleteContinuityConversationHostInput {
   acknowledgeBackupsMayRemain: boolean;
 }
 
+export interface ContinuityConversationJournalPurgePreview {
+  conversationId: string;
+  hostDeletionConfirmed: boolean;
+  alreadyPurged: boolean;
+  turnCount: number;
+  hostEventCount: number;
+  sourceSeriesCount: number;
+  sourceRecordCount: number;
+  candidateCount: number;
+  dependentMemoryIds: string[];
+  activeReviewPolicyIds: string[];
+  blockers: string[];
+  canPurge: boolean;
+  confirmation: string;
+  activeDatabaseDeletionIsPermanent: true;
+  externalCopiesNotModified: true;
+  snapshotsAndBackupsMayRemain: true;
+}
+
+export interface PurgeContinuityConversationJournalInput {
+  conversationId: string;
+  personaId: string;
+  reason: string;
+  confirmation: string;
+  acknowledgePermanentActiveDatabaseDeletion: boolean;
+  acknowledgeExternalCopiesMayRemain: boolean;
+}
+
+export interface ContinuityConversationJournalPurgeReceipt {
+  receiptId: string;
+  conversationId: string;
+  personaId: string;
+  purgedAt: string;
+  deletedRowCounts: Record<string, number>;
+  externalCopiesNotModified: true;
+}
+
 export interface ContinuityConversation {
   id: string;
   userId: string;
@@ -96,6 +133,7 @@ export interface ContinuityConversationTurnCapture {
 export interface ContinuityConversationSummary {
   conversation: ContinuityConversation;
   hostDeletion: ContinuityConversationHostDeletion | null;
+  journalPurge: ContinuityConversationJournalPurgeReceipt | null;
   turnCount: number;
   unresolvedCaptureCount: number;
   lastActivityAt: string;

@@ -288,6 +288,16 @@ text. A row is written before provider use, transitions are constrained, and a
 provider-confirmed deleted row cannot be changed or removed. The linked
 `continuity_conversations` row and its local turn-capture journal remain intact.
 
+Migration 021 adds `continuity_conversation_journal_purge_receipts`. A receipt
+is persona-bound, immutable, undeletable, and unique per conversation. It keeps
+an operational reason, purge timestamp, deleted-row counts, and the explicit
+fact that external copies were not modified; it does not keep dialogue or
+memory assertions. A replacement turn-capture trigger permits deletion only
+inside a transaction that has already written the matching receipt. The purge
+service retains the conversation binding and confirmed host-deletion record
+while removing the owned active-database turn, event, source, record, and
+candidate rows. A purged conversation cannot accept new capture rows.
+
 ## SQLite-enforced invariants
 
 - Enum-like values and confidence ranges are checked.
@@ -301,6 +311,8 @@ provider-confirmed deleted row cannot be changed or removed. The linked
   revision.
 - Host-deletion records are undeletable; confirmed deletion is terminal, and
   retry attempts must advance the attempt count through a pending state.
+- Conversation-journal purge receipts are immutable and undeletable; turn
+  captures cannot be deleted without a matching receipt.
 - Emotional profile revisions are sequential, immutable, persona-bound, and
   restricted to a retained current memory revision.
 - Source-series identities and version numbers are unique, and source-version

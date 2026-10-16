@@ -54,6 +54,8 @@ export {
   type ContinuityConversationHostDeletion,
   type ContinuityConversationHostDeletionPreview,
   type ContinuityConversationHostDeletionStatus,
+  type ContinuityConversationJournalPurgePreview,
+  type ContinuityConversationJournalPurgeReceipt,
   type ContinuityConversationDetail,
   type ContinuityConversationReconciliationResult,
   type ContinuityConversationSummary,
@@ -63,6 +65,7 @@ export {
   type CreateContinuityConversationRecordInput,
   type CreateContinuityConversationTurnCaptureInput,
   type DeleteContinuityConversationHostInput,
+  type PurgeContinuityConversationJournalInput,
   type ResumeContinuityConversationInput,
   type ReconcileContinuityConversationInput,
   type RecoveredContinuityConversationTurn,
@@ -351,6 +354,11 @@ export type { ContinuityEmotionRepository } from "./repositories/continuity-emot
 export type { IngestionRepository } from "./repositories/ingestion-repository.js";
 export type { PersonaRepository } from "./repositories/persona-repository.js";
 export type { ContinuityConversationRepository } from "./repositories/continuity-conversation-repository.js";
+export type {
+  ContinuityConversationJournalPrivacyRepository,
+  ConversationJournalPurgeImpact,
+  PurgeConversationJournalRecordInput,
+} from "./repositories/continuity-conversation-journal-privacy-repository.js";
 export type { ReviewPolicyRepository } from "./repositories/review-policy-repository.js";
 export type {
   ContinuityCandidateBinding,
@@ -371,6 +379,7 @@ export { SqlitePersonaRepository } from "./repositories/sqlite-persona-repositor
 export { SqliteReviewPolicyRepository } from "./repositories/sqlite-review-policy-repository.js";
 export { SqliteHostEventRepository } from "./repositories/sqlite-host-event-repository.js";
 export { SqliteContinuityConversationRepository } from "./repositories/sqlite-continuity-conversation-repository.js";
+export { SqliteContinuityConversationJournalPrivacyRepository } from "./repositories/sqlite-continuity-conversation-journal-privacy-repository.js";
 export {
   SqliteContinuityControlRepository,
 } from "./repositories/sqlite-continuity-control-repository.js";
@@ -436,6 +445,10 @@ export {
   ExplicitConversationHostDeletionRequiredError,
   type ContinuityConversationHostDeletionServiceOptions,
 } from "./services/continuity-conversation-host-deletion-service.js";
+export {
+  ContinuityConversationJournalPrivacyService,
+  ExplicitConversationJournalPurgeRequiredError,
+} from "./services/continuity-conversation-journal-privacy-service.js";
 export {
   ContinuityConversationProtectedClient,
   type ContinuityConversationProtectedClientOptions,

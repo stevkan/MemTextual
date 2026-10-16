@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   AmbientMemoryService,
   ContinuityConversationCatalogService,
+  ContinuityConversationJournalPrivacyService,
   ContinuityControlService,
   ContinuityMemoryService,
   ContinuityPersonaBehaviorService,
@@ -15,6 +16,7 @@ import {
   PersonaService,
   SqliteContinuityControlRepository,
   SqliteContinuityConversationRepository,
+  SqliteContinuityConversationJournalPrivacyRepository,
   SqliteContinuityMemoryRepository,
   SqliteContinuityPersonaBehaviorRepository,
   SqliteIngestionRepository,
@@ -36,12 +38,15 @@ test("Continuity console browser script parses as JavaScript", () => {
   assert.doesNotThrow(() => new Function(continuityConsoleJavaScript));
 });
 
-test("Continuity console browser exposes grantless conversation and recovery controls", () => {
+test("Continuity console browser exposes grantless conversation, recovery, and privacy controls", () => {
   assert.match(continuityConsoleJavaScript, /New conversation and authorizations/u);
   assert.match(continuityConsoleJavaScript, /Create authorization/u);
   assert.match(continuityConsoleJavaScript, /Open and reconcile/u);
   assert.match(continuityConsoleJavaScript, /Send message/u);
   assert.match(continuityConsoleJavaScript, /Retry capture/u);
+  assert.match(continuityConsoleJavaScript, /Permanent local journal purge/u);
+  assert.match(continuityConsoleJavaScript, /journal-purge-preview/u);
+  assert.match(continuityConsoleJavaScript, /acknowledgeExternalCopiesMayRemain/u);
   assert.match(continuityConsoleJavaScript, /capture_failed/u);
   assert.match(continuityConsoleJavaScript, /reconciliation_capture_failed/u);
   assert.equal(continuityConsoleJavaScript.includes("innerHTML"), false);
@@ -81,6 +86,9 @@ function fixture() {
   const conversations = new ContinuityConversationCatalogService(
     conversationRepository,
     personaRepository,
+  );
+  const conversationPrivacy = new ContinuityConversationJournalPrivacyService(
+    new SqliteContinuityConversationJournalPrivacyRepository(database),
   );
   const authorizations = new HostAuthorizationService(
     new SqliteHostEventRepository(database),
@@ -139,6 +147,7 @@ function fixture() {
     behaviors,
     control,
     conversationRepository,
+    conversationPrivacy,
     conversations,
     database,
     skylar,
@@ -231,6 +240,7 @@ test("Continuity console requires its session token and persona boundary", async
       {
         behaviors: setup.behaviors,
         conversations: setup.conversations,
+        conversationPrivacy: setup.conversationPrivacy,
         control: setup.control,
         personaContext: setup.skylar,
       },
@@ -345,6 +355,7 @@ test("Continuity console exposes only its persona conversation journal", async (
       {
         behaviors: setup.behaviors,
         conversations: setup.conversations,
+        conversationPrivacy: setup.conversationPrivacy,
         control: setup.control,
         personaContext: setup.skylar,
       },
@@ -402,6 +413,7 @@ test("Continuity console creates explicit persona memories with selected control
       {
         behaviors: setup.behaviors,
         conversations: setup.conversations,
+        conversationPrivacy: setup.conversationPrivacy,
         control: setup.control,
         personaContext: setup.skylar,
       },
@@ -517,6 +529,7 @@ test("Continuity console edits only its bound persona behavior", async () => {
       {
         behaviors: setup.behaviors,
         conversations: setup.conversations,
+        conversationPrivacy: setup.conversationPrivacy,
         control: setup.control,
         personaContext: setup.skylar,
       },
@@ -584,6 +597,7 @@ test("Continuity console requires same-origin explicit mutations", async () => {
       {
         behaviors: setup.behaviors,
         conversations: setup.conversations,
+        conversationPrivacy: setup.conversationPrivacy,
         control: setup.control,
         personaContext: setup.skylar,
       },
@@ -881,6 +895,7 @@ test("Continuity console reconciles candidates only with same-persona targets", 
       {
         behaviors: setup.behaviors,
         conversations: setup.conversations,
+        conversationPrivacy: setup.conversationPrivacy,
         control: setup.control,
         personaContext: setup.skylar,
       },
@@ -944,6 +959,7 @@ test("Continuity console socket listener binds only to IPv4 loopback", async () 
     const handle = await startContinuityConsole({
       behaviors: setup.behaviors,
       conversations: setup.conversations,
+      conversationPrivacy: setup.conversationPrivacy,
       control: setup.control,
       personaContext: setup.skylar,
       port: 0,

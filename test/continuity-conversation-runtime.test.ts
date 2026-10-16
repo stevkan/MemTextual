@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   ContinuityControlService,
   ContinuityConversationCatalogService,
+  ContinuityConversationJournalPrivacyService,
   ContinuityMemoryService,
   ContinuityPersonaBehaviorService,
   IngestionService,
@@ -11,6 +12,7 @@ import {
   PersonaService,
   SqliteContinuityControlRepository,
   SqliteContinuityConversationRepository,
+  SqliteContinuityConversationJournalPrivacyRepository,
   SqliteContinuityMemoryRepository,
   SqliteContinuityPersonaBehaviorRepository,
   SqliteIngestionRepository,
@@ -286,6 +288,9 @@ test("console conversation API keeps identity and grants behind the loopback bou
           new SqliteContinuityConversationRepository(database),
           personasRepository,
         ),
+        conversationPrivacy: new ContinuityConversationJournalPrivacyService(
+          new SqliteContinuityConversationJournalPrivacyRepository(database),
+        ),
         control,
         conversationRuntime: runtime,
         personaContext: persona,
@@ -473,6 +478,56 @@ test("console conversation API keeps identity and grants behind the loopback bou
     );
     assert.equal(rejectedDeletedOpen.status, 400);
     assert.match(rejectedDeletedOpen.body, /external host thread.*deleted/iu);
+    const journalPreviewResponse = await request(
+      `/api/conversations/${encodeURIComponent(conversation.id)}/journal-purge-preview`,
+      undefined,
+      "GET",
+    );
+    assert.equal(journalPreviewResponse.status, 200);
+    const journalPreview = JSON.parse(journalPreviewResponse.body) as {
+      canPurge: boolean;
+      turnCount: number;
+      sourceRecordCount: number;
+      candidateCount: number;
+      confirmation: string;
+      externalCopiesNotModified: boolean;
+    };
+    assert.equal(journalPreview.canPurge, true);
+    assert.equal(journalPreview.turnCount, 2);
+    assert.equal(journalPreview.sourceRecordCount, 4);
+    assert.equal(journalPreview.candidateCount, 2);
+    assert.equal(journalPreview.externalCopiesNotModified, true);
+    const journalPurgeResponse = await request(
+      `/api/conversations/${encodeURIComponent(conversation.id)}/journal-purge`,
+      {
+        reason: "User requested local conversation removal.",
+        confirmation: journalPreview.confirmation,
+        acknowledgePermanentActiveDatabaseDeletion: true,
+        acknowledgeExternalCopiesMayRemain: true,
+      },
+    );
+    assert.equal(journalPurgeResponse.status, 200);
+    const journalReceipt = JSON.parse(journalPurgeResponse.body) as {
+      deletedRowCounts: Record<string, number>;
+      externalCopiesNotModified: boolean;
+    };
+    assert.equal(journalReceipt.deletedRowCounts.conversationTurnCaptures, 2);
+    assert.equal(journalReceipt.deletedRowCounts.sourceRecords, 4);
+    assert.equal(journalReceipt.externalCopiesNotModified, true);
+    assert.equal(ingestion.listCandidates().length, 0);
+    const purgedConversationResponse = await request(
+      `/api/conversations/${encodeURIComponent(conversation.id)}`,
+      undefined,
+      "GET",
+    );
+    assert.equal(purgedConversationResponse.status, 200);
+    const purgedConversation = JSON.parse(purgedConversationResponse.body) as {
+      summary: { journalPurge: { receiptId: string } | null; turnCount: number };
+      turns: unknown[];
+    };
+    assert.notEqual(purgedConversation.summary.journalPurge, null);
+    assert.equal(purgedConversation.summary.turnCount, 0);
+    assert.deepEqual(purgedConversation.turns, []);
     const revokeResponse = await request(
       `/api/conversation-authorizations/${encodeURIComponent(authorization.id)}/revoke`,
       {},
