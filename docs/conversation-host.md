@@ -96,8 +96,9 @@ The persona-bound orchestration layer now persists immutable conversation
 bindings, composes bounded context, applies explicit start-time persona
 behavior, and routes successful turns into authorized ambient capture. It
 remains a library rather than the Continuity conversational client: chat
-presentation, persisted behavior-profile editing, conversation controls, and
-coordinated deletion are not yet implemented. Completed turns are
+presentation, conversation controls, and coordinated deletion are not yet
+implemented. Persisted persona-behavior editing is available in the separate
+local control console. Completed turns are
 journaled before extraction, failed capture can be listed and retried, and
 missing journal entries can be reconstructed from authoritative host history
 without asking the host to generate the response again.

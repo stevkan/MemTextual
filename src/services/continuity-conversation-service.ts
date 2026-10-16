@@ -27,14 +27,20 @@ import {
 } from "../domain/continuity-conversation.js";
 import type { ContinuityConversationRepository } from "../repositories/continuity-conversation-repository.js";
 import type { PersonaRepository } from "../repositories/persona-repository.js";
+import type { PersonaBehaviorProfile } from "../domain/continuity-persona-behavior.js";
 import type { AuthorizedHostEventCaptureService } from "./host-event-service.js";
 
 export interface ContinuityConversationContextProvider {
   compose(query: ContinuityContextQuery): Promise<ContinuityContextComposition>;
 }
 
+export interface ContinuityConversationBehaviorProfileProvider {
+  getProfile(personaId: string): PersonaBehaviorProfile | null;
+}
+
 export interface ContinuityConversationServiceOptions {
   now?: () => Date;
+  behaviorProfiles: ContinuityConversationBehaviorProfileProvider;
 }
 
 export class ContinuityConversationCaptureError extends Error {
@@ -66,6 +72,7 @@ export class ContinuityConversationReconciliationCaptureError extends Error {
 
 export class ContinuityConversationService {
   readonly #now: () => Date;
+  readonly #behaviorProfiles: ContinuityConversationBehaviorProfileProvider;
 
   public constructor(
     private readonly repository: ContinuityConversationRepository,
@@ -73,7 +80,7 @@ export class ContinuityConversationService {
     private readonly contexts: ContinuityConversationContextProvider,
     private readonly host: ConversationHost,
     private readonly capture: AuthorizedHostEventCaptureService<ContinuityConversationTurnPayload>,
-    options: ContinuityConversationServiceOptions = {},
+    options: ContinuityConversationServiceOptions,
   ) {
     if (
       host.identity.adapterId !== capture.identity.adapterId ||
@@ -82,6 +89,10 @@ export class ContinuityConversationService {
       throw new Error("The conversation host and capture adapter identities must match.");
     }
     this.#now = options.now ?? (() => new Date());
+    if (options.behaviorProfiles === undefined) {
+      throw new TypeError("behaviorProfiles is required.");
+    }
+    this.#behaviorProfiles = options.behaviorProfiles;
   }
 
   public async startConversation(
@@ -102,9 +113,17 @@ export class ContinuityConversationService {
     ) {
       throw new Error("The conversation authorization does not match its persona.");
     }
+    const behaviorProfile = this.#behaviorProfiles.getProfile(personaId);
+    if (behaviorProfile !== null && behaviorProfile.personaId !== personaId) {
+      throw new Error("The persona behavior profile does not match its persona.");
+    }
+    const appliedBehavior = behaviorProfile?.enabled === true ? behaviorProfile : null;
+    if (appliedBehavior !== null) {
+      validateAppliedBehavior(appliedBehavior);
+    }
     const session = await this.host.startConversation({
       ...(input.model === undefined ? {} : { model: input.model }),
-      ...(input.personaBehaviorInstructions === undefined
+      ...(appliedBehavior === null
         ? {}
         : {
             personaBehavior: {
@@ -112,10 +131,9 @@ export class ContinuityConversationService {
               formatVersion: personaBehaviorPromptFormatVersion,
               contentRole: "persona_behavior" as const,
               personaId,
-              instructions: requiredPreservedText(
-                input.personaBehaviorInstructions,
-                "personaBehaviorInstructions",
-              ),
+              profileId: appliedBehavior.id,
+              profileRevision: appliedBehavior.revisionNumber,
+              instructions: appliedBehavior.instructions,
             },
           }),
     });
@@ -127,6 +145,8 @@ export class ContinuityConversationService {
       authorizationId,
       hostId: this.host.identity.adapterId,
       externalConversationId: session.id,
+      behaviorProfileId: appliedBehavior?.id ?? null,
+      behaviorProfileRevision: appliedBehavior?.revisionNumber ?? null,
     });
   }
 
@@ -513,9 +533,14 @@ function requiredText(value: string, label: string): string {
   return normalized;
 }
 
-function requiredPreservedText(value: string, label: string): string {
-  if (value.trim().length === 0) {
-    throw new Error(`${label} must not be empty.`);
+function validateAppliedBehavior(profile: PersonaBehaviorProfile): void {
+  if (
+    profile.id.trim().length === 0 ||
+    !Number.isSafeInteger(profile.revisionNumber) ||
+    profile.revisionNumber < 1 ||
+    profile.instructions.trim().length === 0 ||
+    profile.createdBy !== "user"
+  ) {
+    throw new Error("The persona behavior profile is invalid.");
   }
-  return value;
 }

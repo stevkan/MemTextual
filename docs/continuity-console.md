@@ -21,6 +21,9 @@ for an available port.
 
 ## Current controls
 
+- Create, revise, enable, or disable the selected persona's conversational
+  behavior. Every save creates an immutable revision and affects new
+  conversations only; behavior is configuration rather than memory.
 - Create a persona memory directly from an explicit user entry. The user must
   choose its episodic or durable class, memory type, sensitivity, retrieval
   policy, and optional pinned or protected state. Direct entries have no source
@@ -87,6 +90,8 @@ outside the operation and are disclosed rather than silently claimed as erased.
 - The listener binds only to `127.0.0.1`; it is not a remote or public REST API.
 - One running console is fixed to one persona and does not accept a persona or
   scope ID from browser requests.
+- Persona-behavior reads and writes are resolved against that server-bound
+  persona; browser requests cannot select another persona.
 - API requests require the per-launch bearer token.
 - Mutations also require an exact same-origin browser request.
 - Host validation, strict JSON schemas, a 64 KiB body limit, no-store responses,

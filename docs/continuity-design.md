@@ -86,10 +86,12 @@ persisted conversation can accept another turn. It permits one active turn and
 closes readiness after failures without retaining bearer grants. The
 provider-neutral conversation boundary now carries explicit, persona-bound
 start-time behavior without deriving it from memories or persona descriptions.
-Chat presentation, persisted behavior-profile editing, conversation lists,
-recovery presentation, and coordinated deletion controls remain integration
-work. Other cloud providers and local models are outside the initial scope and
-may be reconsidered only in response to demonstrated need.
+The local control console now stores immutable, explicitly user-authored
+behavior revisions for each persona; new conversations snapshot the current
+enabled revision. Chat presentation, conversation lists, recovery presentation,
+and coordinated deletion controls remain integration work. Other cloud
+providers and local models are outside the initial scope and may be
+reconsidered only in response to demonstrated need.
 
 As of October 15, 2026, OpenAI's official ChatGPT desktop, web, and mobile
 clients expose no supported outbound conversation-turn API or webhook through

@@ -9,6 +9,7 @@ import type { AddressInfo } from "node:net";
 import { z } from "zod";
 import type { PersonaContext } from "../domain/persona.js";
 import type { ContinuityControlService } from "../services/continuity-control-service.js";
+import type { ContinuityPersonaBehaviorService } from "../services/continuity-persona-behavior-service.js";
 import {
   continuityConsoleCss,
   continuityConsoleHtml,
@@ -81,6 +82,17 @@ const purgeSchema = z
     acknowledgeExternalCopiesNotModified: z.literal(true),
   })
   .strict();
+const personaBehaviorSchema = z
+  .object({
+    expectedRevisionNumber: z.number().int().positive().nullable(),
+    instructions: z.string().min(1).max(50_000),
+    enabled: z.boolean(),
+    note: z.string().max(10_000).optional(),
+  })
+  .strict()
+  .refine(({ instructions }) => instructions.trim().length > 0, {
+    message: "Persona behavior instructions must not be empty.",
+  });
 
 class HttpError extends Error {
   public constructor(
@@ -93,6 +105,7 @@ class HttpError extends Error {
 }
 
 export interface StartContinuityConsoleOptions {
+  behaviors: ContinuityPersonaBehaviorService;
   control: ContinuityControlService;
   personaContext: PersonaContext;
   port?: number;
@@ -333,7 +346,10 @@ function exportFilename(personaName: string): string {
 }
 
 export function createContinuityConsoleApplication(
-  options: Pick<StartContinuityConsoleOptions, "control" | "personaContext">,
+  options: Pick<
+    StartContinuityConsoleOptions,
+    "behaviors" | "control" | "personaContext"
+  >,
   token: string,
 ): ContinuityConsoleApplication {
   const expectedToken = requireValidToken(token);
@@ -398,6 +414,13 @@ export function createContinuityConsoleApplication(
           );
         }
 
+        if (request.method === "GET" && url.pathname === "/api/behavior") {
+          return jsonResponse(200, {
+            current: options.behaviors.getProfile(personaId),
+            history: options.behaviors.listProfileHistory(personaId),
+          });
+        }
+
         const candidateId = routeId(url.pathname);
         if (
           request.method === "GET" &&
@@ -439,6 +462,22 @@ export function createContinuityConsoleApplication(
         }
         requireMutationOrigin(headers, origin);
         const body = readJson(request, headers);
+        if (url.pathname === "/api/behavior") {
+          const input = parseBody(personaBehaviorSchema, body);
+          return jsonResponse(
+            200,
+            options.behaviors.configureProfile(
+              {
+                personaId,
+                expectedRevisionNumber: input.expectedRevisionNumber,
+                instructions: input.instructions,
+                enabled: input.enabled,
+                ...(input.note === undefined ? {} : { note: input.note }),
+              },
+              { actor: "user", explicitUserAction: true },
+            ),
+          );
+        }
         if (url.pathname === "/api/memories") {
           const input = parseBody(createMemorySchema, body);
           return jsonResponse(

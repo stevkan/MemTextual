@@ -8,10 +8,12 @@ import {
   ContinuityConversationReconciliationCaptureError,
   ContinuityConversationService,
   ContinuityConversationTurnAdapter,
+  ContinuityPersonaBehaviorService,
   HostAuthorizationService,
   IngestionService,
   PersonaService,
   SqliteContinuityConversationRepository,
+  SqliteContinuityPersonaBehaviorRepository,
   SqliteHostEventRepository,
   SqliteIngestionRepository,
   SqliteMemoryRepository,
@@ -192,18 +194,25 @@ function fixture(options: { failExtraction?: boolean } = {}) {
     new ContinuityConversationTurnAdapter(host.identity),
   );
   const contexts = new FakeContextProvider();
+  const behaviors = new ContinuityPersonaBehaviorService(
+    new SqliteContinuityPersonaBehaviorRepository(database),
+  );
   const conversations = new ContinuityConversationService(
     new SqliteContinuityConversationRepository(database),
     personaRepository,
     contexts,
     host,
     capture,
-    { now: () => new Date("2026-10-15T12:00:00.000Z") },
+    {
+      now: () => new Date("2026-10-15T12:00:00.000Z"),
+      behaviorProfiles: behaviors,
+    },
   );
   return {
     advisor,
     authorization,
     authorizations,
+    behaviors,
     conversations,
     contexts,
     database,
@@ -217,13 +226,21 @@ function fixture(options: { failExtraction?: boolean } = {}) {
 test("binds a host conversation to one persona and captures an exact completed turn", async () => {
   const setup = fixture();
   try {
+    const behavior = setup.behaviors.configureProfile(
+      {
+        personaId: setup.skylar.persona.id,
+        expectedRevisionNumber: null,
+        instructions:
+          "Speak warmly as Skylar while keeping responses concise.\nNever claim a memory was saved unless confirmed.",
+        enabled: true,
+      },
+      { actor: "user", explicitUserAction: true },
+    );
     const conversation = await setup.conversations.startConversation({
       personaId: setup.skylar.persona.id,
       authorizationId: setup.authorization.authorization.id,
       grant: setup.authorization.grant,
       model: "test-model",
-      personaBehaviorInstructions:
-        "Speak warmly as Skylar while keeping responses concise.\nNever claim a memory was saved unless confirmed.",
     });
     const result = await setup.conversations.sendTurn({
       conversationId: conversation.id,
@@ -241,9 +258,13 @@ test("binds a host conversation to one persona and captures an exact completed t
       formatVersion: 1,
       contentRole: "persona_behavior",
       personaId: setup.skylar.persona.id,
+      profileId: behavior.id,
+      profileRevision: 1,
       instructions:
         "Speak warmly as Skylar while keeping responses concise.\nNever claim a memory was saved unless confirmed.",
     });
+    assert.equal(conversation.behaviorProfileId, behavior.id);
+    assert.equal(conversation.behaviorProfileRevision, 1);
     assert.deepEqual(setup.host.resumed, ["host-conversation-1"]);
     assert.equal(setup.contexts.queries[0]?.personaId, setup.skylar.persona.id);
     assert.equal(setup.contexts.queries[0]?.text, "Please keep your responses concise.");
@@ -285,19 +306,35 @@ test("binds a host conversation to one persona and captures an exact completed t
   }
 });
 
-test("rejects empty persona behavior before starting a host conversation", async () => {
+test("starts neutrally when a persona has no enabled behavior profile", async () => {
   const setup = fixture();
   try {
-    await assert.rejects(
-      setup.conversations.startConversation({
+    const enabled = setup.behaviors.configureProfile(
+      {
         personaId: setup.skylar.persona.id,
-        authorizationId: setup.authorization.authorization.id,
-        grant: setup.authorization.grant,
-        personaBehaviorInstructions: "  \n ",
-      }),
-      /personaBehaviorInstructions must not be empty/,
+        expectedRevisionNumber: null,
+        instructions: "Be warm and concise.",
+        enabled: true,
+      },
+      { actor: "user", explicitUserAction: true },
     );
-    assert.deepEqual(setup.host.started, []);
+    setup.behaviors.configureProfile(
+      {
+        personaId: setup.skylar.persona.id,
+        expectedRevisionNumber: enabled.revisionNumber,
+        instructions: enabled.instructions,
+        enabled: false,
+      },
+      { actor: "user", explicitUserAction: true },
+    );
+    const conversation = await setup.conversations.startConversation({
+      personaId: setup.skylar.persona.id,
+      authorizationId: setup.authorization.authorization.id,
+      grant: setup.authorization.grant,
+    });
+    assert.equal(setup.host.started[0]?.personaBehavior, undefined);
+    assert.equal(conversation.behaviorProfileId, null);
+    assert.equal(conversation.behaviorProfileRevision, null);
   } finally {
     setup.database.close();
   }
@@ -365,6 +402,38 @@ test("database constraints reject a conversation bound across personas", () => {
             "host-cross-persona",
           ),
       /does not match its authorization/u,
+    );
+    const advisorBehavior = setup.behaviors.configureProfile(
+      {
+        personaId: setup.advisor.persona.id,
+        expectedRevisionNumber: null,
+        instructions: "Act as the advisor persona.",
+        enabled: true,
+      },
+      { actor: "user", explicitUserAction: true },
+    );
+    assert.throws(
+      () =>
+        setup.database
+          .prepare(
+            `INSERT INTO continuity_conversations (
+               id, user_id, persona_id, relationship_id, authorization_id,
+               host_id, external_conversation_id, behavior_profile_id,
+               behavior_profile_revision
+             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          )
+          .run(
+            "cross-persona-behavior",
+            setup.skylar.persona.userId,
+            setup.skylar.persona.id,
+            setup.skylar.relationship.id,
+            setup.authorization.authorization.id,
+            setup.host.identity.adapterId,
+            "host-cross-persona-behavior",
+            advisorBehavior.id,
+            advisorBehavior.revisionNumber,
+          ),
+      /behavior does not match its persona/u,
     );
   } finally {
     setup.database.close();

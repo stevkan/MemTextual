@@ -41,6 +41,19 @@ case. Optional external persona IDs are also unique per user.
 Metadata is JSON object data. It may hold provider-neutral descriptive settings,
 but credentials and sensitive secrets do not belong there.
 
+## Persona behavior profiles
+
+Persona descriptions remain identity metadata. Conversational behavior is kept
+in the separate `continuity_persona_behavior_profiles` history so it cannot be
+confused with memory or silently inferred from descriptive fields.
+
+A persona may have no behavior profile and therefore start conversations
+neutrally. Profile creation and every later revision require explicit user
+action and optimistic concurrency. Revisions preserve the exact instruction
+text, enabled state, optional change note, author, and creation time. They are
+sequential, immutable, undeletable, and isolated by persona. Disabling a
+profile appends a disabled revision rather than deleting its history.
+
 ## Persona memory classes
 
 `ContinuityMemoryService` creates a core memory and its persona profile in one
@@ -100,7 +113,8 @@ medical state from text.
 The current package establishes identities, isolated scope topology, explicit
 episodic-versus-durable classification, persona-aware lexical and optional
 hybrid retrieval, safeguarded first-run user and persona onboarding, and a local
-Continuity control console. Persona management is available through the local
-onboarding CLI but is not exposed through MCP. Hybrid retrieval, ranking
-configuration, and emotional annotation are also not exposed through MCP;
-authenticated distribution remains a later phase.
+Continuity control console with persona-behavior editing. Persona management is
+available through the local onboarding CLI but is not exposed through MCP.
+Behavior profiles, hybrid retrieval, ranking configuration, and emotional
+annotation are also not exposed through MCP; authenticated distribution remains
+a later phase.

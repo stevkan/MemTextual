@@ -88,6 +88,8 @@ test("starts and resumes Codex App Server conversations after the required hands
         formatVersion: personaBehaviorPromptFormatVersion,
         contentRole: "persona_behavior",
         personaId: "persona-skylar",
+        profileId: "profile-skylar-1",
+        profileRevision: 1,
         instructions: "Be warm.\nKeep answers concise.",
       },
     }),
@@ -115,6 +117,8 @@ test("starts and resumes Codex App Server conversations after the required hands
     formatVersion: 1,
     contentRole: "persona_behavior",
     personaId: "persona-skylar",
+    profileId: "profile-skylar-1",
+    profileRevision: 1,
     instructions: "Be warm.\nKeep answers concise.",
   });
   assert.deepEqual(server.received[3]?.params, {
@@ -135,6 +139,8 @@ test("rejects an invalid persona behavior contract before contacting App Server"
         formatVersion: personaBehaviorPromptFormatVersion,
         contentRole: "persona_behavior",
         personaId: "persona-skylar",
+        profileId: "profile-skylar-1",
+        profileRevision: 1,
         instructions: "   ",
       },
     }),

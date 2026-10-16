@@ -23,6 +23,7 @@ export const continuityConsoleHtml = `<!doctype html>
       <button class="nav active" data-view="candidates">Review queue <span id="candidate-count">0</span></button>
       <button class="nav" data-view="memories">Memories <span id="memory-count">0</span></button>
       <button id="create-memory-button" class="utility" type="button">Create memory</button>
+      <button id="persona-behavior-button" class="utility" type="button">Persona behavior</button>
       <button id="export-button" class="utility" type="button">Export persona memories</button>
       <p class="boundary">This console is bound to one persona and this local session.</p>
     </aside>
@@ -233,6 +234,72 @@ export const continuityConsoleJavaScript = `
     });
     label.append(select);
     return { label, select };
+  }
+
+  async function showPersonaBehavior() {
+    try {
+      const result = await api("/api/behavior");
+      const current = result.current;
+      detailPanel.className = "detail";
+      detailPanel.replaceChildren(node("h2", "Persona behavior"));
+      detailPanel.append(node("p", "These user-controlled instructions shape this persona's identity, style, and interaction preferences in new conversations. They are configuration, not memory, and do not authorize tools or data access.", "meta"));
+
+      const instructionsLabel = node("label", "Behavior instructions", "field");
+      const instructions = document.createElement("textarea");
+      instructions.rows = 10;
+      instructions.maxLength = 50000;
+      instructions.value = current ? current.instructions : "";
+      instructions.placeholder = "Describe how this persona should communicate and interact.";
+      instructionsLabel.append(instructions);
+      detailPanel.append(instructionsLabel);
+
+      const enabledLabel = node("label", undefined, "check");
+      const enabled = document.createElement("input");
+      enabled.type = "checkbox";
+      enabled.checked = current ? current.enabled : true;
+      enabledLabel.append(enabled, document.createTextNode("Apply this behavior to new conversations."));
+      detailPanel.append(enabledLabel);
+
+      const noteLabel = node("label", "Optional change note", "field");
+      const note = document.createElement("textarea");
+      note.rows = 2;
+      note.maxLength = 10000;
+      noteLabel.append(note);
+      detailPanel.append(noteLabel);
+
+      const actions = node("div", undefined, "actions");
+      actions.append(actionButton(current ? "Save new revision" : "Create behavior profile", async () => {
+        if (!instructions.value.trim()) throw new Error("Behavior instructions are required.");
+        await api("/api/behavior", {
+          method: "POST",
+          body: JSON.stringify({
+            expectedRevisionNumber: current ? current.revisionNumber : null,
+            instructions: instructions.value,
+            enabled: enabled.checked,
+            note: note.value,
+          }),
+        });
+        setNotice("Persona behavior saved as a new immutable revision. It will apply to new conversations only.");
+        await showPersonaBehavior();
+      }));
+      detailPanel.append(actions);
+
+      const history = node("div", undefined, "section");
+      history.append(node("h3", "Revision history"));
+      if (result.history.length === 0) {
+        history.append(node("p", "No persona behavior has been configured.", "empty"));
+      } else {
+        result.history.slice().reverse().forEach((revision) => {
+          const card = node("div", undefined, "history");
+          card.append(node("strong", "Revision " + revision.revisionNumber + " · " + (revision.enabled ? "enabled" : "disabled")));
+          card.append(node("p", revision.instructions));
+          if (revision.note) card.append(node("p", revision.note, "meta"));
+          history.append(card);
+        });
+      }
+      detailPanel.append(history);
+      instructions.focus();
+    } catch (error) { setNotice(error.message, true); }
   }
 
   function showCreateMemory() {
@@ -635,6 +702,10 @@ export const continuityConsoleJavaScript = `
 
   document.getElementById("create-memory-button").addEventListener("click", () => {
     showCreateMemory();
+  });
+
+  document.getElementById("persona-behavior-button").addEventListener("click", () => {
+    showPersonaBehavior();
   });
 
   refreshDashboard().catch((error) => {

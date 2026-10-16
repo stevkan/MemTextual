@@ -37,6 +37,11 @@ export {
   type SendConversationTurnInput,
   type StartConversationInput,
 } from "./domain/conversation-host.js";
+export type {
+  ConfigurePersonaBehaviorProfileInput,
+  PersonaBehaviorMutationContext,
+  PersonaBehaviorProfile,
+} from "./domain/continuity-persona-behavior.js";
 export {
   continuityConversationCaptureStatuses,
   continuityConversationTurnEventKind,
@@ -65,6 +70,12 @@ export {
   type CodexAppServerProcessFactory,
 } from "./hosts/codex-app-server-conversation-host.js";
 export { ContinuityConversationTurnAdapter } from "./hosts/continuity-conversation-turn-adapter.js";
+export type { ContinuityPersonaBehaviorRepository } from "./repositories/continuity-persona-behavior-repository.js";
+export { SqliteContinuityPersonaBehaviorRepository } from "./repositories/sqlite-continuity-persona-behavior-repository.js";
+export {
+  ContinuityPersonaBehaviorService,
+  ExplicitPersonaBehaviorConfigurationRequiredError,
+} from "./services/continuity-persona-behavior-service.js";
 export {
   WindowsServiceIdentityAdapter,
   WindowsTaskSchedulerAdapter,
@@ -386,6 +397,7 @@ export {
   ContinuityConversationCaptureError,
   ContinuityConversationReconciliationCaptureError,
   ContinuityConversationService,
+  type ContinuityConversationBehaviorProfileProvider,
   type ContinuityConversationContextProvider,
   type ContinuityConversationServiceOptions,
 } from "./services/continuity-conversation-service.js";

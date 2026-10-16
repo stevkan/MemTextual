@@ -6,11 +6,13 @@ import { openMemTextualDatabase } from "../database/sqlite-database.js";
 import { resolveMcpRuntimeConfig } from "../mcp/config.js";
 import { SqliteContinuityControlRepository } from "../repositories/sqlite-continuity-control-repository.js";
 import { SqliteContinuityMemoryRepository } from "../repositories/sqlite-continuity-memory-repository.js";
+import { SqliteContinuityPersonaBehaviorRepository } from "../repositories/sqlite-continuity-persona-behavior-repository.js";
 import { SqliteIngestionRepository } from "../repositories/sqlite-ingestion-repository.js";
 import { SqliteMemoryRepository } from "../repositories/sqlite-memory-repository.js";
 import { SqlitePersonaRepository } from "../repositories/sqlite-persona-repository.js";
 import { ContinuityControlService } from "../services/continuity-control-service.js";
 import { ContinuityMemoryService } from "../services/continuity-memory-service.js";
+import { ContinuityPersonaBehaviorService } from "../services/continuity-persona-behavior-service.js";
 import { IngestionService } from "../services/ingestion-service.js";
 import { MemoryService } from "../services/memory-service.js";
 import { startContinuityConsole } from "../ui/continuity-console.js";
@@ -94,9 +96,13 @@ async function main(): Promise<void> {
     new MemoryService(memoryRepository),
     ingestion,
   );
+  const behaviors = new ContinuityPersonaBehaviorService(
+    new SqliteContinuityPersonaBehaviorRepository(database),
+  );
   let handle;
   try {
     handle = await startContinuityConsole({
+      behaviors,
       control,
       personaContext,
       port: arguments_.port,

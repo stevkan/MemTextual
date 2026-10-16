@@ -5,12 +5,14 @@ import {
   AmbientMemoryService,
   ContinuityControlService,
   ContinuityMemoryService,
+  ContinuityPersonaBehaviorService,
   createContinuityConsoleApplication,
   IngestionService,
   MemoryService,
   PersonaService,
   SqliteContinuityControlRepository,
   SqliteContinuityMemoryRepository,
+  SqliteContinuityPersonaBehaviorRepository,
   SqliteIngestionRepository,
   SqliteMemoryRepository,
   SqlitePersonaRepository,
@@ -53,6 +55,9 @@ function fixture() {
     new MemoryService(memoryRepository),
     ingestion,
   );
+  const behaviors = new ContinuityPersonaBehaviorService(
+    new SqliteContinuityPersonaBehaviorRepository(database),
+  );
   const extractor: AmbientMemoryExtractor = {
     id: "test.console-extractor",
     version: "1",
@@ -81,7 +86,7 @@ function fixture() {
       }),
     },
   );
-  return { advisor, ambient, control, database, skylar };
+  return { advisor, ambient, behaviors, control, database, skylar };
 }
 
 async function capture(
@@ -132,7 +137,11 @@ test("Continuity console requires its session token and persona boundary", async
       "Advisor-only candidate.",
     );
     const application = createContinuityConsoleApplication(
-      { control: setup.control, personaContext: setup.skylar },
+      {
+        behaviors: setup.behaviors,
+        control: setup.control,
+        personaContext: setup.skylar,
+      },
       token,
     );
 
@@ -219,7 +228,11 @@ test("Continuity console creates explicit persona memories with selected control
   const token = "m".repeat(32);
   try {
     const application = createContinuityConsoleApplication(
-      { control: setup.control, personaContext: setup.skylar },
+      {
+        behaviors: setup.behaviors,
+        control: setup.control,
+        personaContext: setup.skylar,
+      },
       token,
     );
     const mutation = {
@@ -324,6 +337,66 @@ test("Continuity console creates explicit persona memories with selected control
   }
 });
 
+test("Continuity console edits only its bound persona behavior", async () => {
+  const setup = fixture();
+  const token = "b".repeat(32);
+  try {
+    const application = createContinuityConsoleApplication(
+      {
+        behaviors: setup.behaviors,
+        control: setup.control,
+        personaContext: setup.skylar,
+      },
+      token,
+    );
+    const initial = await request(application, token, {
+      method: "GET",
+      url: "/api/behavior",
+    });
+    assert.deepEqual(JSON.parse(initial.body), { current: null, history: [] });
+
+    const instructions = "  Be warm and candid.\nKeep answers concise.  ";
+    const response = await request(application, token, {
+      method: "POST",
+      url: "/api/behavior",
+      headers: { "content-type": "application/json", origin },
+      body: JSON.stringify({
+        expectedRevisionNumber: null,
+        instructions,
+        enabled: true,
+        note: "Initial behavior.",
+      }),
+    });
+    assert.equal(response.status, 200);
+    const created = JSON.parse(response.body) as {
+      personaId: string;
+      revisionNumber: number;
+      instructions: string;
+      enabled: boolean;
+    };
+    assert.equal(created.personaId, setup.skylar.persona.id);
+    assert.equal(created.revisionNumber, 1);
+    assert.equal(created.instructions, instructions);
+    assert.equal(created.enabled, true);
+    assert.equal(setup.behaviors.getProfile(setup.advisor.persona.id), null);
+
+    const stale = await request(application, token, {
+      method: "POST",
+      url: "/api/behavior",
+      headers: { "content-type": "application/json", origin },
+      body: JSON.stringify({
+        expectedRevisionNumber: null,
+        instructions: "Stale replacement.",
+        enabled: true,
+      }),
+    });
+    assert.equal(stale.status, 400);
+    assert.match(JSON.parse(stale.body).error, /changed from revision null to 1/u);
+  } finally {
+    setup.database.close();
+  }
+});
+
 test("Continuity console requires same-origin explicit mutations", async () => {
   const setup = fixture();
   const token = "u".repeat(32);
@@ -335,7 +408,11 @@ test("Continuity console requires same-origin explicit mutations", async () => {
     );
     const candidateId = captured.candidates[0]!.id;
     const application = createContinuityConsoleApplication(
-      { control: setup.control, personaContext: setup.skylar },
+      {
+        behaviors: setup.behaviors,
+        control: setup.control,
+        personaContext: setup.skylar,
+      },
       token,
     );
     const mutation = {
@@ -627,7 +704,11 @@ test("Continuity console reconciles candidates only with same-persona targets", 
     );
     const candidateId = captured.candidates[0]!.id;
     const application = createContinuityConsoleApplication(
-      { control: setup.control, personaContext: setup.skylar },
+      {
+        behaviors: setup.behaviors,
+        control: setup.control,
+        personaContext: setup.skylar,
+      },
       token,
     );
     const headers = { "content-type": "application/json", origin };
@@ -686,6 +767,7 @@ test("Continuity console socket listener binds only to IPv4 loopback", async () 
   const setup = fixture();
   try {
     const handle = await startContinuityConsole({
+      behaviors: setup.behaviors,
       control: setup.control,
       personaContext: setup.skylar,
       port: 0,

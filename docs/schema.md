@@ -268,6 +268,19 @@ revision was used; raw query values are omitted. Emotional annotations are
 durable safeguard data and are deleted and counted during confirmed memory
 purge.
 
+`continuity_persona_behavior_profiles` is an optional append-only history for
+user-controlled persona behavior. It stores exact instructions, enabled state,
+an optional note, and sequential revision metadata. Migration 019 creates no
+default rows. The current enabled revision is packaged as behavior
+configuration only when a new conversation starts.
+
+`continuity_conversations.behavior_profile_id` and
+`behavior_profile_revision` snapshot the exact enabled revision applied to that
+host thread. Both are null for neutral conversations, including every binding
+that predates migration 019. Database triggers reject partial references,
+disabled revisions, revision mismatches, and profiles belonging to another
+persona.
+
 ## SQLite-enforced invariants
 
 - Enum-like values and confidence ranges are checked.
@@ -276,6 +289,9 @@ purge.
 - A memory cannot relate to itself.
 - Current and previous revisions must belong to the expected memory.
 - Persona ranking profile revisions are sequential and immutable.
+- Persona behavior revisions are sequential, immutable, undeletable, and
+  persona-bound; conversation bindings may reference only a matching enabled
+  revision.
 - Emotional profile revisions are sequential, immutable, persona-bound, and
   restricted to a retained current memory revision.
 - Source-series identities and version numbers are unique, and source-version

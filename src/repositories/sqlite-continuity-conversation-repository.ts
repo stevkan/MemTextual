@@ -15,6 +15,8 @@ interface ConversationRow {
   authorization_id: string;
   host_id: string;
   external_conversation_id: string;
+  behavior_profile_id: string | null;
+  behavior_profile_revision: number | null;
   created_at: string;
 }
 
@@ -40,7 +42,8 @@ interface TurnCaptureRow {
 
 const columns = `
   id, user_id, persona_id, relationship_id, authorization_id, host_id,
-  external_conversation_id, created_at
+  external_conversation_id, behavior_profile_id, behavior_profile_revision,
+  created_at
 `;
 
 const turnCaptureColumns = `
@@ -59,6 +62,8 @@ function mapConversation(row: ConversationRow): ContinuityConversation {
     authorizationId: row.authorization_id,
     hostId: row.host_id,
     externalConversationId: row.external_conversation_id,
+    behaviorProfileId: row.behavior_profile_id,
+    behaviorProfileRevision: row.behavior_profile_revision,
     createdAt: row.created_at,
   };
 }
@@ -97,8 +102,9 @@ export class SqliteContinuityConversationRepository
       .prepare(
         `INSERT INTO continuity_conversations (
            id, user_id, persona_id, relationship_id, authorization_id,
-           host_id, external_conversation_id
-         ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+           host_id, external_conversation_id, behavior_profile_id,
+           behavior_profile_revision
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         input.id,
@@ -108,6 +114,8 @@ export class SqliteContinuityConversationRepository
         input.authorizationId,
         input.hostId,
         input.externalConversationId,
+        input.behaviorProfileId,
+        input.behaviorProfileRevision,
       );
     const conversation = this.getConversation(input.id);
     if (conversation === null) {

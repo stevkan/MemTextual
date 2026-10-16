@@ -658,6 +658,10 @@ function encodePersonaBehavior(prompt: PersonaBehaviorPrompt): string {
     throw new TypeError("personaBehavior uses an unsupported contract.");
   }
   const personaId = requireNonEmpty(prompt.personaId, "personaBehavior.personaId");
+  const profileId = requireNonEmpty(prompt.profileId, "personaBehavior.profileId");
+  if (!Number.isSafeInteger(prompt.profileRevision) || prompt.profileRevision < 1) {
+    throw new TypeError("personaBehavior.profileRevision must be a positive safe integer.");
+  }
   if (prompt.instructions.trim().length === 0) {
     throw new TypeError("personaBehavior.instructions must not be empty.");
   }
@@ -666,6 +670,8 @@ function encodePersonaBehavior(prompt: PersonaBehaviorPrompt): string {
     formatVersion: prompt.formatVersion,
     contentRole: prompt.contentRole,
     personaId,
+    profileId,
+    profileRevision: prompt.profileRevision,
     instructions: prompt.instructions,
   })}`;
 }

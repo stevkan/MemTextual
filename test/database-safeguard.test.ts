@@ -14,7 +14,9 @@ import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import test from "node:test";
 import {
+  ContinuityPersonaBehaviorService,
   PersonaService,
+  SqliteContinuityPersonaBehaviorRepository,
   SqlitePersonaRepository,
   applyGuidedRestore,
   applyBackupRetention,
@@ -108,7 +110,19 @@ function setup(): { databasePath: string; directory: string } {
     .run("scope-1", "Continuity", "continuity");
   const personas = new PersonaService(new SqlitePersonaRepository(database));
   const user = personas.createUser({ displayName: "Steve" });
-  personas.createPersona({ userId: user.id, name: "Skylar" });
+  const persona = personas.createPersona({ userId: user.id, name: "Skylar" });
+  const behaviors = new ContinuityPersonaBehaviorService(
+    new SqliteContinuityPersonaBehaviorRepository(database),
+  );
+  behaviors.configureProfile(
+    {
+      personaId: persona.persona.id,
+      expectedRevisionNumber: null,
+      instructions: "Be warm and concise.",
+      enabled: true,
+    },
+    { actor: "user", explicitUserAction: true },
+  );
   database.close();
   return { databasePath, directory };
 }
@@ -144,7 +158,12 @@ test("snapshot creates an integrity-checked backup, manifest, and durable export
         ?.rowCount,
       0,
     );
-    assert.equal(result.manifest.migrations.length, 18);
+    assert.equal(
+      result.manifest.protectedTables.continuity_persona_behavior_profiles
+        ?.rowCount,
+      1,
+    );
+    assert.equal(result.manifest.migrations.length, 19);
 
     const export_ = JSON.parse(readFileSync(result.exportPath, "utf8")) as {
       tables: { scopes: Array<{ id: string }> };

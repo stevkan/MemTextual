@@ -29,6 +29,8 @@ export interface PersonaBehaviorPrompt {
   formatVersion: typeof personaBehaviorPromptFormatVersion;
   contentRole: "persona_behavior";
   personaId: string;
+  profileId: string;
+  profileRevision: number;
   instructions: string;
 }
 

@@ -22,6 +22,8 @@ const conversation: ContinuityConversation = {
   authorizationId: "authorization-1",
   hostId: "host-1",
   externalConversationId: "external-conversation-1",
+  behaviorProfileId: null,
+  behaviorProfileRevision: null,
   createdAt: "2026-10-15T12:00:00.000Z",
 };
 
