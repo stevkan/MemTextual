@@ -50,7 +50,7 @@
   "type": "module",
   "types": "dist/src/index.d.ts",
   "engines": {
-    "node": ">=22.14.0"
+    "node": "24.21.0"
   },
   "private": true,
   "allowScripts": {

@@ -16,7 +16,7 @@ Bundle creation requires:
 
 - a completed production TypeScript build under `dist/src`;
 - installed production dependencies matching lockfile version 3;
-- the pinned Windows x64 `node.exe` matching `.node-version`;
+- the Windows x64 `node.exe` matching the exact `package.json` Node engine;
 - the license file shipped with that Node runtime;
 - an explicit MemTextual application license or distribution-terms file;
 - an unencrypted signing private key kept outside the bundle; and

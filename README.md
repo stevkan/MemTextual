@@ -140,8 +140,8 @@ Database files are ignored by Git.
 
 ## Develop
 
-The repository's `.node-version` pins Node.js 24.21.0. When NVS is initialized
-by your PowerShell profile, entering the directory selects that runtime.
+MemTextual requires Node.js 24.21.0. Confirm that exact runtime is active before
+installing dependencies, building, or running the project.
 
 ```powershell
 npm install

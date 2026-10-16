@@ -5,6 +5,9 @@ describe only the current design and behavior.
 
 ## Unreleased
 
+- Made Node.js 24.21.0 the exact runtime requirement in package metadata,
+  validation, CI, and Windows bundle construction. Runtime-manager-specific
+  files and instructions are excluded from the repository.
 - Added a process-local Continuity client lifecycle coordinator. Persisted
   conversations reconcile authoritative host history, surface exact unresolved
   capture records, and resume the host before accepting another turn. It

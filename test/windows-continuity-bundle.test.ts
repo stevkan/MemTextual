@@ -28,6 +28,7 @@ function createMinimalSource(source: string): void {
     join(source, "package.json"),
     `${JSON.stringify({
       dependencies: { "production-package": "1.0.0" },
+      engines: { node: process.versions.node },
       name: "memtextual",
       type: "module",
       version: "0.8.0",
@@ -57,7 +58,6 @@ function createMinimalSource(source: string): void {
       version: "0.8.0",
     })}\n`,
   );
-  write(join(source, ".node-version"), `${process.versions.node}\n`);
   write(join(source, "README.md"), "# MemTextual\n");
   write(join(source, "CHANGELOG.md"), "# Changelog\n");
   write(join(source, "LICENSE.txt"), "Test license only.\n");
@@ -245,5 +245,37 @@ describe("Windows Continuity bundle", () => {
         ]),
       /--confirm is required/u,
     );
+  });
+
+  it("requires an exact Node engine in package metadata", async () => {
+    const root = mkdtempSync(join(tmpdir(), "memtextual-windows-bundle-engine-"));
+    const source = join(root, "source");
+    const output = join(root, "output");
+    try {
+      mkdirSync(source);
+      mkdirSync(output);
+      createMinimalSource(source);
+      const packagePath = join(source, "package.json");
+      const packageJson = JSON.parse(readFileSync(packagePath, "utf8")) as {
+        engines: { node: string };
+      };
+      packageJson.engines.node = ">=24.21.0";
+      write(packagePath, `${JSON.stringify(packageJson)}\n`);
+
+      await assert.rejects(
+        createWindowsContinuityBundle({
+          applicationLicensePath: join(source, "LICENSE.txt"),
+          outputDirectory: output,
+          runtimeExecutablePath: process.execPath,
+          runtimeLicensePath: join(dirname(process.execPath), "LICENSE"),
+          signingCertificatePath: join(source, "unused-certificate.pem"),
+          signingPrivateKeyPath: join(source, "unused-key.pem"),
+          sourceDirectory: source,
+        }),
+        /Package manifest Node engine is invalid/u,
+      );
+    } finally {
+      rmSync(root, { force: true, recursive: true });
+    }
   });
 });

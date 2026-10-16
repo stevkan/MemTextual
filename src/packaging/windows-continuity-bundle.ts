@@ -447,10 +447,14 @@ export async function createWindowsContinuityBundle(
     "Package manifest",
   ) as Record<string, unknown>;
   const packageVersion = safeVersion(packageJson.version, "Package version");
-  const nodeVersion = readFileSync(join(sourceDirectory, ".node-version"), "utf8").trim();
-  if (!/^\d+\.\d+\.\d+$/u.test(nodeVersion)) {
-    throw new Error(".node-version is invalid.");
+  const engines = packageJson.engines;
+  if (engines === null || typeof engines !== "object" || Array.isArray(engines)) {
+    throw new Error("Package manifest Node engine is invalid.");
   }
+  const nodeVersion = safeVersion(
+    (engines as Record<string, unknown>).node,
+    "Package manifest Node engine",
+  );
   const runtimeExecutablePath = resolve(options.runtimeExecutablePath);
   validateRuntime(runtimeExecutablePath, nodeVersion);
   const createdAt = options.createdAt ?? new Date();

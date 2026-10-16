@@ -89,8 +89,8 @@ presented as the Continuity persona boundary.
 ## Example host configuration
 
 Build the project, then configure an MCP host to launch the compiled entry point.
-Use the actual Node executable path if the host does not inherit an NVS-enabled
-PowerShell environment.
+Use the actual Node 24.21.0 executable path if the host does not inherit the
+interactive shell's executable search path.
 
 ```json
 {
