@@ -161,15 +161,17 @@ The runtime owns and closes its host, but never closes the caller-owned database
 No embedding provider is required, and absent sensitivity classification still
 fails closed to sensitive, pending candidates.
 
-The local console server now exposes optional, same-origin, token-protected
+The local console server exposes optional, same-origin, token-protected
 authorization and conversation operations without accepting or returning host
 bearer grants. It fixes persona and host authority server-side and preserves a
 completed model response in a structured recovery response if ambient capture
 fails. A grantless retry operation can recapture that exact journaled turn
-without another model response. The packaged CLI does not yet construct this
-optional runtime, and the graphical page remains a read-only conversation
-catalog. Live chat stays
-disabled until runtime configuration and the browser controls are added.
+without another model response. The packaged Windows CLI constructs this
+runtime only when given an explicit, secret-free conversation configuration
+that references the existing deployment configuration. It verifies that the
+deployment database is the database opened by the console and closes the
+listener, host, and database in dependency order. The graphical page remains a
+read-only conversation catalog until browser controls are added.
 Coordinated host-thread deletion controls also remain open.
 
 Codex App Server threads are persistent local records outside the MemTextual

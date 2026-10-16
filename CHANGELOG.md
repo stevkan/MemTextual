@@ -5,6 +5,13 @@ describe only the current design and behavior.
 
 ## Unreleased
 
+- Added opt-in packaged activation for the Windows Continuity conversation
+  runtime. One strict, secret-free conversation configuration references the
+  existing deployment paths and explicitly selects the Codex adapter,
+  extraction model, and dedicated working directory. Startup rejects deployment
+  path drift and unsafe path inputs; shutdown stops the listener, Codex host,
+  and SQLite in dependency order while attempting every close. The graphical
+  page remains a read-only conversation journal until chat controls are added.
 - Added an optional grantless conversation API to the loopback Continuity
   console server. Token-protected, same-origin routes can explicitly create,
   list, and revoke persona-bound host authorization; start, reopen, leave, and

@@ -46,8 +46,9 @@ loads the bearer internally for start, reopen, and send. Its public operations
 do not accept a grant, and it rejects expired, revoked, malformed, or
 cross-binding resolution and lifecycle results.
 
-The local console does not yet construct this runtime or expose authorization,
-start, reopen, send, recovery-retry, or revocation controls. Live activation
-also requires production composition with the implemented Codex App Server
-ambient extraction provider so completed turns cannot silently bypass memory
-extraction. Browser requests must never supply the raw grant.
+The local console server exposes grantless authorization, start, reopen, send,
+recovery-retry, and revocation routes. The packaged Windows CLI constructs the
+runtime only when given an explicit, secret-free conversation configuration
+bound to the existing deployment and database. The graphical page does not call
+these routes yet. Browser requests and configuration must never supply the raw
+grant.

@@ -19,6 +19,46 @@ token into page memory. Stopping the process invalidates the session.
 An optional `--port PORT` selects a port. The default asks the operating system
 for an available port.
 
+### Explicit conversation runtime
+
+The browser page remains a read-only conversation journal, but a Windows
+installation can explicitly enable the existing grantless conversation API by
+supplying one secret-free configuration file:
+
+```json
+{
+  "formatVersion": 1,
+  "adapterId": "codex-app-server-windows",
+  "deploymentConfigurationPath": "C:\\ProgramData\\MemTextual Continuity\\deployment.json",
+  "extractionModel": "EXPLICIT_CODEX_MODEL_ID",
+  "workingDirectory": "C:\\Users\\YOUR_NAME\\Documents\\MemTextual Conversations"
+}
+```
+
+`deploymentConfigurationPath` reuses the database, migrations, host-state,
+application, and executor paths already selected by the Windows deployment.
+`extractionModel` selects only the model used to produce structured memory
+candidates; a conversation start may separately choose a conversation model or
+use the Codex host default. The working directory is the dedicated directory
+assigned to the Codex conversation host.
+
+Do not put an API key, password, token, connection string, certificate, or other
+secret in this file. Unknown properties are rejected. Both configuration files,
+the deployed database, the working directory, and the host executor must be
+direct local files or directories rather than symbolic links where applicable.
+
+Start the configured runtime with:
+
+```powershell
+memtextual-continuity --persona PERSONA_ID --conversation-config "C:\ProgramData\MemTextual Continuity\conversation.json"
+```
+
+The deployment database and bundled migrations directory are selected
+automatically. If `--database` or `--migrations` is also provided, it must
+resolve to that same deployment path or startup fails. Omitting
+`--conversation-config` preserves the read-only runtime behavior. On shutdown,
+the listener stops first, followed by the Codex host and then SQLite.
+
 ## Current controls
 
 - Create, revise, enable, or disable the selected persona's conversational
@@ -65,11 +105,12 @@ completed turn and a generic recoverable capture record without returning the
 internal exception or grant. Retrying reuses that journaled turn and does not
 generate another model response.
 
-The packaged console command does not enable this optional runtime yet, and the
-page does not call these routes. Until runtime configuration and browser controls
-are added, the dashboard reports conversations as disabled and the mutation
-routes return a service-unavailable response. Raw grants remain absent from the
-database, browser requests, browser state, responses, and command-line arguments.
+The packaged console command enables this optional runtime only when the
+explicit configuration above is supplied. Without it, the dashboard reports
+conversations as disabled and mutation routes return a service-unavailable
+response. The page does not call the routes yet, so graphical live-chat controls
+remain unavailable. Raw grants remain absent from the database, browser
+requests, browser state, responses, configuration, and command-line arguments.
 
 ## Persona-memory export
 

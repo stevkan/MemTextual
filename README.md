@@ -224,9 +224,11 @@ purge controls.
 The console server also defines an optional grantless conversation API for
 server-fixed authorization, start, reopen, leave, and completed-turn submission.
 Failed capture can be retried from its exact journal without another model
-response. The API never accepts or returns the protected host grant. The
-packaged CLI and page do not enable these live routes yet; they remain read-only
-until explicit runtime configuration and browser controls are added.
+response. The API never accepts or returns the protected host grant. On Windows,
+the packaged CLI enables these routes only when explicitly given a strict,
+secret-free conversation configuration bound to the installed deployment and
+its database. The graphical page remains a read-only conversation journal until
+browser controls are added.
 `AmbientMemoryService` imports a recorded interaction, invokes a configured
 versioned extractor, and creates idempotent candidates bound to that persona's
 relationship and evidence. It defaults extracted claims to inferred and pending;
