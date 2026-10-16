@@ -22,6 +22,7 @@ export const continuityConsoleHtml = `<!doctype html>
       </div>
       <button class="nav active" data-view="candidates">Review queue <span id="candidate-count">0</span></button>
       <button class="nav" data-view="memories">Memories <span id="memory-count">0</span></button>
+      <button class="nav" data-view="conversations">Conversations <span id="conversation-count">0</span></button>
       <button id="create-memory-button" class="utility" type="button">Create memory</button>
       <button id="persona-behavior-button" class="utility" type="button">Persona behavior</button>
       <button id="export-button" class="utility" type="button">Export persona memories</button>
@@ -142,18 +143,45 @@ export const continuityConsoleJavaScript = `
 
   function renderList() {
     listPanel.replaceChildren();
-    const heading = node("h2", state.view === "candidates" ? "Pending review" : "Persona memories");
+    const headings = {
+      candidates: "Pending review",
+      memories: "Persona memories",
+      conversations: "Conversation journal",
+    };
+    const heading = node("h2", headings[state.view]);
     listPanel.append(heading);
     if (!state.dashboard) {
       listPanel.append(node("p", "Loading local data…", "empty"));
       return;
     }
-    const items = state.view === "candidates" ? state.dashboard.candidates : state.dashboard.memories;
+    const items = state.dashboard[state.view];
     if (items.length === 0) {
-      listPanel.append(node("p", state.view === "candidates" ? "No pending candidates." : "No stored memories.", "empty"));
+      const empty = state.view === "candidates"
+        ? "No pending candidates."
+        : state.view === "memories"
+          ? "No stored memories."
+          : "No locally journaled conversations.";
+      listPanel.append(node("p", empty, "empty"));
       return;
     }
     items.forEach((item) => {
+      if (state.view === "conversations") {
+        const conversation = item.conversation;
+        const button = node("button", undefined, "item");
+        button.type = "button";
+        button.append(node("strong", "Conversation from " + new Date(item.lastActivityAt).toLocaleString()));
+        const pills = node("div", undefined, "pills");
+        pills.append(pill(item.turnCount + (item.turnCount === 1 ? " turn" : " turns")));
+        if (item.unresolvedCaptureCount > 0) {
+          pills.append(pill(item.unresolvedCaptureCount + " need recovery"));
+        } else {
+          pills.append(pill("capture complete"));
+        }
+        button.append(pills);
+        button.addEventListener("click", () => showConversation(conversation.id));
+        listPanel.append(button);
+        return;
+      }
       const candidate = item.candidate;
       const profile = candidate ? null : item;
       const memory = profile ? profile.memory : null;
@@ -180,6 +208,7 @@ export const continuityConsoleJavaScript = `
     document.getElementById("persona-name").textContent = state.dashboard.persona.name;
     document.getElementById("candidate-count").textContent = String(state.dashboard.candidates.length);
     document.getElementById("memory-count").textContent = String(state.dashboard.memories.length);
+    document.getElementById("conversation-count").textContent = String(state.dashboard.conversations.length);
     document.getElementById("connection").textContent = "Local session active";
     renderList();
   }
@@ -299,6 +328,42 @@ export const continuityConsoleJavaScript = `
       }
       detailPanel.append(history);
       instructions.focus();
+    } catch (error) { setNotice(error.message, true); }
+  }
+
+  async function showConversation(id) {
+    try {
+      const detail = await api("/api/conversations/" + encodeURIComponent(id));
+      const summary = detail.summary;
+      const conversation = summary.conversation;
+      detailPanel.className = "detail";
+      detailPanel.replaceChildren(node("h2", "Conversation journal"));
+      detailPanel.append(node("p", summary.turnCount + (summary.turnCount === 1 ? " locally journaled turn" : " locally journaled turns") + " · last activity " + new Date(summary.lastActivityAt).toLocaleString(), "meta"));
+      const behavior = conversation.behaviorProfileRevision === null
+        ? "Neutral start; no enabled persona behavior profile was applied."
+        : "Persona behavior revision " + conversation.behaviorProfileRevision + " was applied when this conversation started.";
+      detailPanel.append(node("p", behavior, "meta"));
+      detailPanel.append(node("p", "This view shows MemTextual's durable local capture journal. The host may contain additional turns until the conversation can be safely reconciled.", "warning"));
+      if (summary.unresolvedCaptureCount > 0) {
+        detailPanel.append(node("p", summary.unresolvedCaptureCount + " turn capture" + (summary.unresolvedCaptureCount === 1 ? " requires" : "s require") + " recovery before the conversation can safely resume.", "warning"));
+      }
+
+      const history = node("div", undefined, "section");
+      history.append(node("h3", "Exact local journal"));
+      if (detail.turns.length === 0) {
+        history.append(node("p", "No completed turns have been journaled locally.", "empty"));
+      } else {
+        detail.turns.forEach((turn) => {
+          const card = node("div", undefined, "history");
+          card.append(node("strong", new Date(turn.completedAt).toLocaleString() + " · " + turn.status));
+          card.append(node("p", "You", "meta"), node("p", turn.userText));
+          card.append(node("p", state.dashboard.persona.name, "meta"), node("p", turn.assistantText));
+          if (turn.failureCode) card.append(node("p", "Capture failure: " + turn.failureCode, "warning"));
+          history.append(card);
+        });
+      }
+      detailPanel.append(history);
+      detailPanel.append(node("p", "Starting, reopening, and sending messages are not enabled yet. Those actions require protected host-authorization grant storage so bearer credentials are not exposed to the database, browser, or command line.", "meta"));
     } catch (error) { setNotice(error.message, true); }
   }
 

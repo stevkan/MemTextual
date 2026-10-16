@@ -1,6 +1,7 @@
 import type Database from "better-sqlite3";
 import type {
   ContinuityConversation,
+  ContinuityConversationSummary,
   ContinuityConversationTurnCapture,
   CreateContinuityConversationRecordInput,
   CreateContinuityConversationTurnCaptureInput,
@@ -38,6 +39,12 @@ interface TurnCaptureRow {
   captured_at: string | null;
   created_at: string;
   updated_at: string;
+}
+
+interface ConversationSummaryRow extends ConversationRow {
+  turn_count: number;
+  unresolved_capture_count: number;
+  last_activity_at: string;
 }
 
 const columns = `
@@ -90,6 +97,17 @@ function mapTurnCapture(row: TurnCaptureRow): ContinuityConversationTurnCapture 
   };
 }
 
+function mapConversationSummary(
+  row: ConversationSummaryRow,
+): ContinuityConversationSummary {
+  return {
+    conversation: mapConversation(row),
+    turnCount: row.turn_count,
+    unresolvedCaptureCount: row.unresolved_capture_count,
+    lastActivityAt: row.last_activity_at,
+  };
+}
+
 export class SqliteContinuityConversationRepository
   implements ContinuityConversationRepository
 {
@@ -129,6 +147,54 @@ export class SqliteContinuityConversationRepository
       .prepare(`SELECT ${columns} FROM continuity_conversations WHERE id = ?`)
       .get(id) as ConversationRow | undefined;
     return row === undefined ? null : mapConversation(row);
+  }
+
+  public listConversations(personaId: string): ContinuityConversationSummary[] {
+    const prefixedColumns = columns
+      .split(",")
+      .map((column) => `conversation.${column.trim()}`)
+      .join(", ");
+    const rows = this.database
+      .prepare(
+        `SELECT ${prefixedColumns},
+                COUNT(capture.id) AS turn_count,
+                COALESCE(SUM(CASE WHEN capture.status IN ('pending', 'failed')
+                                  THEN 1 ELSE 0 END), 0)
+                  AS unresolved_capture_count,
+                MAX(
+                  conversation.created_at,
+                  COALESCE(MAX(capture.completed_at), conversation.created_at)
+                ) AS last_activity_at
+         FROM continuity_conversations conversation
+         LEFT JOIN continuity_conversation_turn_captures capture
+           ON capture.conversation_id = conversation.id
+         WHERE conversation.persona_id = ?
+         GROUP BY conversation.id
+         ORDER BY last_activity_at DESC, conversation.id DESC`,
+      )
+      .all(personaId) as ConversationSummaryRow[];
+    return rows.map(mapConversationSummary);
+  }
+
+  public listConversationTurnCaptures(
+    conversationId: string,
+    personaId: string,
+  ): ContinuityConversationTurnCapture[] {
+    const prefixedColumns = turnCaptureColumns
+      .split(",")
+      .map((column) => `capture.${column.trim()}`)
+      .join(", ");
+    const rows = this.database
+      .prepare(
+        `SELECT ${prefixedColumns}
+         FROM continuity_conversation_turn_captures capture
+         JOIN continuity_conversations conversation
+           ON conversation.id = capture.conversation_id
+         WHERE capture.conversation_id = ? AND conversation.persona_id = ?
+         ORDER BY capture.completed_at, capture.created_at, capture.id`,
+      )
+      .all(conversationId, personaId) as TurnCaptureRow[];
+    return rows.map(mapTurnCapture);
   }
 
   public createTurnCapture(

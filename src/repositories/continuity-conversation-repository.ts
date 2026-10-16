@@ -1,5 +1,6 @@
 import type {
   ContinuityConversation,
+  ContinuityConversationSummary,
   ContinuityConversationTurnCapture,
   CreateContinuityConversationRecordInput,
   CreateContinuityConversationTurnCaptureInput,
@@ -10,6 +11,11 @@ export interface ContinuityConversationRepository {
     input: CreateContinuityConversationRecordInput,
   ): ContinuityConversation;
   getConversation(id: string): ContinuityConversation | null;
+  listConversations(personaId: string): ContinuityConversationSummary[];
+  listConversationTurnCaptures(
+    conversationId: string,
+    personaId: string,
+  ): ContinuityConversationTurnCapture[];
   createTurnCapture(
     input: CreateContinuityConversationTurnCaptureInput,
   ): ContinuityConversationTurnCapture;

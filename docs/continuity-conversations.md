@@ -130,12 +130,27 @@ per conversation, and any turn failure closes local readiness so the next turn
 requires an explicit reopen and reconciliation. Leaving a conversation also
 removes readiness. This state is process-local and stores no bearer grant.
 
+## Read-only catalog
+
+`ContinuityConversationCatalogService` lists persisted conversation summaries
+for one validated persona and returns persona-bound detail from the durable
+capture journal. Summaries include the journaled-turn count, the pending or
+failed capture count, and the most recent locally known activity time. Detail
+preserves the exact journaled user and assistant text in chronological order.
+
+The local Continuity control console presents this catalog and unresolved
+recovery state without contacting the host. It describes the result as a local
+journal rather than complete host history because reconciliation can still
+discover additional turns.
+
 ## Current boundary
 
-This package provides library orchestration, not the graphical conversational
-client. It does not yet provide chat presentation, conversation lists, recovery
-presentation, or coordinated deletion controls. The lifecycle coordinator is
-ready for those presentation layers, but it is not itself a graphical client.
+This package provides library orchestration plus a read-only graphical
+conversation catalog; it is not yet the graphical conversational client. The
+console does not start, reopen, or send turns. Those actions require a protected
+grant store that can restore the raw host bearer after process restart without
+putting it in SQLite, browser state, or command-line arguments. Coordinated
+host-thread deletion controls also remain open.
 
 Codex App Server threads are persistent local records outside the MemTextual
 database. They contain the submitted user text, memory-context item, and model

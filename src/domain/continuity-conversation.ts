@@ -54,6 +54,18 @@ export interface ContinuityConversationTurnCapture {
   updatedAt: string;
 }
 
+export interface ContinuityConversationSummary {
+  conversation: ContinuityConversation;
+  turnCount: number;
+  unresolvedCaptureCount: number;
+  lastActivityAt: string;
+}
+
+export interface ContinuityConversationDetail {
+  summary: ContinuityConversationSummary;
+  turns: ContinuityConversationTurnCapture[];
+}
+
 export interface CreateContinuityConversationTurnCaptureInput {
   id: string;
   conversationId: string;

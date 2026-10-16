@@ -9,6 +9,7 @@ import type { AddressInfo } from "node:net";
 import { z } from "zod";
 import type { PersonaContext } from "../domain/persona.js";
 import type { ContinuityControlService } from "../services/continuity-control-service.js";
+import type { ContinuityConversationCatalogService } from "../services/continuity-conversation-catalog-service.js";
 import type { ContinuityPersonaBehaviorService } from "../services/continuity-persona-behavior-service.js";
 import {
   continuityConsoleCss,
@@ -106,6 +107,7 @@ class HttpError extends Error {
 
 export interface StartContinuityConsoleOptions {
   behaviors: ContinuityPersonaBehaviorService;
+  conversations: ContinuityConversationCatalogService;
   control: ContinuityControlService;
   personaContext: PersonaContext;
   port?: number;
@@ -249,8 +251,12 @@ function parseBody<T>(schema: z.ZodType<T>, value: unknown): T {
   return result.data;
 }
 
-function routeId(pathname: string, suffix = ""): string | null {
-  const expression = new RegExp(`^/api/(?:candidates|memories)/([^/]+)${suffix}$`, "u");
+function routeId(
+  pathname: string,
+  suffix = "",
+  resource = "(?:candidates|memories)",
+): string | null {
+  const expression = new RegExp(`^/api/${resource}/([^/]+)${suffix}$`, "u");
   const match = expression.exec(pathname);
   if (match?.[1] === undefined) {
     return null;
@@ -348,7 +354,7 @@ function exportFilename(personaName: string): string {
 export function createContinuityConsoleApplication(
   options: Pick<
     StartContinuityConsoleOptions,
-    "behaviors" | "control" | "personaContext"
+    "behaviors" | "conversations" | "control" | "personaContext"
   >,
   token: string,
 ): ContinuityConsoleApplication {
@@ -404,6 +410,7 @@ export function createContinuityConsoleApplication(
               status: "pending",
             }),
             memories: options.control.listMemories(personaId),
+            conversations: options.conversations.listConversations(personaId),
           });
         }
 
@@ -419,6 +426,14 @@ export function createContinuityConsoleApplication(
             current: options.behaviors.getProfile(personaId),
             history: options.behaviors.listProfileHistory(personaId),
           });
+        }
+
+        const conversationId = routeId(url.pathname, "", "conversations");
+        if (request.method === "GET" && conversationId !== null) {
+          return jsonResponse(
+            200,
+            options.conversations.getConversation(conversationId, personaId),
+          );
         }
 
         const candidateId = routeId(url.pathname);

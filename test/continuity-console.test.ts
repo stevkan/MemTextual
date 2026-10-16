@@ -3,17 +3,22 @@ import { resolve } from "node:path";
 import test from "node:test";
 import {
   AmbientMemoryService,
+  ContinuityConversationCatalogService,
   ContinuityControlService,
   ContinuityMemoryService,
   ContinuityPersonaBehaviorService,
   createContinuityConsoleApplication,
+  continuityConversationTurnEventKind,
+  HostAuthorizationService,
   IngestionService,
   MemoryService,
   PersonaService,
   SqliteContinuityControlRepository,
+  SqliteContinuityConversationRepository,
   SqliteContinuityMemoryRepository,
   SqliteContinuityPersonaBehaviorRepository,
   SqliteIngestionRepository,
+  SqliteHostEventRepository,
   SqliteMemoryRepository,
   SqlitePersonaRepository,
   openMemTextualDatabase,
@@ -58,6 +63,35 @@ function fixture() {
   const behaviors = new ContinuityPersonaBehaviorService(
     new SqliteContinuityPersonaBehaviorRepository(database),
   );
+  const conversationRepository = new SqliteContinuityConversationRepository(
+    database,
+  );
+  const conversations = new ContinuityConversationCatalogService(
+    conversationRepository,
+    personaRepository,
+  );
+  const authorizations = new HostAuthorizationService(
+    new SqliteHostEventRepository(database),
+    personaRepository,
+  );
+  const skylarAuthorization = authorizations.authorize(
+    {
+      userId: user.id,
+      personaId: skylar.persona.id,
+      hostId: "test.console-host",
+      allowedEventKinds: [continuityConversationTurnEventKind],
+    },
+    { actor: "user", explicitUserAction: true },
+  );
+  const advisorAuthorization = authorizations.authorize(
+    {
+      userId: user.id,
+      personaId: advisor.persona.id,
+      hostId: "test.console-host",
+      allowedEventKinds: [continuityConversationTurnEventKind],
+    },
+    { actor: "user", explicitUserAction: true },
+  );
   const extractor: AmbientMemoryExtractor = {
     id: "test.console-extractor",
     version: "1",
@@ -86,7 +120,19 @@ function fixture() {
       }),
     },
   );
-  return { advisor, ambient, behaviors, control, database, skylar };
+  return {
+    advisor,
+    advisorAuthorization,
+    ambient,
+    behaviors,
+    control,
+    conversationRepository,
+    conversations,
+    database,
+    skylar,
+    skylarAuthorization,
+    user,
+  };
 }
 
 async function capture(
@@ -101,6 +147,39 @@ async function capture(
       title: "Console test",
       records: [{ kind: "message", authorRole: "user", content }],
     },
+  });
+}
+
+function createJournaledConversation(
+  setup: ReturnType<typeof fixture>,
+  input: {
+    id: string;
+    persona: ReturnType<typeof fixture>["skylar"];
+    authorizationId: string;
+    userText: string;
+  },
+) {
+  setup.conversationRepository.createConversation({
+    id: input.id,
+    userId: setup.user.id,
+    personaId: input.persona.persona.id,
+    relationshipId: input.persona.relationship.id,
+    authorizationId: input.authorizationId,
+    hostId: "test.console-host",
+    externalConversationId: `external-${input.id}`,
+    behaviorProfileId: null,
+    behaviorProfileRevision: null,
+  });
+  return setup.conversationRepository.createTurnCapture({
+    id: `capture-${input.id}`,
+    conversationId: input.id,
+    externalTurnId: `turn-${input.id}`,
+    externalEventId: `event-${input.id}`,
+    userText: input.userText,
+    assistantText: "Exact assistant response.",
+    completedAt: "2126-10-15T19:00:00.000Z",
+    contextFormatVersion: 1,
+    memoryRevisionIds: [],
   });
 }
 
@@ -139,6 +218,7 @@ test("Continuity console requires its session token and persona boundary", async
     const application = createContinuityConsoleApplication(
       {
         behaviors: setup.behaviors,
+        conversations: setup.conversations,
         control: setup.control,
         personaContext: setup.skylar,
       },
@@ -223,6 +303,75 @@ test("Continuity console requires its session token and persona boundary", async
   }
 });
 
+test("Continuity console exposes only its persona conversation journal", async () => {
+  const setup = fixture();
+  const token = "j".repeat(32);
+  try {
+    createJournaledConversation(setup, {
+      id: "skylar-journal",
+      persona: setup.skylar,
+      authorizationId: setup.skylarAuthorization.authorization.id,
+      userText: "Skylar journal text.",
+    });
+    createJournaledConversation(setup, {
+      id: "advisor-journal",
+      persona: setup.advisor,
+      authorizationId: setup.advisorAuthorization.authorization.id,
+      userText: "Advisor-only journal text.",
+    });
+    const application = createContinuityConsoleApplication(
+      {
+        behaviors: setup.behaviors,
+        conversations: setup.conversations,
+        control: setup.control,
+        personaContext: setup.skylar,
+      },
+      token,
+    );
+
+    const dashboardResponse = await request(application, token, {
+      method: "GET",
+      url: "/api/dashboard",
+    });
+    const dashboard = JSON.parse(dashboardResponse.body) as {
+      conversations: Array<{ conversation: { id: string } }>;
+    };
+    assert.deepEqual(
+      dashboard.conversations.map(({ conversation }) => conversation.id),
+      ["skylar-journal"],
+    );
+
+    const detailResponse = await request(application, token, {
+      method: "GET",
+      url: "/api/conversations/skylar-journal",
+    });
+    assert.equal(detailResponse.status, 200);
+    const detail = JSON.parse(detailResponse.body) as {
+      turns: Array<{ userText: string; assistantText: string }>;
+    };
+    assert.deepEqual(
+      detail.turns.map(({ userText, assistantText }) => ({
+        userText,
+        assistantText,
+      })),
+      [
+        {
+          userText: "Skylar journal text.",
+          assistantText: "Exact assistant response.",
+        },
+      ],
+    );
+
+    const crossPersona = await request(application, token, {
+      method: "GET",
+      url: "/api/conversations/advisor-journal",
+    });
+    assert.equal(crossPersona.status, 404);
+  } finally {
+    setup.database.close();
+  }
+});
+
 test("Continuity console creates explicit persona memories with selected controls", async () => {
   const setup = fixture();
   const token = "m".repeat(32);
@@ -230,6 +379,7 @@ test("Continuity console creates explicit persona memories with selected control
     const application = createContinuityConsoleApplication(
       {
         behaviors: setup.behaviors,
+        conversations: setup.conversations,
         control: setup.control,
         personaContext: setup.skylar,
       },
@@ -344,6 +494,7 @@ test("Continuity console edits only its bound persona behavior", async () => {
     const application = createContinuityConsoleApplication(
       {
         behaviors: setup.behaviors,
+        conversations: setup.conversations,
         control: setup.control,
         personaContext: setup.skylar,
       },
@@ -410,6 +561,7 @@ test("Continuity console requires same-origin explicit mutations", async () => {
     const application = createContinuityConsoleApplication(
       {
         behaviors: setup.behaviors,
+        conversations: setup.conversations,
         control: setup.control,
         personaContext: setup.skylar,
       },
@@ -706,6 +858,7 @@ test("Continuity console reconciles candidates only with same-persona targets", 
     const application = createContinuityConsoleApplication(
       {
         behaviors: setup.behaviors,
+        conversations: setup.conversations,
         control: setup.control,
         personaContext: setup.skylar,
       },
@@ -768,6 +921,7 @@ test("Continuity console socket listener binds only to IPv4 loopback", async () 
   try {
     const handle = await startContinuityConsole({
       behaviors: setup.behaviors,
+      conversations: setup.conversations,
       control: setup.control,
       personaContext: setup.skylar,
       port: 0,

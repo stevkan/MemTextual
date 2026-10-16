@@ -88,8 +88,10 @@ provider-neutral conversation boundary now carries explicit, persona-bound
 start-time behavior without deriving it from memories or persona descriptions.
 The local control console now stores immutable, explicitly user-authored
 behavior revisions for each persona; new conversations snapshot the current
-enabled revision. Chat presentation, conversation lists, recovery presentation,
-and coordinated deletion controls remain integration work. Other cloud
+enabled revision. The console now lists persisted conversations for its bound
+persona and presents exact locally journaled turns plus unresolved recovery
+counts. Active chat controls remain gated on protected host-grant storage, and
+coordinated deletion controls remain integration work. Other cloud
 providers and local models are outside the initial scope and may be
 reconsidered only in response to demonstrated need.
 
@@ -151,8 +153,12 @@ restore. It now also displays match suggestions, supports explicit revise,
 reaffirm, contradict, supersede, and ignore outcomes against persona-validated
 targets, and creates immutable direct-correction revisions. It binds to one
 persona and IPv4 loopback for one process lifetime, with a fresh bearer token
-delivered through a URL fragment. The console also includes a versioned
-persona-memory JSON export with complete revision histories, plus
+delivered through a URL fragment. The console also includes a read-only
+conversation catalog whose detail view preserves exact journaled dialogue and
+distinguishes local journal state from unreconciled host history. It does not
+expose start, reopen, or send actions while the raw host grant has no protected
+post-restart store. The console also includes a versioned persona-memory JSON
+export with complete revision histories, plus
 exact-ID-confirmed recoverable deletion and restoration. The export is
 intentionally described as a user-memory record rather than a database backup:
 it excludes source, candidate, audit, ranking, emotional-annotation, and backup

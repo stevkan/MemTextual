@@ -34,6 +34,10 @@ for an available port.
 - Reconcile a candidate with a selected active persona memory by revising,
   reaffirming, contradicting, or superseding it.
 - Inspect persona memories and immutable revision history.
+- List the selected persona's persisted conversations and inspect the exact
+  user and assistant text held in MemTextual's durable local capture journal.
+  Each conversation shows its journaled-turn count and any pending or failed
+  captures that require recovery.
 - Correct an active memory by creating a new immutable revision while retaining
   its earlier wording in history.
 - Pin or unpin, protect or unprotect, archive, and restore a memory.
@@ -46,6 +50,13 @@ for an available port.
 
 The trusted privacy CLI remains available for the same memory operations and
 for source-series privacy workflows.
+
+The conversation view is read-only. It is not a complete mirror of the host:
+the host can contain additional completed turns until history reconciliation
+runs. Starting, reopening, and sending conversation turns remain unavailable
+in this console until MemTextual has protected storage for the raw host bearer
+grant. The grant is intentionally absent from the database, browser state, and
+command-line arguments.
 
 ## Persona-memory export
 
@@ -92,6 +103,8 @@ outside the operation and are disclosed rather than silently claimed as erased.
   scope ID from browser requests.
 - Persona-behavior reads and writes are resolved against that server-bound
   persona; browser requests cannot select another persona.
+- Conversation summaries and journal details are also resolved against the
+  server-bound persona; cross-persona IDs return a not-found response.
 - API requests require the per-launch bearer token.
 - Mutations also require an exact same-origin browser request.
 - Host validation, strict JSON schemas, a 64 KiB body limit, no-store responses,

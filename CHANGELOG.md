@@ -5,6 +5,12 @@ describe only the current design and behavior.
 
 ## Unreleased
 
+- Added a persona-scoped, read-only conversation catalog to the Continuity
+  console. It lists persisted conversations, exact durable journal text, and
+  pending or failed capture counts while denying cross-persona detail access.
+  The UI explicitly distinguishes local journal state from host history and
+  leaves start, reopen, and send unavailable until protected host-grant storage
+  exists.
 - Added persistent persona-behavior profiles and control-console editing.
   Explicit user-authored revisions are append-only, optimistic, enableable,
   disableable, persona-isolated, and protected by the durable-data safeguards.
@@ -18,7 +24,8 @@ describe only the current design and behavior.
   conversations reconcile authoritative host history, surface exact unresolved
   capture records, and resume the host before accepting another turn. It
   prevents overlapping turns, closes readiness after failure or leave, and
-  retains no bearer grants. Graphical presentation remains separate work.
+  retains no bearer grants. The control console now presents its read-only
+  journal and recovery state; active chat controls remain separate work.
 - Added fail-closed host-history reconciliation. The provider-neutral host
   contract can list exact completed turns, and the Codex adapter pages
   oldest-first full history through `thread/turns/list`. Persona-bound
