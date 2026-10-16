@@ -3,6 +3,7 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  readdirSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
@@ -13,8 +14,10 @@ import { describe, it } from "node:test";
 import { parseWindowsBundleCliArguments } from "../src/cli/windows-bundle.js";
 import {
   applyWindowsContinuityBundleStage,
+  applyWindowsContinuityBundleRemoval,
   createWindowsContinuityBundle,
   previewWindowsContinuityBundleStage,
+  previewWindowsContinuityBundleRemoval,
   verifyWindowsContinuityBundle,
 } from "../src/index.js";
 
@@ -76,6 +79,10 @@ function createMinimalSource(source: string): void {
   write(
     join(source, "dist", "src", "cli", "continuity-setup.js"),
     "export const setup = true;\n",
+  );
+  write(
+    join(source, "dist", "src", "cli", "continuity-upgrade.js"),
+    "export const upgrade = true;\n",
   );
   write(
     join(source, "node_modules", "production-package", "package.json"),
@@ -214,6 +221,69 @@ describe("Windows Continuity bundle", () => {
         /target already exists/u,
       );
 
+      const preservedData = join(root, "data", "memtextual.db");
+      write(preservedData, "user data outside application directory\n");
+      const unexpectedApplicationFile = join(target, "user-added.txt");
+      write(unexpectedApplicationFile, "must not be removed\n");
+      await assert.rejects(
+        previewWindowsContinuityBundleRemoval({
+          bundleDirectory: target,
+          trustedCertificateFingerprint256:
+            created.signingCertificateFingerprint256,
+        }),
+        /missing or unexpected files/u,
+      );
+      assert.equal(
+        readFileSync(unexpectedApplicationFile, "utf8"),
+        "must not be removed\n",
+      );
+      rmSync(unexpectedApplicationFile);
+      const removalPreview = await previewWindowsContinuityBundleRemoval({
+        bundleDirectory: target,
+        trustedCertificateFingerprint256:
+          created.signingCertificateFingerprint256,
+      });
+      assert.match(
+        removalPreview.confirmation,
+        /^REMOVE-WINDOWS-BUNDLE-[A-F0-9]{20}$/u,
+      );
+      assert.equal(removalPreview.preservesExternalData, true);
+      write(unexpectedApplicationFile, "added after preview\n");
+      await assert.rejects(
+        applyWindowsContinuityBundleRemoval({
+          bundleDirectory: target,
+          confirmation: removalPreview.confirmation,
+          trustedCertificateFingerprint256:
+            created.signingCertificateFingerprint256,
+        }),
+        /missing or unexpected files/u,
+      );
+      assert.equal(
+        readFileSync(unexpectedApplicationFile, "utf8"),
+        "added after preview\n",
+      );
+      rmSync(unexpectedApplicationFile);
+      await assert.rejects(
+        applyWindowsContinuityBundleRemoval({
+          bundleDirectory: target,
+          confirmation: "REMOVE-WINDOWS-BUNDLE-WRONG",
+          trustedCertificateFingerprint256:
+            created.signingCertificateFingerprint256,
+        }),
+        /confirmation is missing, incorrect, or stale/u,
+      );
+      await applyWindowsContinuityBundleRemoval({
+        bundleDirectory: target,
+        confirmation: removalPreview.confirmation,
+        trustedCertificateFingerprint256:
+          created.signingCertificateFingerprint256,
+      });
+      assert.equal(readFileSync(preservedData, "utf8"), "user data outside application directory\n");
+      assert.equal(
+        readdirSync(dirname(target)).includes("MemTextual Continuity"),
+        false,
+      );
+
       writeFileSync(
         join(created.bundleDirectory, "dist", "src", "cli", "safeguard.js"),
         `${readFileSync(
@@ -252,6 +322,17 @@ describe("Windows Continuity bundle", () => {
           "C:\\bundle",
           "--target",
           "C:\\target",
+          "--trusted-fingerprint",
+          "a".repeat(64),
+        ]),
+      /--confirm is required/u,
+    );
+    assert.throws(
+      () =>
+        parseWindowsBundleCliArguments([
+          "remove-apply",
+          "--bundle",
+          "C:\\bundle",
           "--trusted-fingerprint",
           "a".repeat(64),
         ]),

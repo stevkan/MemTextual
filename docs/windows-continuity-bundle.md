@@ -116,3 +116,11 @@ in [continuity-first-use.md](continuity-first-use.md).
 Application-file removal remains deliberately separate from host removal. The
 host removal command preserves application files and user data so an uninstall
 cannot silently erase either.
+
+After confirmed host removal, a verified application directory can be removed
+separately with `remove-preview` and `remove-apply`. The exact confirmation is
+bound to the signed inventory and pinned publisher fingerprint. Verification
+rejects modified or additional files rather than treating them as disposable
+application content. See
+[windows-continuity-lifecycle.md](windows-continuity-lifecycle.md) for the
+complete data-preserving removal and side-by-side upgrade workflow.

@@ -28,6 +28,7 @@ or redistribution rights.
 | Core TypeScript, SQLite, migrations, and tests | CI gate configured | CI gate configured | CI gate configured |
 | Developer source workflows | Initial target | Compatibility tracked | Compatibility tracked |
 | Continuity desktop packaging | Signed-manifest directory bundle and confirmed staging available; Authenticode and installer-container choice deferred | Deferred | Deferred |
+| Upgrade, rollback, and removal | Side-by-side workflow, disposable-copy migration validation, snapshot rollback boundary, and confirmed application-only removal available; release-candidate exercise pending | Deferred | Deferred |
 | Unattended scheduler integration | Adapter, confirmed orchestration, privileged executor, and preview-first installer CLI available; application bundle staged separately | Deferred adapter | Deferred adapter |
 | Certificate credential provider | Core provider and confirmed certificate-path ACL protection available | Core provider available; packaging deferred | Core provider available; packaging deferred |
 | Dedicated service identity | Planned where appropriate | Platform-specific decision deferred | Platform-specific decision deferred |

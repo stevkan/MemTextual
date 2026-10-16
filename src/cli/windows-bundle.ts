@@ -4,13 +4,17 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   applyWindowsContinuityBundleStage,
+  applyWindowsContinuityBundleRemoval,
   createWindowsContinuityBundle,
   previewWindowsContinuityBundleStage,
+  previewWindowsContinuityBundleRemoval,
   verifyWindowsContinuityBundle,
 } from "../packaging/windows-continuity-bundle.js";
 
 type WindowsBundleCommand =
   | "create"
+  | "remove-apply"
+  | "remove-preview"
   | "stage-apply"
   | "stage-preview"
   | "verify";
@@ -27,6 +31,8 @@ function usage(): string {
     "  memtextual-windows-bundle verify --bundle DIRECTORY [--trusted-fingerprint SHA256]",
     "  memtextual-windows-bundle stage-preview --bundle DIRECTORY --target DIRECTORY --trusted-fingerprint SHA256",
     "  memtextual-windows-bundle stage-apply --bundle DIRECTORY --target DIRECTORY --trusted-fingerprint SHA256 --confirm TOKEN",
+    "  memtextual-windows-bundle remove-preview --bundle DIRECTORY --trusted-fingerprint SHA256",
+    "  memtextual-windows-bundle remove-apply --bundle DIRECTORY --trusted-fingerprint SHA256 --confirm TOKEN",
     "",
     "Creation requires a completed production build and installed production",
     "dependencies. Staging never overwrites an existing target directory.",
@@ -42,6 +48,12 @@ const optionsByCommand: Record<WindowsBundleCommand, ReadonlySet<string>> = {
     "--signing-certificate",
     "--signing-key",
     "--source",
+  ]),
+  "remove-preview": new Set(["--bundle", "--trusted-fingerprint"]),
+  "remove-apply": new Set([
+    "--bundle",
+    "--confirm",
+    "--trusted-fingerprint",
   ]),
   verify: new Set(["--bundle", "--trusted-fingerprint"]),
   "stage-preview": new Set([
@@ -63,6 +75,8 @@ export function parseWindowsBundleCliArguments(
   const command = argv[0];
   if (
     command !== "create" &&
+    command !== "remove-preview" &&
+    command !== "remove-apply" &&
     command !== "verify" &&
     command !== "stage-preview" &&
     command !== "stage-apply"
@@ -133,6 +147,25 @@ export async function runWindowsBundleCli(
       ...(fingerprint === undefined
         ? {}
         : { trustedCertificateFingerprint256: fingerprint }),
+    });
+  }
+  if (arguments_.command === "remove-preview") {
+    return previewWindowsContinuityBundleRemoval({
+      bundleDirectory: requiredValue(arguments_, "--bundle"),
+      trustedCertificateFingerprint256: requiredValue(
+        arguments_,
+        "--trusted-fingerprint",
+      ),
+    });
+  }
+  if (arguments_.command === "remove-apply") {
+    return applyWindowsContinuityBundleRemoval({
+      bundleDirectory: requiredValue(arguments_, "--bundle"),
+      confirmation: requiredValue(arguments_, "--confirm"),
+      trustedCertificateFingerprint256: requiredValue(
+        arguments_,
+        "--trusted-fingerprint",
+      ),
     });
   }
   if (process.platform !== "win32") {

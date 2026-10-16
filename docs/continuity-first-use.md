@@ -145,3 +145,6 @@ was accepted.
 This first-use check is narrower than the platform release gates. Upgrade,
 rollback, restore, encrypted-replication, and data-preserving removal validation
 remain required before a public Windows release can be described as supported.
+The supported engineering sequence for those application lifecycle operations
+is recorded in
+[windows-continuity-lifecycle.md](windows-continuity-lifecycle.md).

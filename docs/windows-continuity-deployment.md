@@ -151,3 +151,9 @@ After onboarding and conversation configuration, run the read-only installation
 gate in [continuity-first-use.md](continuity-first-use.md). It verifies the
 signed staged application, expected host installation, current database,
 migrations, and selected persona before normal use.
+
+Upgrades use a new side-by-side signed application directory and a new
+deployment file. Remove the old host integration before installing the new
+definitions; retain the old application and verified pre-upgrade snapshot until
+acceptance succeeds. The ordered workflow and rollback limits are documented in
+[windows-continuity-lifecycle.md](windows-continuity-lifecycle.md).

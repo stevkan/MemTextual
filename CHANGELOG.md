@@ -5,6 +5,15 @@ describe only the current design and behavior.
 
 ## Unreleased
 
+- Added a Windows Continuity lifecycle workflow for side-by-side upgrades,
+  rollback, and data-preserving application removal. Upgrade validation locks
+  against backup/restore work, retains a verified snapshot, migrates only a
+  disposable copy, verifies durable-data and live-database preservation, and
+  records success or failure evidence. Signed application removal is separately
+  previewed and exactly confirmed, refuses modified or additional files, and
+  leaves every external data, backup, configuration, credential, and recovery
+  path untouched.
+
 - Added a read-only Windows Continuity installation acceptance gate. It pins
   the staged bundle publisher, verifies the complete signed inventory, confirms
   the managed host identity and schedules are already installed, checks SQLite

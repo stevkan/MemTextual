@@ -59,6 +59,13 @@ remain platform-specific release work. macOS and selected Linux distributions
 will be prioritized from actual demand after the Windows release rather than
 delaying Windows completion for equal-day support.
 
+Windows now has a side-by-side signed-bundle lifecycle: prospective migrations
+run only on a verified snapshot copy, the prior application and snapshot remain
+available through acceptance, rollback restores the pre-upgrade database before
+an older application is reactivated, and application removal is separately
+confirmed from host removal while external data is preserved. Exercising the
+complete lifecycle on a release candidate remains a release gate.
+
 MemTextual Developer uses the same portability boundary. Source-level
 compatibility may become available before an officially supported packaged
 experience, but support claims require platform-specific installation,

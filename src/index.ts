@@ -4,6 +4,12 @@ export {
   type OpenDatabaseOptions,
 } from "./database/sqlite-database.js";
 export {
+  validateContinuityUpgrade,
+  type ContinuityUpgradeValidationOptions,
+  type ContinuityUpgradeValidationReport,
+  type ContinuityUpgradeValidationResult,
+} from "./safeguards/continuity-upgrade-validation.js";
+export {
   detectHostPlatform,
   hostPlatforms,
   type ExplicitHostMutationContext,
@@ -144,14 +150,17 @@ export {
 } from "./platform/windows-continuity-deployment.js";
 export {
   applyWindowsContinuityBundleStage,
+  applyWindowsContinuityBundleRemoval,
   createWindowsContinuityBundle,
   previewWindowsContinuityBundleStage,
+  previewWindowsContinuityBundleRemoval,
   verifyWindowsContinuityBundle,
   windowsContinuityBundleFormatVersion,
   type CreateWindowsContinuityBundleOptions,
   type WindowsContinuityBundleFile,
   type WindowsContinuityBundleManifest,
   type WindowsContinuityBundleVerification,
+  type WindowsContinuityRemovalPreview,
   type WindowsContinuityStagePreview,
 } from "./packaging/windows-continuity-bundle.js";
 export {

@@ -80,6 +80,7 @@ docs/proprietary-distribution.md Proprietary-first release and IP safeguards
 docs/windows-host-integration.md Windows identity, ACL, and task safeguards
 docs/windows-continuity-deployment.md Windows deployment layout and installer CLI
 docs/continuity-first-use.md Supported Windows first-use and acceptance workflow
+docs/windows-continuity-lifecycle.md Side-by-side upgrade, rollback, and removal
 docs/windows-continuity-bundle.md Signed Windows bundle verification and staging
 docs/continuity-control.md Persona-scoped review and lifecycle control contract
 docs/continuity-console.md Local graphical review and memory-inspection console

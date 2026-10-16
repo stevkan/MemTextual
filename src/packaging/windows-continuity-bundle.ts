@@ -9,12 +9,15 @@ import {
 import {
   constants,
   copyFileSync,
+  existsSync,
   lstatSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
   readdirSync,
+  rmdirSync,
   rmSync,
+  unlinkSync,
   writeFileSync,
 } from "node:fs";
 import { createReadStream } from "node:fs";
@@ -77,6 +80,14 @@ export interface WindowsContinuityStagePreview
   targetDirectory: string;
 }
 
+export interface WindowsContinuityRemovalPreview
+  extends WindowsContinuityBundleVerification {
+  confirmation: string;
+  operation: "remove";
+  preservesExternalData: true;
+  targetDirectory: string;
+}
+
 interface PackageLockEntry {
   dev?: boolean;
   link?: boolean;
@@ -99,6 +110,7 @@ const requiredBundleFiles = new Set([
   "dist/src/cli/continuity-acceptance.js",
   "dist/src/cli/continuity-console.js",
   "dist/src/cli/continuity-setup.js",
+  "dist/src/cli/continuity-upgrade.js",
   "dist/src/cli/windows-host.js",
   "runtime/LICENSE",
   "runtime/node.exe",
@@ -678,6 +690,12 @@ function stageConfirmation(value: unknown): string {
     .toUpperCase()}`;
 }
 
+function removalConfirmation(value: unknown): string {
+  return `REMOVE-WINDOWS-BUNDLE-${sha256Buffer(JSON.stringify(value))
+    .slice(0, 20)
+    .toUpperCase()}`;
+}
+
 export async function previewWindowsContinuityBundleStage(options: {
   bundleDirectory: string;
   targetDirectory: string;
@@ -750,4 +768,68 @@ export async function applyWindowsContinuityBundleStage(options: {
     rmSync(preview.targetDirectory, { force: true, recursive: true });
     throw error;
   }
+}
+
+export async function previewWindowsContinuityBundleRemoval(options: {
+  bundleDirectory: string;
+  trustedCertificateFingerprint256: string;
+}): Promise<WindowsContinuityRemovalPreview> {
+  const verification = await verifyWindowsContinuityBundle(options);
+  if (!verification.publisherTrusted) {
+    throw new Error(
+      "Windows bundle signing certificate is not trusted by the supplied fingerprint.",
+    );
+  }
+  const previewWithoutConfirmation = {
+    ...verification,
+    operation: "remove" as const,
+    preservesExternalData: true as const,
+    targetDirectory: verification.bundleDirectory,
+  };
+  return {
+    ...previewWithoutConfirmation,
+    confirmation: removalConfirmation(previewWithoutConfirmation),
+  };
+}
+
+export async function applyWindowsContinuityBundleRemoval(options: {
+  bundleDirectory: string;
+  confirmation: string;
+  trustedCertificateFingerprint256: string;
+}): Promise<WindowsContinuityRemovalPreview> {
+  const preview = await previewWindowsContinuityBundleRemoval(options);
+  if (options.confirmation !== preview.confirmation) {
+    throw new Error(
+      "Windows bundle removal confirmation is missing, incorrect, or stale.",
+    );
+  }
+  const signedFiles = preview.manifest.files.map(({ path }) => path);
+  const metadataFiles = [certificateFilename, signatureFilename, manifestFilename];
+  const removalFiles = [...signedFiles, ...metadataFiles];
+  for (const relativePath of removalFiles) {
+    const path = join(preview.targetDirectory, ...relativePath.split("/"));
+    requireDirectPath(path, "file", "Windows bundle removal file");
+    unlinkSync(path);
+  }
+  const directories = new Set<string>();
+  for (const file of signedFiles) {
+    let directory = dirname(file);
+    while (directory !== ".") {
+      directories.add(directory);
+      directory = dirname(directory);
+    }
+  }
+  for (const relativePath of [...directories].sort(
+    (left, right) => right.length - left.length,
+  )) {
+    rmdirSync(join(preview.targetDirectory, ...relativePath.split("/")), {
+      maxRetries: 5,
+      retryDelay: 100,
+    });
+  }
+  rmdirSync(preview.targetDirectory, { maxRetries: 5, retryDelay: 100 });
+  if (existsSync(preview.targetDirectory)) {
+    throw new Error("Windows bundle removal did not remove the complete application directory.");
+  }
+  return preview;
 }
