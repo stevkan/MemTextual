@@ -13,13 +13,14 @@ interface Arguments {
   trustedFingerprint: string;
   wixEulaAccepted: true;
   wixExecutablePath: string;
+  workspaceParentDirectory?: string;
 }
 
 function usage(): string {
   return [
     "Usage:",
-    "  memtextual-windows-msi preview --bundle BUNDLE --output UNSIGNED.msi --wix WIX.exe --manufacturer RELEASE_OWNER --trusted-fingerprint SHA256 --accept-wix-eula",
-    "  memtextual-windows-msi apply --bundle BUNDLE --output UNSIGNED.msi --wix WIX.exe --manufacturer RELEASE_OWNER --trusted-fingerprint SHA256 --accept-wix-eula --confirm TOKEN",
+    "  memtextual-windows-msi preview --bundle BUNDLE --output UNSIGNED.msi --wix WIX.exe --manufacturer RELEASE_OWNER --trusted-fingerprint SHA256 --accept-wix-eula [--workspace DIRECTORY]",
+    "  memtextual-windows-msi apply --bundle BUNDLE --output UNSIGNED.msi --wix WIX.exe --manufacturer RELEASE_OWNER --trusted-fingerprint SHA256 --accept-wix-eula --confirm TOKEN [--workspace DIRECTORY]",
     "",
     "WiX 7 is user-supplied. --accept-wix-eula records explicit acceptance for this invocation; MemTextual does not download or license WiX.",
   ].join("\n");
@@ -30,7 +31,7 @@ export function parseWindowsMsiArguments(argv: readonly string[]): Arguments {
   if (command !== "preview" && command !== "apply") throw new Error(`Unknown or missing command.\n\n${usage()}`);
   const flags = new Set<string>();
   const values = new Map<string, string>();
-  const valueOptions = new Set(["--bundle", "--confirm", "--manufacturer", "--output", "--trusted-fingerprint", "--wix"]);
+  const valueOptions = new Set(["--bundle", "--confirm", "--manufacturer", "--output", "--trusted-fingerprint", "--wix", "--workspace"]);
   for (let index = 1; index < argv.length; index += 1) {
     const option = argv[index]!;
     if (option === "--accept-wix-eula") {
@@ -56,6 +57,7 @@ export function parseWindowsMsiArguments(argv: readonly string[]): Arguments {
     bundleDirectory: values.get("--bundle")!, command, manufacturer: values.get("--manufacturer")!,
     outputPath: values.get("--output")!, trustedFingerprint: values.get("--trusted-fingerprint")!,
     wixEulaAccepted: true, wixExecutablePath: values.get("--wix")!,
+    ...(values.get("--workspace") === undefined ? {} : { workspaceParentDirectory: values.get("--workspace")! }),
     ...(confirmation === undefined ? {} : { confirmation }),
   };
 }
@@ -68,6 +70,7 @@ export async function runWindowsMsiCli(argv: readonly string[]): Promise<unknown
     bundleDirectory: input.bundleDirectory, manufacturer: input.manufacturer, operations,
     outputPath: input.outputPath, trustedCertificateFingerprint256: input.trustedFingerprint,
     wixEulaAccepted: true as const, wixExecutablePath: input.wixExecutablePath,
+    ...(input.workspaceParentDirectory === undefined ? {} : { workspaceParentDirectory: input.workspaceParentDirectory }),
   };
   return input.command === "preview"
     ? previewWindowsMsiBuild(common)

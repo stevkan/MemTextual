@@ -37,12 +37,16 @@ replication paths.
   resources and restores recorded ACLs. Databases, backups, replication
   packages, credentials, recovery keys, and deployment configuration remain.
 - Preview binds the bundle manifest, WiX executable and hash, WiX version,
-  output path, manufacturer, version, scope, and upgrade code to an exact
-  confirmation token.
+  output path, optional build-workspace parent, manufacturer, version, scope,
+  and upgrade code to an exact confirmation token.
 - Apply refuses overwrite, builds into an isolated temporary workspace, checks
   the Windows Installer compound-file signature, and runs `wix msi validate`
   before publishing the verified bytes through a create-only copy. A failed or
   malformed build never replaces the selected release path.
+- WiX native cabinet creation can fail in protected or deeply nested paths even
+  when its source files are valid. `--workspace` selects an existing direct
+  directory for disposable WiX source, intermediate, and candidate output. It
+  does not change the selected final MSI output path.
 
 Microsoft specifies `ALLUSERS=1` for per-machine installation. WiX maps its
 `perMachine` package scope to that setting:
@@ -77,6 +81,7 @@ npm run windows-msi -- preview `
   --wix C:\path\to\wix.exe `
   --manufacturer "APPROVED RELEASE OWNER" `
   --trusted-fingerprint BUNDLE_CERTIFICATE_SHA256 `
+  --workspace C:\short\wix-workspaces `
   --accept-wix-eula
 ```
 
@@ -89,6 +94,7 @@ npm run windows-msi -- apply `
   --wix C:\path\to\wix.exe `
   --manufacturer "APPROVED RELEASE OWNER" `
   --trusted-fingerprint BUNDLE_CERTIFICATE_SHA256 `
+  --workspace C:\short\wix-workspaces `
   --accept-wix-eula `
   --confirm BUILD-WINDOWS-MSI-EXACT_TOKEN
 ```
@@ -108,11 +114,9 @@ to create an account, modify ACLs, or register schedules.
 
 ## Remaining installer work
 
-1. Compile the authoring with an approved WiX 7 binary and correct any
-   real-tool schema or ICE findings.
-2. Prove install, repair, major upgrade, rollback, and data-preserving uninstall
+1. Prove install, repair, major upgrade, rollback, and data-preserving uninstall
    on a disposable Windows target.
-3. Add an approved EULA and installation UI after legal ownership and terms are
+2. Add an approved EULA and installation UI after legal ownership and terms are
    resolved.
-4. Build, validate, Authenticode-sign, and test a real release candidate with
+3. Build, validate, Authenticode-sign, and test a real release candidate with
    approved production tooling and credentials.

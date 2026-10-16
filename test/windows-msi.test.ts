@@ -25,6 +25,8 @@ function setup(invalidOutput = false) {
   for (const name of ["bundle-manifest.json", "bundle-manifest.sig", "bundle-signing-certificate.pem"]) writeFileSync(join(bundleDirectory, name), `${name}\n`);
   const wixExecutablePath = join(root, "wix.exe");
   const outputPath = join(root, "MemTextual-unsigned.msi");
+  const workspaceParentDirectory = join(root, "wix-workspaces");
+  mkdirSync(workspaceParentDirectory);
   writeFileSync(wixExecutablePath, "synthetic wix\n");
   let validations = 0;
   const operations: WindowsMsiOperations = {
@@ -58,7 +60,7 @@ function setup(invalidOutput = false) {
   const options = {
     bundleDirectory, manufacturer: "Release Owner", operations, outputPath,
     trustedCertificateFingerprint256: "b".repeat(64), verifyBundle,
-    wixEulaAccepted: true as const, wixExecutablePath,
+    wixEulaAccepted: true as const, wixExecutablePath, workspaceParentDirectory,
   };
   return { options, outputPath, root, validations: () => validations };
 }
@@ -89,6 +91,7 @@ describe("Windows MSI build boundary", () => {
       const preview = await previewWindowsMsiBuild(fixture.options);
       assert.match(preview.confirmation, /^BUILD-WINDOWS-MSI-[A-F0-9]{20}$/u);
       assert.equal(preview.scope, "perMachine");
+      assert.equal(preview.workspaceParentDirectory, fixture.options.workspaceParentDirectory);
       const report = await applyWindowsMsiBuild({ ...fixture.options, confirmation: preview.confirmation });
       assert.equal(report.validated, true);
       assert.equal(fixture.validations(), 1);
@@ -105,10 +108,33 @@ describe("Windows MSI build boundary", () => {
     } finally { rmSync(fixture.root, { force: true, recursive: true }); }
   });
 
+  it("requires and confirmation-binds an explicit workspace override", async () => {
+    const fixture = setup();
+    try {
+      const otherWorkspace = join(fixture.root, "other-wix-workspaces");
+      mkdirSync(otherWorkspace);
+      const first = await previewWindowsMsiBuild(fixture.options);
+      const second = await previewWindowsMsiBuild({ ...fixture.options, workspaceParentDirectory: otherWorkspace });
+      assert.notEqual(first.confirmation, second.confirmation);
+      await assert.rejects(
+        previewWindowsMsiBuild({ ...fixture.options, workspaceParentDirectory: "relative-workspace" }),
+        /workspace parent directory must be absolute/u,
+      );
+      await assert.rejects(
+        previewWindowsMsiBuild({ ...fixture.options, workspaceParentDirectory: join(fixture.root, "missing") }),
+        /workspace parent directory does not exist/u,
+      );
+    } finally { rmSync(fixture.root, { force: true, recursive: true }); }
+  });
+
   it("requires explicit WiX EULA acceptance and apply confirmation", () => {
     const base = ["--bundle", "C:\\bundle", "--output", "C:\\release\\app.msi", "--wix", "C:\\wix.exe", "--manufacturer", "Owner", "--trusted-fingerprint", "a".repeat(64)];
     assert.throws(() => parseWindowsMsiArguments(["preview", ...base]), /accept-wix-eula/u);
     assert.throws(() => parseWindowsMsiArguments(["apply", ...base, "--accept-wix-eula"]), /requires --confirm/u);
     assert.equal(parseWindowsMsiArguments(["preview", ...base, "--accept-wix-eula"]).command, "preview");
+    assert.equal(
+      parseWindowsMsiArguments(["preview", ...base, "--accept-wix-eula", "--workspace", "C:\\wix-work"]).workspaceParentDirectory,
+      "C:\\wix-work",
+    );
   });
 });

@@ -27,7 +27,7 @@ or redistribution rights.
 | --- | --- | --- | --- |
 | Core TypeScript, SQLite, migrations, and tests | CI gate configured | CI gate configured | CI gate configured |
 | Developer source workflows | Initial target | Compatibility tracked | Compatibility tracked |
-| Continuity desktop packaging | MSI adopted; verified-bundle build, opt-in rollback-paired host actions, and Authenticode boundaries available; real WiX and release-target evidence pending | Deferred | Deferred |
+| Continuity desktop packaging | MSI adopted; real WiX 7 compilation and ICE validation passed with a synthetic signed bundle; release-target and production-signing evidence pending | Deferred | Deferred |
 | Upgrade, rollback, and removal | Synthetic non-privileged and separately confirmed elevated host lifecycle harnesses available; real release-target evidence pending | Deferred | Deferred |
 | Unattended scheduler integration | Adapter, confirmed orchestration, privileged executor, and preview-first installer CLI available; application bundle staged separately | Deferred adapter | Deferred adapter |
 | Certificate credential provider | Core provider and confirmed certificate-path ACL protection available | Core provider available; packaging deferred | Core provider available; packaging deferred |
@@ -71,10 +71,10 @@ staged without overwrite. Authenticode signing of a separately produced installe
 is previewed, exactly confirmed, timestamped, and verified without overwriting
 its unsigned input. MSI is the selected container, with a previewed and
 confirmed per-machine x64 build boundary over the exact verified bundle.
-Rollback-paired host-action authoring is present but has not been compiled or
-executed with WiX on a disposable target. Installation UI and public
-distribution validation are still required before describing a public end-user
-installer as supported.
+Rollback-paired host-action authoring has compiled and passed WiX 7 MSI
+validation with a synthetic test-certificate bundle. It has not been executed
+on a disposable target. Installation UI and public-distribution validation are
+still required before describing a public end-user installer as supported.
 
 ## Release gates
 
@@ -90,6 +90,5 @@ The Windows non-privileged lifecycle can be exercised with
 dedicated-account and Task Scheduler validation was not run. A separate
 combined-confirmation host validator can install, execute, accept, and remove
 disposable host resources, but it is never run by the ordinary automated suite.
-Actual release-target evidence, production-certificate signing, real-WiX MSI
-host-action validation,
+Actual release-target execution, production-certificate signing,
 and the other public-distribution gates remain separate requirements.

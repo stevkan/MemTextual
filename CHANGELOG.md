@@ -5,6 +5,13 @@ describe only the current design and behavior.
 
 ## Unreleased
 
+- Added an optional, preview-bound MSI build workspace so WiX native cabinet
+  creation can use a short unprotected path independently of the final output
+  directory. WiX now receives its own isolated intermediate directory. A full
+  test-certificate bundle with 11,812 packaged files compiled and passed WiX 7
+  MSI validation through the MemTextual wrapper; this is build evidence, not a
+  production-signed release or installed-target lifecycle result.
+
 - Added opt-in MSI host integration using the existing ownership-checked Windows
   host service. `MEMTEXTUAL_HOST_ACTIONS=1` enables deferred, non-impersonating,
   hidden-target account, ACL, and schedule actions against the fixed secret-free

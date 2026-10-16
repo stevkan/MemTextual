@@ -25,6 +25,7 @@ export interface WindowsMsiBuildOptions {
   trustedCertificateFingerprint256: string;
   wixEulaAccepted: true;
   wixExecutablePath: string;
+  workspaceParentDirectory?: string;
   verifyBundle?: WindowsMsiBundleVerifier;
 }
 
@@ -47,6 +48,7 @@ export interface WindowsMsiBuildPreview {
   wixExecutablePath: string;
   wixExecutableSha256: string;
   wixVersion: string;
+  workspaceParentDirectory: string;
 }
 
 export interface WindowsMsiBuildReport extends Omit<WindowsMsiBuildPreview, "confirmation"> {
@@ -60,6 +62,12 @@ function directFile(path: string, label: string): void {
   let stats;
   try { stats = lstatSync(path); } catch { throw new Error(`${label} does not exist.`); }
   if (!stats.isFile() || stats.isSymbolicLink()) throw new Error(`${label} must be a direct regular file.`);
+}
+
+function directDirectory(path: string, label: string): void {
+  let stats;
+  try { stats = lstatSync(path); } catch { throw new Error(`${label} does not exist.`); }
+  if (!stats.isDirectory() || stats.isSymbolicLink()) throw new Error(`${label} must be a direct directory.`);
 }
 
 function xml(value: string): string {
@@ -196,9 +204,12 @@ export async function previewWindowsMsiBuild(options: WindowsMsiBuildOptions): P
   if (existsSync(outputPath)) throw new Error("MSI output already exists.");
   directFile(wixExecutablePath, "WiX executable");
   const parent = dirname(outputPath);
-  let parentStats;
-  try { parentStats = lstatSync(parent); } catch { throw new Error("MSI output directory does not exist."); }
-  if (!parentStats.isDirectory() || parentStats.isSymbolicLink()) throw new Error("MSI output directory must be a direct directory.");
+  directDirectory(parent, "MSI output directory");
+  if (options.workspaceParentDirectory !== undefined && !isAbsolute(options.workspaceParentDirectory)) {
+    throw new Error("MSI workspace parent directory must be absolute.");
+  }
+  const workspaceParentDirectory = resolve(options.workspaceParentDirectory ?? parent);
+  directDirectory(workspaceParentDirectory, "MSI workspace parent directory");
   const manufacturer = validateManufacturer(options.manufacturer);
   const verification = await (options.verifyBundle ?? verifyWindowsContinuityBundle)({ bundleDirectory: options.bundleDirectory, trustedCertificateFingerprint256: options.trustedCertificateFingerprint256 });
   if (!verification.publisherTrusted) throw new Error("Windows bundle publisher is not trusted.");
@@ -217,6 +228,7 @@ export async function previewWindowsMsiBuild(options: WindowsMsiBuildOptions): P
     wixExecutablePath,
     wixExecutableSha256: tool.sha256,
     wixVersion,
+    workspaceParentDirectory,
   };
   return { ...boundary, confirmation: token(boundary) };
 }
@@ -226,7 +238,7 @@ export async function applyWindowsMsiBuild(options: WindowsMsiBuildOptions & { c
   if (options.confirmation !== preview.confirmation) throw new Error("MSI build confirmation is missing, incorrect, or stale.");
   const verification = await (options.verifyBundle ?? verifyWindowsContinuityBundle)({ bundleDirectory: preview.bundleDirectory, trustedCertificateFingerprint256: options.trustedCertificateFingerprint256 });
   if (verification.manifestSha256 !== preview.bundleManifestSha256) throw new Error("Windows bundle changed after MSI preview.");
-  const workspace = mkdtempSync(join(dirname(preview.outputPath), ".memtextual-msi-"));
+  const workspace = mkdtempSync(join(preview.workspaceParentDirectory, ".memtextual-msi-"));
   const sourcePath = join(workspace, "Product.wxs");
   const candidatePath = join(workspace, basename(preview.outputPath));
   let finalCreated = false;
@@ -263,7 +275,14 @@ export async function applyWindowsMsiBuild(options: WindowsMsiBuildOptions & { c
 export class WindowsWixOperations implements WindowsMsiOperations {
   constructor(readonly executablePath: string, readonly timeoutMs = 180_000) {}
   async version(): Promise<string> { return this.run(["--version"]); }
-  async build(sourcePath: string, outputPath: string): Promise<void> { this.run(["build", "-arch", "x64", "-o", outputPath, sourcePath]); }
+  async build(sourcePath: string, outputPath: string): Promise<void> {
+    const intermediateDirectory = mkdtempSync(join(dirname(outputPath), ".wix-intermediate-"));
+    try {
+      this.run(["build", "-arch", "x64", "-intermediatefolder", intermediateDirectory, "-o", outputPath, sourcePath]);
+    } finally {
+      rmSync(intermediateDirectory, { force: true, recursive: true });
+    }
+  }
   async validate(outputPath: string): Promise<void> { this.run(["msi", "validate", outputPath]); }
   private run(args: readonly string[]): string {
     const result = spawnSync(this.executablePath, args, { encoding: "utf8", maxBuffer: 1024 * 1024, timeout: this.timeoutMs, windowsHide: true });
