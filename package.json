@@ -19,7 +19,8 @@
     "memtextual-windows-host": "dist/src/cli/windows-host.js",
     "memtextual-windows-host-validation": "dist/src/cli/windows-elevated-host-validation.js",
     "memtextual-windows-bundle": "dist/src/cli/windows-bundle.js",
-    "memtextual-windows-authenticode": "dist/src/cli/windows-authenticode.js"
+    "memtextual-windows-authenticode": "dist/src/cli/windows-authenticode.js",
+    "memtextual-windows-msi": "dist/src/cli/windows-msi.js"
   },
   "scripts": {
     "test": "node --import tsx --test test/**/*.test.ts",
@@ -40,6 +41,7 @@
     "windows-host-validation": "tsx src/cli/windows-elevated-host-validation.ts",
     "windows-bundle": "tsx src/cli/windows-bundle.ts",
     "windows-authenticode": "tsx src/cli/windows-authenticode.ts",
+    "windows-msi": "tsx src/cli/windows-msi.ts",
     "pretest": "node scripts/check-node.mjs",
     "prebuild": "node scripts/check-node.mjs"
   },

@@ -181,6 +181,19 @@ export {
   type WindowsSignToolRunner,
 } from "./packaging/windows-authenticode.js";
 export {
+  WindowsWixOperations,
+  applyWindowsMsiBuild,
+  previewWindowsMsiBuild,
+  renderWindowsMsiSource,
+  windowsMsiReportFormatVersion,
+  windowsMsiUpgradeCode,
+  type WindowsMsiBuildOptions,
+  type WindowsMsiBuildPreview,
+  type WindowsMsiBuildReport,
+  type WindowsMsiBundleVerifier,
+  type WindowsMsiOperations,
+} from "./packaging/windows-msi.js";
+export {
   memoryStatuses,
   memoryTypes,
   type CreateMemoryInput,

@@ -5,6 +5,16 @@ describe only the current design and behavior.
 
 ## Unreleased
 
+- Adopted MSI as the Windows Continuity installer container and added a
+  preview-first unsigned MSI build boundary. It accepts only an exactly verified
+  signed-manifest bundle, emits an explicit per-machine x64 file inventory with
+  stable component and upgrade identities, requires a user-supplied WiX 7 binary
+  plus per-invocation EULA acceptance, refuses output overwrite, verifies the MSI
+  compound format, runs WiX ICE validation in an isolated workspace, and only
+  then publishes through a create-only copy. The
+  release manufacturer remains an explicit input, and privileged host actions
+  remain a separately tested next step.
+
 - Added a format-neutral Windows Authenticode boundary for a future installer
   artifact. A read-only preview binds the exact unsigned artifact, SignTool
   executable, certificate-store thumbprint, timestamp URL, and output path to a
@@ -12,7 +22,7 @@ describe only the current design and behavior.
   timestamp, requires Authenticode policy verification, rechecks the untouched
   source, and removes incomplete output on failure. No private-key material or
   PFX password is accepted through the command interface; production-certificate
-  execution and MSI/MSIX selection remain release gates.
+  execution and completed MSI host integration remain release gates.
 
 - Added a separately confirmed elevated Windows host lifecycle validator. It
   binds a release-validated synthetic workspace to the exact signed candidate,

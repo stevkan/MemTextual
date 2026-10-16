@@ -27,7 +27,7 @@ or redistribution rights.
 | --- | --- | --- | --- |
 | Core TypeScript, SQLite, migrations, and tests | CI gate configured | CI gate configured | CI gate configured |
 | Developer source workflows | Initial target | Compatibility tracked | Compatibility tracked |
-| Continuity desktop packaging | Signed-manifest directory bundle and confirmed staging available; format-neutral Authenticode signing boundary available; installer-container choice deferred | Deferred | Deferred |
+| Continuity desktop packaging | MSI adopted; verified-bundle-to-unsigned-MSI build and format-neutral Authenticode boundaries available; host actions and real release evidence pending | Deferred | Deferred |
 | Upgrade, rollback, and removal | Synthetic non-privileged and separately confirmed elevated host lifecycle harnesses available; real release-target evidence pending | Deferred | Deferred |
 | Unattended scheduler integration | Adapter, confirmed orchestration, privileged executor, and preview-first installer CLI available; application bundle staged separately | Deferred adapter | Deferred adapter |
 | Certificate credential provider | Core provider and confirmed certificate-path ACL protection available | Core provider available; packaging deferred | Core provider available; packaging deferred |
@@ -69,9 +69,11 @@ layout and preview-first elevated installer CLI are available. A pinned-
 certificate signed-manifest directory bundle can be assembled, verified, and
 staged without overwrite. Authenticode signing of a separately produced installer
 is previewed, exactly confirmed, timestamped, and verified without overwriting
-its unsigned input. MSI/MSIX selection, installation UI, and public
-distribution validation are still required before describing a public end-user
-installer as supported.
+its unsigned input. MSI is the selected container, with a previewed and
+confirmed per-machine x64 build boundary over the exact verified bundle.
+Rollback-capable host actions, installation UI, and public distribution
+validation are still required before describing a public end-user installer as
+supported.
 
 ## Release gates
 
@@ -87,6 +89,6 @@ The Windows non-privileged lifecycle can be exercised with
 dedicated-account and Task Scheduler validation was not run. A separate
 combined-confirmation host validator can install, execute, accept, and remove
 disposable host resources, but it is never run by the ordinary automated suite.
-Actual release-target evidence, production-certificate signing,
-installer-container selection,
+Actual release-target evidence, production-certificate signing, completed MSI
+host integration,
 and the other public-distribution gates remain separate requirements.

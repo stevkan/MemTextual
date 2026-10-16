@@ -360,8 +360,10 @@ validates the pinned runtime, copies the lockfile-defined production dependency
 set, signs the exact byte-and-hash inventory, pins publisher trust by certificate
 fingerprint, and verifies both disposable staging and the final copy. File
 staging is separately previewed and confirmed and never overwrites an existing
-target. Authenticode, MSI/MSIX selection, and public release UX remain separate
-work; no host change occurs merely by importing or configuring these layers.
+target. MSI is now the selected Windows container, with confirmed unsigned-build
+and Authenticode boundaries. Rollback-capable MSI host actions and public release
+UX remain separate work; no host change occurs merely by importing or
+configuring these layers.
 
 ## Non-destructive migration contract
 

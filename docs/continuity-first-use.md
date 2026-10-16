@@ -2,8 +2,8 @@
 
 This is the supported Windows first-use sequence for the current signed
 directory bundle. It keeps application files, the active database, host state,
-and backups separate. It does not turn the directory bundle into an MSI/MSIX or
-claim that the current build is ready for public distribution.
+and backups separate. The separately implemented MSI build boundary does not
+yet replace this workflow or make the current build ready for public distribution.
 
 The release provider supplies the signed bundle and its SHA-256 publisher
 certificate fingerprint through separate channels. The user chooses every data,

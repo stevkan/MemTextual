@@ -8,7 +8,8 @@ workspace remain outside every application directory.
 
 This workflow assumes the first installation already passed
 [continuity-first-use.md](continuity-first-use.md). It is an engineering
-lifecycle for the signed directory bundle, not an MSI/MSIX or public updater.
+lifecycle for the signed directory bundle. Equivalent MSI lifecycle actions and
+public updater behavior remain release work.
 
 ## Before upgrading
 

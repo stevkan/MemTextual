@@ -84,6 +84,7 @@ docs/windows-continuity-lifecycle.md Side-by-side upgrade, rollback, and removal
 docs/windows-continuity-bundle.md Signed Windows bundle verification and staging
 docs/windows-release-validation.md Disposable release-candidate lifecycle gate
 docs/windows-authenticode.md Format-neutral Windows installer signing boundary
+docs/windows-msi.md          Per-machine Windows MSI build contract
 docs/continuity-control.md Persona-scoped review and lifecycle control contract
 docs/continuity-console.md Local graphical review and memory-inspection console
 docs/continuity-setup.md   Safeguarded first-run user and persona onboarding
@@ -311,7 +312,7 @@ Additional vendor extractor and host-event clients, vendor-specific legacy-expor
 adapters, graphical source-series privacy workflows, standalone-source deletion,
 additional cloud destination adapters, resumable imports, streamable HTTP,
 REST API, admin UI, concrete vendor embedding provider, concrete host capture
-integrations, Authenticode and MSI/MSIX release packaging, additional secure
+integrations, completed MSI host actions and production signing, additional secure
 credential-store providers, final proprietary legal terms, and public-release
 validation remain open.
 

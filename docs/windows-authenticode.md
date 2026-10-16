@@ -2,12 +2,13 @@
 
 MemTextual has a format-neutral Authenticode boundary for the eventual Windows
 installer artifact. It supports `.exe`, `.msi`, `.msix`, `.msixbundle`, `.appx`,
-and `.appxbundle` inputs without selecting an installer container yet.
+and `.appxbundle` inputs. MSI is now the selected Continuity installer container.
 
 This workflow does not re-sign `runtime/node.exe` in the existing Continuity
 directory bundle. That executable is a third-party runtime, while Authenticode
 publisher identity belongs on the MemTextual installer or bootstrapper produced
-later in the release pipeline.
+later in the release pipeline. The unsigned artifact is produced by the separate
+[MSI workflow](windows-msi.md).
 
 ## Trust boundary
 
@@ -70,24 +71,22 @@ Use `local-machine` only when the release certificate is deliberately installed
 in the local-machine certificate store and the signing environment is authorized
 to access its private key.
 
-## Current limitation and next decision
+## Current limitation
 
 The workflow is implemented and unit-tested without a production certificate.
 It has not signed a real release artifact, because no production signing
-certificate, timestamp provider, or installer container has been approved.
+certificate or timestamp provider has been approved.
 
-MSI is the current recommendation for the first public Windows installer because
+MSI is the adopted container for the first public Windows installer because
 Continuity provisions machine-level resources: a dedicated local account, ACLs,
 and a scheduled task. Microsoft documents that MSI can run deferred custom
 actions with elevated privileges, while MSIX platform capabilities and services
-vary by Windows version. This is a recommendation, not an adopted design
-decision:
+vary by Windows version:
 
 - <https://learn.microsoft.com/windows/win32/msi/custom-action-security>
 - <https://learn.microsoft.com/windows/win32/msi/authoring-the-custom-actions>
 - <https://learn.microsoft.com/windows/msix/supported-platforms>
 
-The next release package must select the installer container, build its unsigned
-artifact, pass that artifact through this signing boundary, and then run the
-existing disposable release and elevated-host validations against the signed
-installer result.
+The release pipeline must build the unsigned MSI, pass it through this signing
+boundary, and then run the existing disposable release and elevated-host
+validations against the signed installer result.

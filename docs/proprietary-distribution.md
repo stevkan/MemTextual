@@ -37,7 +37,7 @@ explicitly resolved:
 6. a complete third-party dependency license and notice inventory;
 7. protected production code-signing credentials;
 8. production-certificate execution of the implemented Authenticode boundary
-   and installer-container selection; and
+   and completion of the selected MSI installer; and
 9. installation, upgrade, rollback, and data-preserving removal validation.
 
 This file records the engineering release policy, not legal terms or legal
