@@ -78,6 +78,7 @@ export {
   type CodexAppServerConversationHostOptions,
   type CodexAppServerProcess,
   type CodexAppServerProcessFactory,
+  type CodexAppServerStructuredTaskInput,
 } from "./hosts/codex-app-server-conversation-host.js";
 export { ContinuityConversationTurnAdapter } from "./hosts/continuity-conversation-turn-adapter.js";
 export type { ContinuityPersonaBehaviorRepository } from "./repositories/continuity-persona-behavior-repository.js";
@@ -432,6 +433,11 @@ export {
   type ContinuityConversationContextProvider,
   type ContinuityConversationServiceOptions,
 } from "./services/continuity-conversation-service.js";
+export {
+  CodexAppServerAmbientExtractionProvider,
+  type CodexAppServerAmbientExtractionProviderOptions,
+  type CodexAppServerStructuredTaskRunner,
+} from "./providers/codex-app-server-ambient-extraction-provider.js";
 export {
   StructuredAmbientMemoryExtractor,
   type StructuredAmbientExtractorOptions,

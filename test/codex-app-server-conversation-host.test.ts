@@ -128,6 +128,74 @@ test("starts and resumes Codex App Server conversations after the required hands
   await host.close();
 });
 
+test("runs an ephemeral structured task with a restricted turn", async () => {
+  const schema = {
+    type: "object",
+    additionalProperties: false,
+    properties: { proposals: { type: "array" } },
+    required: ["proposals"],
+  };
+  const server = new FakeAppServerProcess((message, fake) => {
+    standardHandler(message, fake);
+    if (message.method !== "turn/start") return;
+    fake.send({
+      id: message.id,
+      result: { turn: { id: "structured-turn", status: "inProgress" } },
+    });
+    fake.send({
+      method: "item/completed",
+      params: {
+        threadId: "thread-1",
+        turnId: "structured-turn",
+        item: {
+          type: "agentMessage",
+          id: "structured-message",
+          text: '{"proposals":[]}',
+          phase: "final_answer",
+        },
+      },
+    });
+    fake.send({
+      method: "turn/completed",
+      params: {
+        threadId: "thread-1",
+        turn: { id: "structured-turn", status: "completed" },
+      },
+    });
+  });
+  const host = new CodexAppServerConversationHost({ processFactory: () => server });
+
+  assert.equal(
+    await host.runStructuredTask({
+      developerInstructions: "Return extracted memories.",
+      input: '{"records":[]}',
+      outputSchema: schema,
+      model: "gpt-test",
+    }),
+    '{"proposals":[]}',
+  );
+  assert.deepEqual(server.received[2]?.params, {
+    developerInstructions: "Return extracted memories.",
+    ephemeral: true,
+    model: "gpt-test",
+  });
+  assert.deepEqual(server.received[3]?.params, {
+    threadId: "thread-1",
+    input: [{ type: "text", text: '{"records":[]}' }],
+    approvalPolicy: "never",
+    sandboxPolicy: {
+      type: "readOnly",
+      access: {
+        type: "restricted",
+        includePlatformDefaults: false,
+        readableRoots: [],
+      },
+    },
+    outputSchema: schema,
+  });
+  await host.close();
+});
+
 test("rejects an invalid persona behavior contract before contacting App Server", async () => {
   const server = new FakeAppServerProcess(standardHandler);
   const host = new CodexAppServerConversationHost({ processFactory: () => server });

@@ -48,6 +48,6 @@ cross-binding resolution and lifecycle results.
 
 The local console does not yet construct this runtime or expose authorization,
 start, reopen, send, recovery-retry, or revocation controls. Live activation
-also requires a concrete ambient extraction provider so completed turns cannot
-silently bypass memory extraction. Browser requests must never supply the raw
-grant.
+also requires production composition with the implemented Codex App Server
+ambient extraction provider so completed turns cannot silently bypass memory
+extraction. Browser requests must never supply the raw grant.

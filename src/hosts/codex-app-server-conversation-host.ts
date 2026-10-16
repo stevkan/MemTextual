@@ -54,6 +54,13 @@ export interface CodexAppServerConversationHostOptions {
   processFactory?: CodexAppServerProcessFactory;
 }
 
+export interface CodexAppServerStructuredTaskInput {
+  developerInstructions: string;
+  input: string;
+  outputSchema: Record<string, unknown>;
+  model?: string;
+}
+
 interface PendingRequest {
   method: string;
   resolve: (value: unknown) => void;
@@ -160,6 +167,48 @@ export class CodexAppServerConversationHost implements ConversationHost {
   }
 
   async sendTurn(input: SendConversationTurnInput): Promise<CompletedConversationTurn> {
+    return this.#sendTurn(input);
+  }
+
+  async runStructuredTask(
+    input: CodexAppServerStructuredTaskInput,
+  ): Promise<string> {
+    const developerInstructions = requireNonEmpty(
+      input.developerInstructions,
+      "developerInstructions",
+    );
+    const text = requireNonEmpty(input.input, "input");
+    const outputSchema = requireRecord(input.outputSchema, "outputSchema");
+    const params: Record<string, unknown> = {
+      developerInstructions,
+      ephemeral: true,
+    };
+    if (input.model !== undefined) {
+      params.model = requireNonEmpty(input.model, "model");
+    }
+    if (this.#workingDirectory !== undefined) {
+      params.cwd = this.#workingDirectory;
+    }
+    const result = requireRecord(
+      await this.#request("thread/start", params),
+      "thread/start result",
+    );
+    const thread = requireRecord(result.thread, "thread/start result.thread");
+    const conversationId = requireNonEmptyString(
+      thread.id,
+      "thread/start result.thread.id",
+    );
+    const turn = await this.#sendTurn(
+      { conversationId, text },
+      { outputSchema },
+    );
+    return turn.assistantText;
+  }
+
+  async #sendTurn(
+    input: SendConversationTurnInput,
+    options: { outputSchema?: Record<string, unknown> } = {},
+  ): Promise<CompletedConversationTurn> {
     const conversationId = requireNonEmpty(input.conversationId, "conversationId");
     const text = requireNonEmpty(input.text, "text");
     if (
@@ -215,6 +264,9 @@ export class CodexAppServerConversationHost implements ConversationHost {
               readableRoots: [],
             },
           },
+          ...(options.outputSchema === undefined
+            ? {}
+            : { outputSchema: options.outputSchema }),
         }),
         "turn/start result",
       );

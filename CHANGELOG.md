@@ -5,12 +5,20 @@ describe only the current design and behavior.
 
 ## Unreleased
 
+- Added the initial concrete ambient extraction provider for Codex App Server.
+  It uses an ephemeral thread, dedicated developer instructions, a strict
+  per-turn JSON output schema, an explicit provenance-recorded model, bounded
+  untrusted conversation input, and the existing no-approval sandbox. Output is
+  validated again before candidate creation, including verbatim evidence
+  excerpts; without a concrete sensitivity classifier, proposals remain
+  fail-closed as sensitive and pending. Live chat controls remain disabled
+  until production runtime composition is complete.
 - Added a grantless Continuity conversation client boundary. Start, reopen, and
   send now resolve canonical persona or stored-conversation bindings and load
   protected host grants internally; public client operations do not accept the
   bearer. Expired, revoked, malformed, cross-persona, and mismatched lifecycle
-  results fail closed. The console remains read-only until production runtime
-  composition includes a concrete ambient extraction provider.
+  results fail closed. The console remains read-only until the protected client
+  and extraction provider are wired into its production runtime.
 - Added provider-neutral protected conversation-grant storage and an initial
   Windows DPAPI adapter. New authorizations can persist their bearer only as a
   CurrentUser-protected, create-once record outside SQLite; storage failure

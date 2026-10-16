@@ -189,6 +189,52 @@ test("ambient capture creates pending, persona-isolated, idempotent candidates",
   }
 });
 
+test("ambient capture rejects evidence excerpts not found in the cited record", async () => {
+  const extractor: AmbientMemoryExtractor = {
+    id: "test.invalid-excerpt-extractor",
+    version: "1",
+    extract: ({ records }) => [
+      {
+        assertion: "Steve prefers coffee.",
+        type: "preference",
+        memoryClass: "durable",
+        evidence: [
+          {
+            sourceRecordId: records[0]!.id,
+            excerpt: "I prefer coffee.",
+          },
+        ],
+      },
+    ],
+  };
+  const setup = fixture(extractor);
+  try {
+    await assert.rejects(
+      setup.ambient.captureInteraction({
+        personaId: setup.skylar.persona.id,
+        source: {
+          kind: "chat",
+          title: "Conversation with Skylar",
+          records: [
+            {
+              kind: "message",
+              authorRole: "user",
+              content: "I prefer tea.",
+            },
+          ],
+        },
+      }),
+      /excerpts must occur verbatim/u,
+    );
+    const count = setup.database
+      .prepare("SELECT COUNT(*) AS count FROM memory_candidates")
+      .get() as { count: number };
+    assert.equal(count.count, 0);
+  } finally {
+    setup.database.close();
+  }
+});
+
 test("unassessed ambient candidates cannot be automatically accepted", async () => {
   const extractor: AmbientMemoryExtractor = {
     id: "test.unassessed-extractor",

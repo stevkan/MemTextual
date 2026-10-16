@@ -55,9 +55,10 @@ The conversation view is read-only. It is not a complete mirror of the host:
 the host can contain additional completed turns until history reconciliation
 runs. Starting, reopening, and sending conversation turns remain unavailable
 until the grantless conversational runtime is composed with both the protected
-grant store and a concrete ambient extraction provider. The raw grant is
-intentionally absent from browser requests, the database, browser state, and
-command-line arguments.
+grant store and the concrete Codex App Server ambient extraction provider. Both
+parts are implemented but are not yet wired into the console process. The raw
+grant is intentionally absent from browser requests, the database, browser
+state, and command-line arguments.
 
 ## Persona-memory export
 

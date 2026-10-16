@@ -39,9 +39,18 @@ function validateEvidence(
     throw new Error("An ambient memory proposal requires evidence.");
   }
   for (const evidence of proposal.evidence) {
-    if (!records.has(evidence.sourceRecordId)) {
+    const record = records.get(evidence.sourceRecordId);
+    if (record === undefined) {
       throw new Error(
         "Ambient proposal evidence must reference the captured interaction.",
+      );
+    }
+    if (
+      evidence.excerpt !== undefined &&
+      (evidence.excerpt.length === 0 || !record.content.includes(evidence.excerpt))
+    ) {
+      throw new Error(
+        "Ambient proposal evidence excerpts must occur verbatim in the cited record.",
       );
     }
   }

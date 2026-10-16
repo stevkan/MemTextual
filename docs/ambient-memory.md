@@ -11,8 +11,24 @@ proposal, and creates reviewable memory candidates.
 object or JSON text, but must contain only a `proposals` array matching the
 strict schema. It rejects unknown fields, invalid enums, missing evidence,
 invalid confidence, and more than the configured proposal limit before any
-candidate is created. No vendor client, credentials, or network behavior is
-built in.
+candidate is created.
+
+The initial concrete provider is
+`CodexAppServerAmbientExtractionProvider`. It runs a bounded extraction task on
+an ephemeral Codex App Server thread, uses application developer instructions
+to label the serialized conversation as untrusted data, and constrains the
+final message with a JSON output schema. It requires an explicit model string,
+which is recorded in the extractor version, and sends only the selected persona
+and relationship names, source identity, and up to 100 source records. Persona,
+relationship, source, and record metadata are not forwarded. Input over 256
+KiB fails visibly rather than being silently truncated.
+
+The task uses the same no-approval, read-only sandbox with no readable roots as
+the conversation adapter. App Server output still passes through the strict
+provider validator and the ordinary evidence, persona, sensitivity, and review
+boundaries. Evidence excerpts, when present, must occur verbatim in the cited
+source record; a generated or paraphrased excerpt fails before candidate
+creation. Extraction does not itself accept a candidate as memory.
 
 Ambient capture does not bypass candidate review. New proposals default to
 `inferred`, confidence `0.5`, and pending status. They become memories only
@@ -89,9 +105,11 @@ archive, or delete the memory. Validity bounds are inclusive.
 ## Current boundary
 
 This package defines and validates the capture, structured-provider, and
-explicit temporal contracts. It does not include an LLM, vendor SDK, built-in
-extraction or sensitivity model, temporal inference model, background listener,
-scheduler, graphical review UI, or MCP tool. Concrete providers must be
-configured by a trusted host and use stable IDs and versions. Ordinary chat
-platforms still need an authorized integration to deliver events; see
-`host-capture.md`.
+explicit temporal contracts and includes the initial Codex App Server
+extraction adapter. It does not include a concrete sensitivity classifier,
+temporal inference model, background listener, scheduler, or MCP capture tool.
+Without a configured classifier, extracted proposals remain fail-closed as
+unassessed sensitive candidates and cannot be automatically accepted. The
+Codex provider must still be composed by the trusted Continuity runtime with an
+explicit model. Ordinary chat platforms still need an authorized integration
+to deliver events; see `host-capture.md`.

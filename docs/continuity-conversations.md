@@ -157,10 +157,11 @@ conversation catalog; it is not yet the graphical conversational client. The
 console does not start, reopen, or send turns. The provider-neutral protected
 store, authorization lifecycle, initial Windows DPAPI adapter, and grantless
 client facade are implemented, but the production console runtime is not yet
-composed. A concrete ambient extraction provider is also required before live
-chat can be enabled; otherwise completed turns could be journaled without
-performing the intended memory-extraction step. Coordinated host-thread
-deletion controls also remain open.
+composed. The initial Codex App Server ambient extraction provider is also
+implemented, with unclassified proposals remaining sensitive and pending by
+default. Live chat remains disabled until these parts are wired into one
+production runtime and its configuration and failure states are exposed safely.
+Coordinated host-thread deletion controls also remain open.
 
 Codex App Server threads are persistent local records outside the MemTextual
 database. They contain the submitted user text, memory-context item, and model

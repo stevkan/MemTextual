@@ -12,7 +12,7 @@ const evidenceSchema = z
   .object({
     sourceRecordId: z.string().trim().min(1).max(512),
     role: z.enum(["supports", "contradicts", "context"]).optional(),
-    excerpt: z.string().max(10_000).optional(),
+    excerpt: z.string().min(1).max(10_000).optional(),
   })
   .strict();
 

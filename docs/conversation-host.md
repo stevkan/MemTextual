@@ -70,6 +70,13 @@ requests. It returns a method-not-supported error so an unexpected request
 fails closed instead of hanging. It also does not expose stderr, add credentials
 to command arguments, or persist protocol traffic.
 
+The adapter also exposes a Codex-specific structured-task operation outside the
+provider-neutral `ConversationHost` interface. The ambient extraction provider
+uses it to create an ephemeral thread with dedicated developer instructions and
+apply `outputSchema` only to that extraction turn. Structured tasks retain the
+same no-approval, no-readable-root sandbox, and only authoritative completed
+assistant content is returned.
+
 If the child process exits, every in-flight request and turn fails. A later
 operation starts and initializes a fresh process; the caller must explicitly
 resume its known conversation before continuing it. Closing the adapter is
@@ -84,11 +91,11 @@ assistant response, and a recorded completion timestamp. Missing or ambiguous
 content, unknown phases, duplicate turns, changed ordering, repeated cursors,
 and unsupported input types fail the complete read before reconciliation.
 
-Codex App Server is currently documented by OpenAI as experimental. Its
-protocol-specific behavior is isolated in this adapter, and the automated tests
-use a fake JSONL process to cover the handshake, thread creation and resumption,
-turn submission, streaming, authoritative completion, request and turn errors,
-malformed data, concurrency, process failure, and restart.
+Codex App Server protocol-specific behavior is isolated in this adapter. The
+automated tests use a fake JSONL process to cover the handshake, thread creation
+and resumption, ephemeral structured tasks, turn submission, streaming,
+authoritative completion, request and turn errors, malformed data, concurrency,
+process failure, and restart.
 
 ## Current boundary
 
@@ -99,10 +106,11 @@ remains a library rather than the Continuity conversational client. The local
 control console now provides a persona-bound, read-only catalog of persisted
 conversations, exact journaled turns, and unresolved capture counts, but it
 does not start, reopen, or send turns. Those controls require protected
-host-grant storage, whose provider-neutral contract and initial Windows DPAPI
-adapter are implemented but not yet composed into the console; coordinated
-deletion is also not yet implemented. Persisted
-persona-behavior editing is available in the same console. Completed turns are
+host-grant storage, a concrete extraction provider, and production composition.
+The provider-neutral grant contract, Windows DPAPI adapter, grantless client
+facade, and Codex App Server extraction provider are implemented but not yet
+composed into the console; coordinated deletion is also not yet implemented.
+Persisted persona-behavior editing is available in the same console. Completed turns are
 journaled before extraction, failed capture can be listed and retried, and
 missing journal entries can be reconstructed from authoritative host history
 without asking the host to generate the response again.

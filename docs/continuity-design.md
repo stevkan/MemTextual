@@ -96,9 +96,12 @@ and has an initial Windows CurrentUser-DPAPI adapter. A grantless client facade
 now resolves canonical persona and conversation bindings and loads the bearer
 internally for start, reopen, and send; browser-facing operations do not accept
 the grant. Active chat controls remain gated on production composition with a
-concrete ambient extraction provider, and coordinated deletion controls remain
-integration work. Other cloud
-providers and local models are outside the initial scope and may be
+concrete ambient extraction provider. The initial Codex App Server provider now
+runs bounded ephemeral structured tasks, records its configured model in its
+version, and passes output through the existing fail-closed validator. A
+concrete sensitivity classifier remains open, so unassessed proposals are
+sensitive and pending. Coordinated deletion controls remain integration work.
+Other cloud providers and local models are outside the initial scope and may be
 reconsidered only in response to demonstrated need.
 
 As of October 15, 2026, OpenAI's official ChatGPT desktop, web, and mobile
@@ -164,8 +167,9 @@ conversation catalog whose detail view preserves exact journaled dialogue and
 distinguishes local journal state from unreconciled host history. It does not
 expose start, reopen, or send actions until the conversational runtime is
 composed with the protected grant store and a concrete ambient extraction
-provider. A grantless client facade now protects that composition boundary;
-the store is never populated from browser input. The console also includes a
+provider. Both exist but are not yet wired into the console process. A grantless
+client facade protects that composition boundary; the store is never populated
+from browser input. The console also includes a
 versioned persona-memory JSON export with complete revision histories, plus
 exact-ID-confirmed recoverable deletion and restoration. The export is
 intentionally described as a user-memory record rather than a database backup:
