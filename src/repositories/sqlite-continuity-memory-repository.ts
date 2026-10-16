@@ -29,6 +29,10 @@ import {
 } from "../search/fts-query.js";
 import type { ContinuityMemoryRepository } from "./continuity-memory-repository.js";
 import type { ContinuityEmbeddingRepository } from "./continuity-embedding-repository.js";
+import type {
+  ContinuityContextRepository,
+  ContinuityContextRetrievalSelection,
+} from "./continuity-context-repository.js";
 import type { MemoryRepository } from "./memory-repository.js";
 import { resolveAsOf, temporalState } from "../temporal/temporal-relevance.js";
 
@@ -156,7 +160,10 @@ function resolveWeights(profile: PersonaRankingProfile): {
 }
 
 export class SqliteContinuityMemoryRepository
-  implements ContinuityMemoryRepository, ContinuityEmbeddingRepository
+  implements
+    ContinuityMemoryRepository,
+    ContinuityEmbeddingRepository,
+    ContinuityContextRepository
 {
   public constructor(
     private readonly database: Database.Database,
@@ -254,6 +261,18 @@ export class SqliteContinuityMemoryRepository
   public retrieve(
     query: ContinuityRetrievalQuery,
   ): PersonaMemoryRetrievalResult[] {
+    return this.retrieveContextSelection(query, (ranked) => ({
+      results: ranked,
+      value: [...ranked],
+    }));
+  }
+
+  public retrieveContextSelection<T>(
+    query: ContinuityRetrievalQuery,
+    select: (
+      ranked: readonly PersonaMemoryRetrievalResult[],
+    ) => ContinuityContextRetrievalSelection<T>,
+  ): T {
     const context = this.requirePersonaContext(query.personaId);
     const ftsQuery = toFtsQuery(query.text);
     const memoryClasses = [
@@ -276,7 +295,13 @@ export class SqliteContinuityMemoryRepository
       memoryClasses.length === 0 ||
       allowedSensitivities.length === 0
     ) {
-      return [];
+      const selection = select([]);
+      this.validateContextSelection([], selection.results);
+      this.validateContextCompositionAudit(
+        selection.contextComposition,
+        selection.results.length,
+      );
+      return selection.value;
     }
 
     const safeLimit = normalizeRetrievalLimit(query.limit);
@@ -323,30 +348,54 @@ export class SqliteContinuityMemoryRepository
       ORDER BY memory.is_pinned DESC, relevance ASC, memory.updated_at DESC
       LIMIT ?`;
 
-    const retrieve = this.database.transaction(() => {
-      const rows = this.database
-        .prepare(sql)
-        .all(
-          ftsQuery,
-          context.persona_id,
-          context.relationship_id,
-          context.relationship_scope_id,
-          ...memoryClasses,
-          ...allowedSensitivities,
-          includeOutOfWindow ? 1 : 0,
-          asOf,
-          asOf,
-          safeLimit,
-        ) as ContinuityRetrievalRow[];
+    const rows = this.database
+      .prepare(sql)
+      .all(
+        ftsQuery,
+        context.persona_id,
+        context.relationship_id,
+        context.relationship_scope_id,
+        ...memoryClasses,
+        ...allowedSensitivities,
+        includeOutOfWindow ? 1 : 0,
+        asOf,
+        asOf,
+        safeLimit,
+      ) as ContinuityRetrievalRow[];
+    const ranked = rows.map((row, index) => {
+      const personaMemory = this.requireProfile(row.memory_id);
+      return {
+        personaMemory,
+        rank: index + 1,
+        ...temporalState(personaMemory.memory, asOf),
+      };
+    });
+    const selection = select(ranked);
+    this.validateContextSelection(ranked, selection.results);
+    this.validateContextCompositionAudit(
+      selection.contextComposition,
+      selection.results.length,
+    );
+
+    const recordRetrieval = this.database.transaction(() => {
       const retrievedAt = new Date().toISOString();
-      for (const row of rows) {
+      for (const result of selection.results) {
+        const memoryId = result.personaMemory.memory.id;
+        const current = this.requireProfile(memoryId);
+        if (
+          current.memory.revisionId !== result.personaMemory.memory.revisionId ||
+          current.personaId !== context.persona_id ||
+          current.relationshipId !== context.relationship_id
+        ) {
+          throw new Error("A persona memory changed before retrieval was recorded.");
+        }
         this.database
           .prepare(
             `UPDATE memory_items
              SET last_used_at = ?, use_count = use_count + 1
              WHERE id = ?`,
           )
-          .run(retrievedAt, row.memory_id);
+          .run(retrievedAt, memoryId);
         this.database
           .prepare(
             `INSERT INTO audit_events (
@@ -355,7 +404,7 @@ export class SqliteContinuityMemoryRepository
           )
           .run(
             randomUUID(),
-            row.memory_id,
+            memoryId,
             JSON.stringify({
               query: query.text,
               personaId: context.persona_id,
@@ -363,21 +412,19 @@ export class SqliteContinuityMemoryRepository
               memoryClasses,
               asOf,
               includeOutOfWindow,
+              ...(selection.contextComposition === undefined
+                ? {}
+                : {
+                    retrievalMode: "lexical",
+                    contextComposition: selection.contextComposition,
+                  }),
             }),
             retrievedAt,
           );
       }
-      return rows;
     });
-
-    return retrieve().map((row, index) => {
-      const personaMemory = this.requireProfile(row.memory_id);
-      return {
-        personaMemory,
-        rank: index + 1,
-        ...temporalState(personaMemory.memory, asOf),
-      };
-    });
+    recordRetrieval();
+    return selection.value;
   }
 
   public getEmbeddingSource(
@@ -818,6 +865,44 @@ export class SqliteContinuityMemoryRepository
       }
     });
     recordRetrieval();
+  }
+
+  private validateContextSelection(
+    ranked: readonly PersonaMemoryRetrievalResult[],
+    selected: readonly PersonaMemoryRetrievalResult[],
+  ): void {
+    const available = new Set(ranked);
+    const selectedMemoryIds = new Set<string>();
+    for (const result of selected) {
+      if (!available.has(result)) {
+        throw new Error("A context selection must use ranked result objects.");
+      }
+      const memoryId = result.personaMemory.memory.id;
+      if (selectedMemoryIds.has(memoryId)) {
+        throw new Error("A context selection may not contain duplicates.");
+      }
+      selectedMemoryIds.add(memoryId);
+    }
+  }
+
+  private validateContextCompositionAudit(
+    contextComposition: ContinuityContextRetrievalAudit | undefined,
+    resultCount: number,
+  ): void {
+    if (
+      contextComposition !== undefined &&
+      (contextComposition.formatVersion !== 1 ||
+        !Number.isSafeInteger(contextComposition.utf8Bytes) ||
+        contextComposition.utf8Bytes < 1 ||
+        !Number.isSafeInteger(contextComposition.itemCount) ||
+        contextComposition.itemCount !== resultCount ||
+        !Number.isSafeInteger(contextComposition.maxUtf8Bytes) ||
+        contextComposition.maxUtf8Bytes < contextComposition.utf8Bytes ||
+        !Number.isSafeInteger(contextComposition.maxItems) ||
+        contextComposition.maxItems < resultCount)
+    ) {
+      throw new Error("The context-composition retrieval audit is invalid.");
+    }
   }
 
   private requirePersonaContext(personaId: string): PersonaMemoryContextRow {

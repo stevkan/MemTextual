@@ -377,7 +377,14 @@ export {
 } from "./services/ingestion-service.js";
 export { ContinuityMemoryService } from "./services/continuity-memory-service.js";
 export { ContinuityEmbeddingService } from "./services/continuity-embedding-service.js";
-export { ContinuityContextService } from "./services/continuity-context-service.js";
+export {
+  ContinuityContextService,
+  ContinuityLexicalContextService,
+} from "./services/continuity-context-service.js";
+export type {
+  ContinuityContextRepository,
+  ContinuityContextRetrievalSelection,
+} from "./repositories/continuity-context-repository.js";
 export {
   ContinuityRankingService,
   ExplicitRankingConfigurationRequiredError,
@@ -442,6 +449,14 @@ export {
   StructuredAmbientMemoryExtractor,
   type StructuredAmbientExtractorOptions,
 } from "./providers/structured-ambient-extractor.js";
+export {
+  createContinuityConversationRuntime,
+  createWindowsCodexContinuityConversationRuntime,
+  type ContinuityConversationRuntime,
+  type ContinuityConversationRuntimeOptions,
+  type StructuredConversationHost,
+  type WindowsCodexContinuityConversationRuntimeOptions,
+} from "./runtime/continuity-conversation-runtime.js";
 export {
   createContinuityConsoleApplication,
   startContinuityConsole,

@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import test from "node:test";
 import {
   ContinuityContextService,
+  ContinuityLexicalContextService,
   ContinuityEmbeddingService,
   ContinuityMemoryService,
   PersonaService,
@@ -256,5 +257,80 @@ test("ordinary hybrid retrieval still records every returned result", async () =
     }
   } finally {
     setup.database.close();
+  }
+});
+
+test("lexical context needs no embedding provider and records only included memories", async () => {
+  const database = openMemTextualDatabase({
+    filename: ":memory:",
+    migrationsDirectory: resolve("migrations"),
+  });
+  try {
+    const memories = new SqliteMemoryRepository(database);
+    const repository = new SqliteContinuityMemoryRepository(database, memories);
+    const personas = new PersonaService(new SqlitePersonaRepository(database));
+    const continuity = new ContinuityMemoryService(repository);
+    const contexts = new ContinuityLexicalContextService(repository);
+    const user = personas.createUser({ displayName: "Steve" });
+    const persona = personas.createPersona({ userId: user.id, name: "Skylar" });
+    const created = [
+      continuity.create({
+        personaId: persona.persona.id,
+        memoryClass: "durable",
+        assertion: "The user prefers citrus tea.",
+        type: "preference",
+      }),
+      continuity.create({
+        personaId: persona.persona.id,
+        memoryClass: "episodic",
+        assertion: "The user discussed citrus recipes.",
+        type: "task_context",
+      }),
+    ];
+
+    const composition = await contexts.compose({
+      personaId: persona.persona.id,
+      text: "citrus",
+      contextLimits: { maxItems: 1, maxUtf8Bytes: 2_048 },
+    });
+
+    assert.equal(composition.payload.items.length, 1);
+    assert.equal(composition.omissionCounts.itemLimit, 1);
+    const selectedId = composition.payload.items[0]?.memoryId;
+    for (const memory of created) {
+      const usage = database
+        .prepare("SELECT use_count FROM memory_items WHERE id = ?")
+        .get(memory.memory.id) as { use_count: number };
+      assert.equal(usage.use_count, memory.memory.id === selectedId ? 1 : 0);
+    }
+    const detail = JSON.parse(
+      (
+        database
+          .prepare(
+            `SELECT detail_json FROM audit_events
+             WHERE memory_id = ? AND event_type = 'retrieved'`,
+          )
+          .get(selectedId) as { detail_json: string }
+      ).detail_json,
+    ) as Record<string, unknown>;
+    assert.equal(detail.retrievalMode, "lexical");
+    assert.deepEqual(detail.contextComposition, {
+      formatVersion: 1,
+      utf8Bytes: composition.utf8Bytes,
+      itemCount: 1,
+      maxUtf8Bytes: 2_048,
+      maxItems: 1,
+    });
+
+    await assert.rejects(
+      contexts.compose({
+        personaId: persona.persona.id,
+        text: "citrus",
+        candidateLimit: 20,
+      }),
+      /Lexical context does not accept hybrid/u,
+    );
+  } finally {
+    database.close();
   }
 });

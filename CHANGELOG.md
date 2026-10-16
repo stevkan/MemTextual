@@ -5,6 +5,19 @@ describe only the current design and behavior.
 
 ## Unreleased
 
+- Added trusted Continuity conversation runtime composition. A single
+  server-side boundary now wires the Codex conversation host and structured
+  ambient extractor to persona behavior, local lexical memory context,
+  authorized exact-turn capture, durable recovery journals, protected grant
+  resolution, and the grantless client facade. The Windows factory uses the
+  DPAPI grant store, runtime shutdown closes the owned host exactly once, and
+  the caller-owned database remains open. The browser console remains read-only
+  while its grantless authorization and live-turn endpoints are still pending.
+- Added bounded lexical context composition for the default SQLite FTS path, so
+  production conversations do not require a model, API key, network call, or
+  embedding provider for memory retrieval. Only memories included in the final
+  byte- and item-bounded payload receive use counters and context audit events;
+  hybrid-only options fail visibly instead of being ignored.
 - Added the initial concrete ambient extraction provider for Codex App Server.
   It uses an ephemeral thread, dedicated developer instructions, a strict
   per-turn JSON output schema, an explicit provenance-recorded model, bounded

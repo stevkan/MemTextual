@@ -152,15 +152,19 @@ discover additional turns.
 
 ## Current boundary
 
-This package provides library orchestration plus a read-only graphical
-conversation catalog; it is not yet the graphical conversational client. The
-console does not start, reopen, or send turns. The provider-neutral protected
-store, authorization lifecycle, initial Windows DPAPI adapter, and grantless
-client facade are implemented, but the production console runtime is not yet
-composed. The initial Codex App Server ambient extraction provider is also
-implemented, with unclassified proposals remaining sensitive and pending by
-default. Live chat remains disabled until these parts are wired into one
-production runtime and its configuration and failure states are exposed safely.
+The trusted server-side runtime composition is implemented. It wires the Codex
+conversation host and structured ambient extractor to lexical memory context,
+authorized turn capture, the durable conversation journal, protected grant
+resolution, persona behavior, and the grantless client facade. The Windows
+composition uses the DPAPI grant store through an injected PowerShell bridge.
+The runtime owns and closes its host, but never closes the caller-owned database.
+No embedding provider is required, and absent sensitivity classification still
+fails closed to sensitive, pending candidates.
+
+The graphical console remains a read-only conversation catalog; it does not yet
+start, reopen, or send turns. Live chat remains disabled until server-side
+authorization and conversation operations, configuration, and failure states
+are exposed through the local console without revealing bearer grants.
 Coordinated host-thread deletion controls also remain open.
 
 Codex App Server threads are persistent local records outside the MemTextual

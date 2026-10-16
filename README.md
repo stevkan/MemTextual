@@ -208,6 +208,9 @@ episodic and durable caps. Assertions are included verbatim or omitted whole,
 and only included memories receive use counters and retrieval audits. Consumers
 must keep remembered assertions in a data boundary rather than treating them as
 higher-authority instructions.
+`ContinuityLexicalContextService` provides the same bounded composition and
+selected-only audit behavior over the default local SQLite FTS path. It needs
+no embedding provider, API key, network request, or model configuration.
 `ContinuityControlService` exposes persona-bound candidate queues, resolved
 evidence, revision history, correction, pin/protect controls, lifecycle actions,
 and privacy operations. Every mutation requires an explicit user action, and
@@ -287,7 +290,7 @@ cloud provider.
 
 ## Deliberately deferred
 
-Concrete vendor extractor and host-event clients, vendor-specific legacy-export
+Additional vendor extractor and host-event clients, vendor-specific legacy-export
 adapters, graphical source-series privacy workflows, standalone-source deletion,
 additional cloud destination adapters, resumable imports, streamable HTTP,
 REST API, admin UI, concrete vendor embedding provider, concrete host capture

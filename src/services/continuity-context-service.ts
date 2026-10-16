@@ -12,8 +12,11 @@ import {
   type ContinuityContextPayload,
   type ContinuityContextQuery,
 } from "../domain/continuity-context.js";
-import type { PersonaMemoryHybridRetrievalResult } from "../domain/continuity-embedding.js";
-import type { PersonaMemoryClass } from "../domain/continuity-memory.js";
+import type {
+  PersonaMemoryClass,
+  PersonaMemoryRetrievalResult,
+} from "../domain/continuity-memory.js";
+import type { ContinuityContextRepository } from "../repositories/continuity-context-repository.js";
 import { ContinuityEmbeddingService } from "./continuity-embedding-service.js";
 
 function boundedInteger(
@@ -74,7 +77,7 @@ function createPayload(
 }
 
 function toContextItem(
-  result: PersonaMemoryHybridRetrievalResult,
+  result: PersonaMemoryRetrievalResult,
 ): ContinuityContextItem {
   const { personaMemory } = result;
   return {
@@ -90,23 +93,23 @@ function toContextItem(
   };
 }
 
-interface ContextSelection {
+interface ContextSelection<T extends PersonaMemoryRetrievalResult> {
   composition: ContinuityContextComposition;
-  results: PersonaMemoryHybridRetrievalResult[];
+  results: T[];
 }
 
-function composeSelection(
+function composeSelection<T extends PersonaMemoryRetrievalResult>(
   personaId: string,
-  ranked: readonly PersonaMemoryHybridRetrievalResult[],
+  ranked: readonly T[],
   limits: Required<ContinuityContextLimits>,
-): ContextSelection {
+): ContextSelection<T> {
   const emptyJson = JSON.stringify(createPayload(personaId, []));
   if (Buffer.byteLength(emptyJson, "utf8") > limits.maxUtf8Bytes) {
     throw new Error("maxUtf8Bytes is too small for the Continuity context envelope.");
   }
 
   const items: ContinuityContextItem[] = [];
-  const selected: PersonaMemoryHybridRetrievalResult[] = [];
+  const selected: T[] = [];
   const classCounts: Record<PersonaMemoryClass, number> = {
     episodic: 0,
     durable: 0,
@@ -178,6 +181,48 @@ export class ContinuityContextService {
     composeSelection(query.personaId, [], limits);
     const { contextLimits: _contextLimits, ...retrievalQuery } = query;
     return this.embeddings.retrieveSelection(retrievalQuery, (ranked) => {
+      const selection = composeSelection(query.personaId, ranked, limits);
+      return {
+        results: selection.results,
+        value: selection.composition,
+        contextComposition: {
+          formatVersion: continuityContextFormatVersion,
+          utf8Bytes: selection.composition.utf8Bytes,
+          itemCount: selection.composition.payload.items.length,
+          maxUtf8Bytes: limits.maxUtf8Bytes,
+          maxItems: limits.maxItems,
+        },
+      };
+    });
+  }
+}
+
+/**
+ * Default local context composition. It uses SQLite FTS retrieval and does not
+ * require a model, API key, network call, or embedding configuration.
+ */
+export class ContinuityLexicalContextService {
+  public constructor(
+    private readonly repository: ContinuityContextRepository,
+  ) {}
+
+  public async compose(
+    query: ContinuityContextQuery,
+  ): Promise<ContinuityContextComposition> {
+    if (query.candidateLimit !== undefined || query.emotionalContext !== undefined) {
+      throw new Error(
+        "Lexical context does not accept hybrid candidate or emotional-ranking options.",
+      );
+    }
+    const limits = normalizeLimits(query.contextLimits);
+    composeSelection(query.personaId, [], limits);
+    const {
+      contextLimits: _contextLimits,
+      candidateLimit: _candidateLimit,
+      emotionalContext: _emotionalContext,
+      ...retrievalQuery
+    } = query;
+    return this.repository.retrieveContextSelection(retrievalQuery, (ranked) => {
       const selection = composeSelection(query.personaId, ranked, limits);
       return {
         results: selection.results,

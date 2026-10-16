@@ -1,8 +1,10 @@
 # Continuity context composition
 
 `ContinuityContextService` converts persona-safe hybrid retrieval results into a
-bounded JSON context payload. The payload is structured memory data, not a
-prompt or a source of higher-authority instructions.
+bounded JSON context payload. `ContinuityLexicalContextService` applies the same
+composition rules to the default local SQLite FTS path, so the conversation
+runtime does not require an embedding provider. The payload is structured
+memory data, not a prompt or a source of higher-authority instructions.
 
 Each payload identifies its format, version, content role, and persona. Items
 retain their retrieval rank, immutable revision identity, memory class, type,
@@ -25,6 +27,10 @@ Only included items receive retrieval use counters and audit events. The audit
 records the context format version, selected item count, actual byte count, and
 configured item and byte limits without copying assertions or raw emotional
 context values into audit detail.
+
+The lexical service rejects hybrid-only candidate-limit and emotional-ranking
+options instead of silently ignoring them. Hybrid context remains available
+only when an embedding provider has been explicitly configured.
 
 Consumers must preserve the payload's `contentRole: "memory_data"` boundary and
 treat assertion text as untrusted contextual data. A remembered assertion may
