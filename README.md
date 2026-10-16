@@ -312,9 +312,13 @@ Additional vendor extractor and host-event clients, vendor-specific legacy-expor
 adapters, graphical source-series privacy workflows, standalone-source deletion,
 additional cloud destination adapters, resumable imports, streamable HTTP,
 REST API, admin UI, concrete vendor embedding provider, concrete host capture
-integrations, completed MSI host actions and production signing, additional secure
-credential-store providers, final proprietary legal terms, and public-release
-validation remain open.
+integrations, disposable MSI lifecycle testing and production signing,
+additional secure credential-store providers, a combined Developer/Continuity
+launcher, final proprietary legal terms, and public-release validation remain
+open. The combined launcher is considered only after both editions are
+independently functional, complete, packaged, and lifecycle-validated. It may
+offer Developer, Continuity, or both, but must preserve their separate
+components, privileges, configuration, privacy expectations, and update paths.
 
 Ordinary ChatGPT passive capture is not on this deferred roadmap. OpenAI's
 official ChatGPT clients currently provide no supported outbound completed-turn

@@ -139,6 +139,17 @@ terms, patent position, trademark rights, or third-party notices. Those release
 inputs must be explicitly established before public distribution. The complete
 policy and release gates are recorded in `docs/proprietary-distribution.md`.
 
+## Deferred combined launcher
+
+A combined launcher or bootstrapper may eventually let a user choose
+MemTextual Developer, MemTextual Continuity, or both. This is explicitly
+deferred until both editions are independently functional, complete, packaged,
+and validated through installation, upgrade, rollback, and removal. The
+launcher would be a convenience layer over separate edition components; it must
+not merge their privilege requirements, configuration, privacy expectations,
+or update and removal boundaries. It is not a prerequisite for either edition's
+initial release.
+
 Phase 1 memory correctness is complete. Phase 2 includes additive user,
 persona, and relationship identities, an enforced namespace-scope hierarchy,
 explicit episodic-versus-durable memory classification, and a persona-aware
