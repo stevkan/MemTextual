@@ -63,6 +63,16 @@ export interface CompletedConversationTurn {
   status: "completed";
 }
 
+export interface HistoricalCompletedConversationTurn
+  extends CompletedConversationTurn {
+  completedAt: string;
+  memoryContext: {
+    personaId: string;
+    formatVersion: number;
+    memoryRevisionIds: string[];
+  };
+}
+
 /**
  * Provider-neutral boundary for a client-owned conversation. Host identifiers
  * are opaque and must not be interpreted by Continuity services.
@@ -72,5 +82,8 @@ export interface ConversationHost {
   startConversation(input?: StartConversationInput): Promise<ConversationSession>;
   resumeConversation(conversationId: string): Promise<ConversationSession>;
   sendTurn(input: SendConversationTurnInput): Promise<CompletedConversationTurn>;
+  listCompletedTurns(
+    conversationId: string,
+  ): Promise<HistoricalCompletedConversationTurn[]>;
   close(): Promise<void>;
 }

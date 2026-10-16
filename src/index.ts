@@ -30,6 +30,7 @@ export {
   type ConversationHostIdentity,
   type ConversationSession,
   type ConversationTurnStatus,
+  type HistoricalCompletedConversationTurn,
   type SendConversationTurnInput,
   type StartConversationInput,
 } from "./domain/conversation-host.js";
@@ -39,12 +40,15 @@ export {
   type ContinuityConversation,
   type ContinuityConversationCaptureRetryResult,
   type ContinuityConversationCaptureStatus,
+  type ContinuityConversationReconciliationResult,
   type ContinuityConversationTurnCapture,
   type ContinuityConversationTurnPayload,
   type ContinuityConversationTurnResult,
   type CreateContinuityConversationRecordInput,
   type CreateContinuityConversationTurnCaptureInput,
   type ResumeContinuityConversationInput,
+  type ReconcileContinuityConversationInput,
+  type RecoveredContinuityConversationTurn,
   type RetryContinuityConversationCaptureInput,
   type SendContinuityConversationTurnInput,
   type StartContinuityConversationInput,
@@ -371,6 +375,7 @@ export {
 } from "./services/host-event-service.js";
 export {
   ContinuityConversationCaptureError,
+  ContinuityConversationReconciliationCaptureError,
   ContinuityConversationService,
   type ContinuityConversationContextProvider,
   type ContinuityConversationServiceOptions,

@@ -14,6 +14,10 @@ export interface ContinuityConversationRepository {
     input: CreateContinuityConversationTurnCaptureInput,
   ): ContinuityConversationTurnCapture;
   getTurnCapture(id: string): ContinuityConversationTurnCapture | null;
+  getTurnCaptureByTurn(
+    conversationId: string,
+    externalTurnId: string,
+  ): ContinuityConversationTurnCapture | null;
   listRecoverableTurnCaptures(
     personaId: string,
   ): ContinuityConversationTurnCapture[];

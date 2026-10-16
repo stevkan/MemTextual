@@ -3,14 +3,19 @@ import type {
   ContinuityContextComposition,
   ContinuityContextQuery,
 } from "../domain/continuity-context.js";
-import type { ConversationHost } from "../domain/conversation-host.js";
+import type {
+  ConversationHost,
+  HistoricalCompletedConversationTurn,
+} from "../domain/conversation-host.js";
 import {
   continuityConversationTurnEventKind,
   type ContinuityConversation,
   type ContinuityConversationCaptureRetryResult,
+  type ContinuityConversationReconciliationResult,
   type ContinuityConversationTurnCapture,
   type ContinuityConversationTurnPayload,
   type ContinuityConversationTurnResult,
+  type ReconcileContinuityConversationInput,
   type ResumeContinuityConversationInput,
   type RetryContinuityConversationCaptureInput,
   type SendContinuityConversationTurnInput,
@@ -39,6 +44,19 @@ export class ContinuityConversationCaptureError extends Error {
   ) {
     super(message, options);
     this.name = "ContinuityConversationCaptureError";
+  }
+}
+
+export class ContinuityConversationReconciliationCaptureError extends Error {
+  public constructor(
+    message: string,
+    public readonly conversation: ContinuityConversation,
+    public readonly turn: HistoricalCompletedConversationTurn,
+    public readonly captureRecord: ContinuityConversationTurnCapture,
+    options?: ErrorOptions,
+  ) {
+    super(message, options);
+    this.name = "ContinuityConversationReconciliationCaptureError";
   }
 }
 
@@ -206,6 +224,84 @@ export class ContinuityConversationService {
     }
   }
 
+  public async reconcileConversationHistory(
+    input: ReconcileContinuityConversationInput,
+  ): Promise<ContinuityConversationReconciliationResult> {
+    const conversation = this.requireConversation(
+      input.conversationId,
+      input.personaId,
+    );
+    this.assertConversationAuthorized(conversation, input.grant);
+    const hostTurns = await this.host.listCompletedTurns(
+      conversation.externalConversationId,
+    );
+    const seenTurnIds = new Set<string>();
+    const pendingRecovery: HistoricalCompletedConversationTurn[] = [];
+    let existingCaptureCount = 0;
+
+    for (const turn of hostTurns) {
+      validateHistoricalTurn(turn, conversation);
+      if (seenTurnIds.has(turn.turnId)) {
+        throw new Error("Conversation history repeated a completed turn.");
+      }
+      seenTurnIds.add(turn.turnId);
+      const existing = this.repository.getTurnCaptureByTurn(
+        conversation.id,
+        turn.turnId,
+      );
+      if (existing === null) {
+        pendingRecovery.push(turn);
+      } else {
+        requireMatchingHistoricalCapture(existing, turn, conversation);
+        existingCaptureCount += 1;
+      }
+    }
+
+    const recovered: ContinuityConversationReconciliationResult["recovered"] = [];
+    for (const turn of pendingRecovery) {
+      const captureRecord = this.repository.createTurnCapture({
+        id: randomUUID(),
+        conversationId: conversation.id,
+        externalTurnId: turn.turnId,
+        externalEventId: eventId(conversation, turn.turnId),
+        userText: turn.userText,
+        assistantText: turn.assistantText,
+        completedAt: turn.completedAt,
+        contextFormatVersion: turn.memoryContext.formatVersion,
+        memoryRevisionIds: turn.memoryContext.memoryRevisionIds,
+      });
+      try {
+        const captured = await this.captureTurn(
+          conversation,
+          captureRecord,
+          input.grant,
+        );
+        const stored = this.repository.markTurnCaptureCaptured(
+          captureRecord.id,
+          this.#now().toISOString(),
+          captured.receipt.id,
+        );
+        recovered.push({ turn, capture: captured, captureRecord: stored });
+      } catch (error) {
+        const failed = this.markCaptureFailed(captureRecord);
+        throw new ContinuityConversationReconciliationCaptureError(
+          "A historical host turn was journaled, but ambient capture failed.",
+          conversation,
+          turn,
+          failed,
+          { cause: error },
+        );
+      }
+    }
+
+    return {
+      conversation,
+      hostTurnCount: hostTurns.length,
+      existingCaptureCount,
+      recovered,
+    };
+  }
+
   private async captureTurn(
     conversation: ContinuityConversation,
     record: ContinuityConversationTurnCapture,
@@ -326,6 +422,69 @@ function eventId(conversation: ContinuityConversation, turnId: string): string {
     )
     .digest("hex");
   return `conversation-turn:${digest}`;
+}
+
+function validateHistoricalTurn(
+  turn: HistoricalCompletedConversationTurn,
+  conversation: ContinuityConversation,
+): void {
+  if (
+    turn.conversationId !== conversation.externalConversationId ||
+    turn.status !== "completed" ||
+    turn.memoryContext.personaId !== conversation.personaId
+  ) {
+    throw new Error(
+      "Conversation history crossed its conversation, completion, or persona boundary.",
+    );
+  }
+  requiredText(turn.turnId, "historical turnId");
+  requiredText(turn.userText, "historical userText");
+  if (typeof turn.assistantText !== "string") {
+    throw new Error("historical assistantText must be a string.");
+  }
+  if (
+    !Number.isSafeInteger(turn.memoryContext.formatVersion) ||
+    turn.memoryContext.formatVersion < 1
+  ) {
+    throw new Error("Historical memory context format is invalid.");
+  }
+  if (
+    !Array.isArray(turn.memoryContext.memoryRevisionIds) ||
+    turn.memoryContext.memoryRevisionIds.some(
+      (revisionId) =>
+        typeof revisionId !== "string" || revisionId.trim().length === 0,
+    ) ||
+    new Set(turn.memoryContext.memoryRevisionIds).size !==
+      turn.memoryContext.memoryRevisionIds.length
+  ) {
+    throw new Error("Historical memory revision identifiers are invalid.");
+  }
+  const parsedCompletedAt = new Date(turn.completedAt);
+  if (
+    Number.isNaN(parsedCompletedAt.getTime()) ||
+    parsedCompletedAt.toISOString() !== turn.completedAt
+  ) {
+    throw new Error("Historical completion timestamp is invalid.");
+  }
+}
+
+function requireMatchingHistoricalCapture(
+  capture: ContinuityConversationTurnCapture,
+  turn: HistoricalCompletedConversationTurn,
+  conversation: ContinuityConversation,
+): void {
+  if (
+    capture.externalEventId !== eventId(conversation, turn.turnId) ||
+    capture.userText !== turn.userText ||
+    capture.assistantText !== turn.assistantText ||
+    capture.contextFormatVersion !== turn.memoryContext.formatVersion ||
+    JSON.stringify(capture.memoryRevisionIds) !==
+      JSON.stringify(turn.memoryContext.memoryRevisionIds)
+  ) {
+    throw new Error(
+      `Stored capture does not match host history for turn: ${turn.turnId}`,
+    );
+  }
 }
 
 function requiredText(value: string, label: string): string {

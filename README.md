@@ -48,6 +48,8 @@ The system provides:
 - immutable persona-to-host conversation bindings and authorized completed-turn
   orchestration into the ambient-memory pipeline;
 - a durable completed-turn capture journal with persona-bound, idempotent retry;
+- fail-closed host-history reconciliation for completed turns missing from that
+  journal;
 - an explicit, persona-scoped user-control service for review and lifecycle actions;
 - a local, persona-bound Continuity control console for explicit memory creation,
   review, and inspection;

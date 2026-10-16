@@ -249,7 +249,7 @@ export class SqliteContinuityConversationRepository
     return this.requireTurnCapture(id);
   }
 
-  private getTurnCaptureByTurn(
+  public getTurnCaptureByTurn(
     conversationId: string,
     externalTurnId: string,
   ): ContinuityConversationTurnCapture | null {

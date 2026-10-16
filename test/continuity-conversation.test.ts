@@ -5,6 +5,7 @@ import {
   AmbientMemoryService,
   AuthorizedHostEventCaptureService,
   ContinuityConversationCaptureError,
+  ContinuityConversationReconciliationCaptureError,
   ContinuityConversationService,
   ContinuityConversationTurnAdapter,
   HostAuthorizationService,
@@ -25,6 +26,7 @@ import {
   type ContinuityContextQuery,
   type ConversationHost,
   type ConversationSession,
+  type HistoricalCompletedConversationTurn,
   type SendConversationTurnInput,
   type StartConversationInput,
 } from "../src/index.js";
@@ -37,6 +39,8 @@ class FakeConversationHost implements ConversationHost {
   readonly started: StartConversationInput[] = [];
   readonly resumed: string[] = [];
   readonly sent: SendConversationTurnInput[] = [];
+  readonly history: HistoricalCompletedConversationTurn[] = [];
+  readonly historyRequests: string[] = [];
   nextConversation = 1;
   nextTurn = 1;
 
@@ -54,13 +58,37 @@ class FakeConversationHost implements ConversationHost {
 
   async sendTurn(input: SendConversationTurnInput): Promise<CompletedConversationTurn> {
     this.sent.push(input);
-    return {
+    const turn: CompletedConversationTurn = {
       conversationId: input.conversationId,
       turnId: `host-turn-${this.nextTurn++}`,
       userText: input.text,
       assistantText: "I will keep that in mind.",
       status: "completed",
     };
+    if (input.memoryContext !== undefined) {
+      const context = JSON.parse(input.memoryContext.contextJson) as {
+        personaId: string;
+        formatVersion: number;
+        items: Array<{ revisionId: string }>;
+      };
+      this.history.push({
+        ...turn,
+        completedAt: "2026-10-15T12:00:00.000Z",
+        memoryContext: {
+          personaId: context.personaId,
+          formatVersion: context.formatVersion,
+          memoryRevisionIds: context.items.map(({ revisionId }) => revisionId),
+        },
+      });
+    }
+    return turn;
+  }
+
+  async listCompletedTurns(
+    conversationId: string,
+  ): Promise<HistoricalCompletedConversationTurn[]> {
+    this.historyRequests.push(conversationId);
+    return this.history.filter((turn) => turn.conversationId === conversationId);
   }
 
   async close(): Promise<void> {}
@@ -541,6 +569,263 @@ test("database constraints preserve capture payloads and reject mismatched recei
             failedCaptureId,
           ),
       /receipt does not match/u,
+    );
+  } finally {
+    setup.database.close();
+  }
+});
+
+test("reconciles a missing host turn without generating another response", async () => {
+  const setup = fixture();
+  try {
+    const conversation = await setup.conversations.startConversation({
+      personaId: setup.skylar.persona.id,
+      authorizationId: setup.authorization.authorization.id,
+      grant: setup.authorization.grant,
+    });
+    setup.host.history.push({
+      conversationId: conversation.externalConversationId,
+      turnId: "host-turn-lost-before-journal",
+      userText: "Remember the recovered turn.",
+      assistantText: "Recovered response.",
+      status: "completed",
+      completedAt: "2026-10-15T11:59:00.000Z",
+      memoryContext: {
+        personaId: setup.skylar.persona.id,
+        formatVersion: continuityContextFormatVersion,
+        memoryRevisionIds: [],
+      },
+    });
+
+    const result = await setup.conversations.reconcileConversationHistory({
+      conversationId: conversation.id,
+      personaId: setup.skylar.persona.id,
+      grant: setup.authorization.grant,
+    });
+    assert.equal(result.hostTurnCount, 1);
+    assert.equal(result.existingCaptureCount, 0);
+    assert.equal(result.recovered.length, 1);
+    assert.equal(result.recovered[0]?.captureRecord.status, "captured");
+    assert.equal(
+      result.recovered[0]?.captureRecord.completedAt,
+      "2026-10-15T11:59:00.000Z",
+    );
+    assert.equal(setup.host.sent.length, 0);
+    assert.equal(setup.ingestion.listCandidates().length, 1);
+    const source = setup.ingestion.listSources()[0];
+    assert.ok(source);
+    assert.deepEqual(
+      setup.ingestion.getSourceRecords(source.id).map(({ authorRole, content }) => ({
+        authorRole,
+        content,
+      })),
+      [
+        { authorRole: "user", content: "Remember the recovered turn." },
+        { authorRole: "assistant", content: "Recovered response." },
+      ],
+    );
+
+    const replay = await setup.conversations.reconcileConversationHistory({
+      conversationId: conversation.id,
+      personaId: setup.skylar.persona.id,
+      grant: setup.authorization.grant,
+    });
+    assert.equal(replay.existingCaptureCount, 1);
+    assert.deepEqual(replay.recovered, []);
+    assert.equal(setup.ingestion.listCandidates().length, 1);
+  } finally {
+    setup.database.close();
+  }
+});
+
+test("reconciliation preflights persona and revocation before reading host history", async () => {
+  const setup = fixture();
+  try {
+    const conversation = await setup.conversations.startConversation({
+      personaId: setup.skylar.persona.id,
+      authorizationId: setup.authorization.authorization.id,
+      grant: setup.authorization.grant,
+    });
+    await assert.rejects(
+      setup.conversations.reconcileConversationHistory({
+        conversationId: conversation.id,
+        personaId: setup.advisor.persona.id,
+        grant: setup.authorization.grant,
+      }),
+      /conversation not found/u,
+    );
+    setup.authorizations.revoke(setup.authorization.authorization.id, {
+      actor: "user",
+      explicitUserAction: true,
+    });
+    await assert.rejects(
+      setup.conversations.reconcileConversationHistory({
+        conversationId: conversation.id,
+        personaId: setup.skylar.persona.id,
+        grant: setup.authorization.grant,
+      }),
+      /authorization was rejected/u,
+    );
+    assert.deepEqual(setup.host.historyRequests, []);
+  } finally {
+    setup.database.close();
+  }
+});
+
+test("reconciliation validates all host history before creating recovery records", async () => {
+  const setup = fixture();
+  try {
+    const conversation = await setup.conversations.startConversation({
+      personaId: setup.skylar.persona.id,
+      authorizationId: setup.authorization.authorization.id,
+      grant: setup.authorization.grant,
+    });
+    setup.host.history.push(
+      {
+        conversationId: conversation.externalConversationId,
+        turnId: "valid-missing-turn",
+        userText: "Valid but must not be partially recovered.",
+        assistantText: "Valid response.",
+        status: "completed",
+        completedAt: "2026-10-15T11:58:00.000Z",
+        memoryContext: {
+          personaId: setup.skylar.persona.id,
+          formatVersion: continuityContextFormatVersion,
+          memoryRevisionIds: [],
+        },
+      },
+      {
+        conversationId: conversation.externalConversationId,
+        turnId: "cross-persona-turn",
+        userText: "Invalid persona context.",
+        assistantText: "Invalid response.",
+        status: "completed",
+        completedAt: "2026-10-15T11:59:00.000Z",
+        memoryContext: {
+          personaId: setup.advisor.persona.id,
+          formatVersion: continuityContextFormatVersion,
+          memoryRevisionIds: [],
+        },
+      },
+    );
+    await assert.rejects(
+      setup.conversations.reconcileConversationHistory({
+        conversationId: conversation.id,
+        personaId: setup.skylar.persona.id,
+        grant: setup.authorization.grant,
+      }),
+      /persona boundary/u,
+    );
+    assert.equal(
+      (
+        setup.database
+          .prepare(
+            "SELECT count(*) AS count FROM continuity_conversation_turn_captures",
+          )
+          .get() as { count: number }
+      ).count,
+      0,
+    );
+  } finally {
+    setup.database.close();
+  }
+});
+
+test("reconciliation journals extraction failures for explicit retry", async () => {
+  const setup = fixture({ failExtraction: true });
+  try {
+    const conversation = await setup.conversations.startConversation({
+      personaId: setup.skylar.persona.id,
+      authorizationId: setup.authorization.authorization.id,
+      grant: setup.authorization.grant,
+    });
+    setup.host.history.push({
+      conversationId: conversation.externalConversationId,
+      turnId: "historical-extraction-failure",
+      userText: "Recover me later.",
+      assistantText: "Durable historical response.",
+      status: "completed",
+      completedAt: "2026-10-15T11:57:00.000Z",
+      memoryContext: {
+        personaId: setup.skylar.persona.id,
+        formatVersion: continuityContextFormatVersion,
+        memoryRevisionIds: [],
+      },
+    });
+    await assert.rejects(
+      setup.conversations.reconcileConversationHistory({
+        conversationId: conversation.id,
+        personaId: setup.skylar.persona.id,
+        grant: setup.authorization.grant,
+      }),
+      (error: unknown) => {
+        assert.ok(
+          error instanceof ContinuityConversationReconciliationCaptureError,
+        );
+        assert.equal(error.captureRecord.status, "failed");
+        assert.equal(error.captureRecord.failureCode, "ambient_capture_failed");
+        return true;
+      },
+    );
+    const recoverable = setup.conversations.listRecoverableCaptures(
+      setup.skylar.persona.id,
+    );
+    assert.equal(recoverable.length, 1);
+    assert.equal(recoverable[0]?.externalTurnId, "historical-extraction-failure");
+    assert.equal(setup.host.sent.length, 0);
+  } finally {
+    setup.database.close();
+  }
+});
+
+test("reconciliation rejects host disagreement before recovering other turns", async () => {
+  const setup = fixture();
+  try {
+    const conversation = await setup.conversations.startConversation({
+      personaId: setup.skylar.persona.id,
+      authorizationId: setup.authorization.authorization.id,
+      grant: setup.authorization.grant,
+    });
+    await setup.conversations.sendTurn({
+      conversationId: conversation.id,
+      personaId: setup.skylar.persona.id,
+      grant: setup.authorization.grant,
+      text: "Journaled turn.",
+    });
+    const existingHistory = setup.host.history[0];
+    assert.ok(existingHistory);
+    existingHistory.assistantText = "Host history was changed.";
+    setup.host.history.unshift({
+      conversationId: conversation.externalConversationId,
+      turnId: "missing-before-mismatch",
+      userText: "This must remain untouched.",
+      assistantText: "Not recovered after mismatch.",
+      status: "completed",
+      completedAt: "2026-10-15T11:59:00.000Z",
+      memoryContext: {
+        personaId: setup.skylar.persona.id,
+        formatVersion: continuityContextFormatVersion,
+        memoryRevisionIds: [],
+      },
+    });
+
+    await assert.rejects(
+      setup.conversations.reconcileConversationHistory({
+        conversationId: conversation.id,
+        personaId: setup.skylar.persona.id,
+        grant: setup.authorization.grant,
+      }),
+      /does not match host history/u,
+    );
+    assert.equal(
+      (
+        setup.database
+          .prepare(
+            "SELECT count(*) AS count FROM continuity_conversation_turn_captures",
+          )
+          .get() as { count: number }
+      ).count,
+      1,
     );
   } finally {
     setup.database.close();

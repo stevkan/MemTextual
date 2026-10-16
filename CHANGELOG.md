@@ -5,12 +5,18 @@ describe only the current design and behavior.
 
 ## Unreleased
 
+- Added fail-closed host-history reconciliation. The provider-neutral host
+  contract can list exact completed turns, and the Codex adapter pages
+  oldest-first full history through `thread/turns/list`. Persona-bound
+  reconciliation validates the complete history before mutation, rejects
+  ambiguous or mismatched turns, journals missing turns, and captures them
+  idempotently without another model response.
 - Added durable completed-turn capture recovery. Schema 18 journals exact
   completed dialogue before ambient extraction, records visible generic failure
   state without grants or raw exceptions, and links successful attempts to a
   matching immutable host-event receipt. Persona-bound listing and authorized,
   idempotent retry reuse the original event without generating another model
-  response. Host-history reconciliation remains separate work.
+  response.
 - Added persona-bound Continuity conversation orchestration. Immutable schema-17
   bindings connect one host conversation to one persona relationship and
   explicit capture authorization; each turn preflights authorization, composes

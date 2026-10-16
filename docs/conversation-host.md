@@ -13,7 +13,9 @@ A conversation host can:
 - start a conversation and return an opaque host-assigned identifier;
 - resume a known conversation;
 - submit one text turn and stream typed lifecycle events;
-- return the authoritative completed assistant text; and
+- return the authoritative completed assistant text;
+- list exact completed-turn history with completion time and memory-context
+  identifiers; and
 - close its local resources.
 
 Only one turn may be active for a conversation at a time. Host conversation and
@@ -30,6 +32,7 @@ required `initialize`/`initialized` handshake, then maps:
 - conversation creation to `thread/start`;
 - conversation resumption to `thread/resume`;
 - turn submission to `turn/start`;
+- paginated completed-turn history to `thread/turns/list` with full items;
 - streamed assistant text to `item/agentMessage/delta`; and
 - authoritative assistant text and completion to `item/completed` and
   `turn/completed`.
@@ -60,6 +63,15 @@ operation starts and initializes a fresh process; the caller must explicitly
 resume its known conversation before continuing it. Closing the adapter is
 terminal.
 
+History reads use the stable paginated API documented by
+[OpenAI's Codex App Server guide](https://learn.chatgpt.com/docs/app-server),
+not deprecated full-history resume responses. The adapter requests oldest-first
+full items and reconstructs only completed turns containing exactly one
+recognizable MemTextual memory envelope, one text user message, an authoritative
+assistant response, and a recorded completion timestamp. Missing or ambiguous
+content, unknown phases, duplicate turns, changed ordering, repeated cursors,
+and unsupported input types fail the complete read before reconciliation.
+
 Codex App Server is currently documented by OpenAI as experimental. Its
 protocol-specific behavior is isolated in this adapter, and the automated tests
 use a fake JSONL process to cover the handshake, thread creation and resumption,
@@ -72,8 +84,9 @@ The persona-bound orchestration layer now persists immutable conversation
 bindings, composes bounded context, and routes successful turns into authorized
 ambient capture. It remains a library rather than the Continuity conversational
 client: chat presentation, persona-behavior prompting, conversation controls,
-and host-history reconciliation are not yet implemented. Completed turns are
-now journaled before extraction, and failed capture can be listed and retried
+and coordinated deletion are not yet implemented. Completed turns are
+journaled before extraction, failed capture can be listed and retried, and
+missing journal entries can be reconstructed from authoritative host history
 without asking the host to generate the response again.
 
 OpenAI Responses API hosting, bring-your-own-key configuration,

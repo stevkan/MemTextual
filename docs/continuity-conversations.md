@@ -29,7 +29,7 @@ For each turn, the service:
    and exact UTF-8 accounting;
 4. resumes the opaque host conversation and submits the context plus the exact
    user text;
-5. waits for authoritative successful host completion; and
+5. waits for authoritative successful host completion;
 6. writes the exact completed turn to the durable capture journal; and
 7. captures the exact user and assistant messages through
    `AuthorizedHostEventCaptureService`, then links its immutable receipt to the
@@ -70,15 +70,34 @@ therefore included in database snapshots and encrypted replication. Deletion
 and retention controls must account for both this journal and the separately
 stored host thread.
 
+## Host-history reconciliation
+
+`reconcileConversationHistory` closes the process-loss gap between host
+completion and journal insertion. It preflights the conversation's active
+persona-bound authorization before reading history. The host must return exact
+completed turns with recorded completion timestamps and the original
+MemTextual context identifiers.
+
+The service validates the entire returned history before writing anything. It
+rejects duplicate turn IDs, cross-conversation or cross-persona content,
+invalid context metadata, and any disagreement between an existing journal
+entry and host history. Missing turns are journaled oldest first and passed
+through the same authorized ambient-capture path. Existing turns are not
+recaptured. A later reconciliation is idempotent and never starts a model turn.
+If extraction fails, the new journal entry becomes `failed`, the operation
+throws `ContinuityConversationReconciliationCaptureError`, and ordinary
+`retryCapture` remains available.
+
+The future client must invoke reconciliation when reopening a bound
+conversation and surface failures before accepting another user turn. The
+library provides the operation but does not silently choose a client schedule.
+
 ## Current boundary
 
 This package provides library orchestration, not the graphical conversational
 client. It does not yet provide chat presentation, persona-behavior prompting,
-conversation lists or deletion controls, or recovery reconciliation against
-host history. There remains a narrow process
-loss window after the host reports completion but before the journal insert;
-host-history reconciliation is the separate work needed to close it. The
-remaining client and reliability layers stay explicit work.
+conversation lists, or coordinated deletion controls. Client wiring for when
+to run and display reconciliation also remains integration work.
 
 Codex App Server threads are persistent local records outside the MemTextual
 database. They contain the submitted user text, memory-context item, and model

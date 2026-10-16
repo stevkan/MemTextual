@@ -1,5 +1,9 @@
 import type { ContinuityContextComposition, ContinuityContextQuery } from "./continuity-context.js";
-import type { CompletedConversationTurn, ConversationHostEvent } from "./conversation-host.js";
+import type {
+  CompletedConversationTurn,
+  ConversationHostEvent,
+  HistoricalCompletedConversationTurn,
+} from "./conversation-host.js";
 import type { HostEventCaptureResult } from "./host-event.js";
 
 export const continuityConversationTurnEventKind =
@@ -88,6 +92,12 @@ export interface RetryContinuityConversationCaptureInput {
   grant: string;
 }
 
+export interface ReconcileContinuityConversationInput {
+  conversationId: string;
+  personaId: string;
+  grant: string;
+}
+
 export interface ContinuityConversationTurnPayload {
   conversationId: string;
   externalConversationId: string;
@@ -112,4 +122,17 @@ export interface ContinuityConversationCaptureRetryResult {
   conversation: ContinuityConversation;
   capture: HostEventCaptureResult;
   captureRecord: ContinuityConversationTurnCapture;
+}
+
+export interface RecoveredContinuityConversationTurn {
+  turn: HistoricalCompletedConversationTurn;
+  capture: HostEventCaptureResult;
+  captureRecord: ContinuityConversationTurnCapture;
+}
+
+export interface ContinuityConversationReconciliationResult {
+  conversation: ContinuityConversation;
+  hostTurnCount: number;
+  existingCaptureCount: number;
+  recovered: RecoveredContinuityConversationTurn[];
 }
