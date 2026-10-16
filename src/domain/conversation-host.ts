@@ -48,6 +48,10 @@ export type ConversationHostEvent =
 export interface SendConversationTurnInput {
   conversationId: string;
   text: string;
+  memoryContext?: {
+    contentRole: "memory_data";
+    contextJson: string;
+  };
   onEvent?: (event: ConversationHostEvent) => void;
 }
 

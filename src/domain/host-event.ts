@@ -61,6 +61,13 @@ export interface CaptureAuthorizedHostEventInput<Payload = unknown> {
   event: HostEventEnvelope<Payload>;
 }
 
+export interface AssertHostCaptureAuthorizedInput {
+  authorizationId: string;
+  grant: string;
+  personaId: string;
+  eventKind: string;
+}
+
 export interface HostEventReceipt {
   id: string;
   authorizationId: string;

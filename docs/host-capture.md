@@ -5,11 +5,11 @@ chat client, persona host, or other application may deliver an event to
 Continuity. It does not listen to applications itself and it is not exposed
 through the current MCP server.
 
-The planned Continuity conversational client can use this boundary because it
-owns the dialogue conducted through that client. The initial concrete
-`ConversationHost` target is Codex App Server. By contrast, OpenAI's official
-ChatGPT clients currently expose no supported outbound conversation-turn event
-interface for passive third-party capture. That limitation is not deferred
+The Continuity conversation orchestrator now uses this boundary for dialogue
+conducted through its client-owned host conversation. The initial concrete
+`ConversationHost` implementation is Codex App Server. By contrast, OpenAI's
+official ChatGPT clients currently expose no supported outbound conversation-turn
+event interface for passive third-party capture. That limitation is not deferred
 host-adapter work: ordinary ChatGPT capture remains limited to explicit or
 model-selected tool calls unless OpenAI adds a suitable authorized interface.
 Unsupported browser or desktop interception is outside this contract.

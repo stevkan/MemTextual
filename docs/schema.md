@@ -120,6 +120,12 @@ Migration 015 adds immutable per-persona ranking-profile revisions. Migration
 user-authored emotional annotations bound to current persona-memory revisions.
 The latter are ranking cues only and do not perform emotion inference.
 
+Migration 017 adds `continuity_conversations`. Each immutable binding joins one
+opaque external conversation ID and host adapter to one user, persona
+relationship, and host-capture authorization. A uniqueness constraint prevents
+one host conversation from being rebound, and a trigger rejects any owner,
+persona, relationship, authorization, or host mismatch.
+
 ### Entity and relationship
 
 Entities normalize people, organizations, projects, products, places, and

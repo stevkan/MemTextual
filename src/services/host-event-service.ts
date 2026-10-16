@@ -6,6 +6,7 @@ import {
 } from "node:crypto";
 import type {
   AuthorizeHostInput,
+  AssertHostCaptureAuthorizedInput,
   CaptureAuthorizedHostEventInput,
   HostAuthorization,
   HostAuthorizationGrant,
@@ -159,6 +160,41 @@ export class AuthorizedHostEventCaptureService<Payload = unknown> {
     );
   }
 
+  public get identity(): { adapterId: string; adapterVersion: string } {
+    return { adapterId: this.hostId, adapterVersion: this.hostVersion };
+  }
+
+  public assertAuthorized(input: AssertHostCaptureAuthorizedInput): HostAuthorization {
+    const authorizationId = requiredIdentifier(
+      input.authorizationId,
+      "A host authorization ID",
+      200,
+    );
+    const eventKind = requiredIdentifier(input.eventKind, "A host event kind", 200);
+    const credential = this.repository.getAuthorizationCredential(authorizationId);
+    const suppliedGrantHash = grantHash(input.grant);
+    if (
+      credential === null ||
+      !hashesEqual(credential.grantHash, suppliedGrantHash) ||
+      credential.authorization.status !== "active" ||
+      credential.authorization.hostId !== this.hostId ||
+      credential.authorization.personaId !== input.personaId ||
+      !credential.authorization.allowedEventKinds.includes(eventKind) ||
+      (credential.authorization.expiresAt !== null &&
+        credential.authorization.expiresAt < new Date().toISOString())
+    ) {
+      throw new Error("Host capture authorization was rejected.");
+    }
+    const persona = this.personas.getPersonaContext(input.personaId);
+    if (
+      persona === null ||
+      persona.relationship.id !== credential.authorization.relationshipId
+    ) {
+      throw new Error("Host capture authorization was rejected.");
+    }
+    return credential.authorization;
+  }
+
   public async capture(
     input: CaptureAuthorizedHostEventInput<Payload>,
   ): Promise<HostEventCaptureResult> {
@@ -177,25 +213,16 @@ export class AuthorizedHostEventCaptureService<Payload = unknown> {
       "A host event kind",
       200,
     );
-    const credential =
-      this.repository.getAuthorizationCredential(authorizationId);
-    const suppliedGrantHash = grantHash(input.grant);
-    if (
-      credential === null ||
-      !hashesEqual(credential.grantHash, suppliedGrantHash) ||
-      credential.authorization.status !== "active" ||
-      credential.authorization.hostId !== this.hostId ||
-      credential.authorization.personaId !== input.personaId ||
-      !credential.authorization.allowedEventKinds.includes(eventKind) ||
-      (credential.authorization.expiresAt !== null &&
-        credential.authorization.expiresAt < new Date().toISOString())
-    ) {
-      throw new Error("Host capture authorization was rejected.");
-    }
+    const authorization = this.assertAuthorized({
+      authorizationId,
+      grant: input.grant,
+      personaId: input.personaId,
+      eventKind,
+    });
     const persona = this.personas.getPersonaContext(input.personaId);
     if (
       persona === null ||
-      persona.relationship.id !== credential.authorization.relationshipId
+      persona.relationship.id !== authorization.relationshipId
     ) {
       throw new Error("Host capture authorization was rejected.");
     }

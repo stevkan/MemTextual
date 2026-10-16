@@ -1,0 +1,337 @@
+import assert from "node:assert/strict";
+import { resolve } from "node:path";
+import test from "node:test";
+import {
+  AmbientMemoryService,
+  AuthorizedHostEventCaptureService,
+  ContinuityConversationCaptureError,
+  ContinuityConversationService,
+  ContinuityConversationTurnAdapter,
+  HostAuthorizationService,
+  IngestionService,
+  PersonaService,
+  SqliteContinuityConversationRepository,
+  SqliteHostEventRepository,
+  SqliteIngestionRepository,
+  SqliteMemoryRepository,
+  SqlitePersonaRepository,
+  StructuredAmbientMemoryExtractor,
+  continuityContextFormat,
+  continuityContextFormatVersion,
+  continuityConversationTurnEventKind,
+  openMemTextualDatabase,
+  type CompletedConversationTurn,
+  type ContinuityContextComposition,
+  type ContinuityContextQuery,
+  type ConversationHost,
+  type ConversationSession,
+  type SendConversationTurnInput,
+  type StartConversationInput,
+} from "../src/index.js";
+
+class FakeConversationHost implements ConversationHost {
+  readonly identity = {
+    adapterId: "test.conversation-host",
+    adapterVersion: "1",
+  };
+  readonly started: StartConversationInput[] = [];
+  readonly resumed: string[] = [];
+  readonly sent: SendConversationTurnInput[] = [];
+  nextConversation = 1;
+  nextTurn = 1;
+
+  async startConversation(
+    input: StartConversationInput = {},
+  ): Promise<ConversationSession> {
+    this.started.push(input);
+    return { id: `host-conversation-${this.nextConversation++}` };
+  }
+
+  async resumeConversation(conversationId: string): Promise<ConversationSession> {
+    this.resumed.push(conversationId);
+    return { id: conversationId };
+  }
+
+  async sendTurn(input: SendConversationTurnInput): Promise<CompletedConversationTurn> {
+    this.sent.push(input);
+    return {
+      conversationId: input.conversationId,
+      turnId: `host-turn-${this.nextTurn++}`,
+      userText: input.text,
+      assistantText: "I will keep that in mind.",
+      status: "completed",
+    };
+  }
+
+  async close(): Promise<void> {}
+}
+
+class FakeContextProvider {
+  readonly queries: ContinuityContextQuery[] = [];
+
+  async compose(query: ContinuityContextQuery): Promise<ContinuityContextComposition> {
+    this.queries.push(query);
+    const payload = {
+      format: continuityContextFormat,
+      formatVersion: continuityContextFormatVersion,
+      contentRole: "memory_data" as const,
+      personaId: query.personaId,
+      items: [],
+    };
+    const contextJson = JSON.stringify(payload);
+    return {
+      payload,
+      contextJson,
+      utf8Bytes: Buffer.byteLength(contextJson, "utf8"),
+      limits: {
+        maxItems: 10,
+        maxUtf8Bytes: 8_192,
+        maxEpisodicItems: 10,
+        maxDurableItems: 10,
+      },
+      consideredCount: 0,
+      omittedCount: 0,
+      omissionCounts: { itemLimit: 0, byteLimit: 0, classLimit: 0 },
+    };
+  }
+}
+
+function fixture(options: { failExtraction?: boolean } = {}) {
+  const database = openMemTextualDatabase({
+    filename: ":memory:",
+    migrationsDirectory: resolve("migrations"),
+  });
+  const memories = new SqliteMemoryRepository(database);
+  const ingestion = new IngestionService(
+    new SqliteIngestionRepository(database, memories),
+  );
+  const personaRepository = new SqlitePersonaRepository(database);
+  const personas = new PersonaService(personaRepository);
+  const user = personas.createUser({ displayName: "Steve" });
+  const skylar = personas.createPersona({ userId: user.id, name: "Skylar" });
+  const advisor = personas.createPersona({ userId: user.id, name: "Advisor" });
+  const host = new FakeConversationHost();
+  const hostEvents = new SqliteHostEventRepository(database);
+  const authorizations = new HostAuthorizationService(hostEvents, personaRepository);
+  const authorization = authorizations.authorize(
+    {
+      userId: user.id,
+      personaId: skylar.persona.id,
+      hostId: host.identity.adapterId,
+      allowedEventKinds: [continuityConversationTurnEventKind],
+    },
+    { actor: "user", explicitUserAction: true },
+  );
+  const ambient = new AmbientMemoryService(
+    ingestion,
+    personaRepository,
+    new StructuredAmbientMemoryExtractor({
+      id: "test.conversation-extractor",
+      version: "1",
+      extract: async ({ records }) => {
+        if (options.failExtraction === true) {
+          throw new Error("extraction unavailable");
+        }
+        return JSON.stringify({
+          proposals: [
+            {
+              assertion: "Steve prefers concise responses.",
+              type: "preference",
+              memoryClass: "durable",
+              evidence: [{ sourceRecordId: records[0]!.id }],
+              explicitness: "explicit",
+              confidence: 1,
+            },
+          ],
+        });
+      },
+    }),
+    {
+      id: "test.normal-classifier",
+      version: "1",
+      classify: async () => ({
+        sensitivity: "normal",
+        confidence: 1,
+        reasonCodes: ["no_sensitive_signal"],
+      }),
+    },
+  );
+  const capture = new AuthorizedHostEventCaptureService(
+    hostEvents,
+    personaRepository,
+    ambient,
+    new ContinuityConversationTurnAdapter(host.identity),
+  );
+  const contexts = new FakeContextProvider();
+  const conversations = new ContinuityConversationService(
+    new SqliteContinuityConversationRepository(database),
+    personaRepository,
+    contexts,
+    host,
+    capture,
+    { now: () => new Date("2026-10-15T12:00:00.000Z") },
+  );
+  return {
+    advisor,
+    authorization,
+    authorizations,
+    conversations,
+    contexts,
+    database,
+    host,
+    ingestion,
+    skylar,
+  };
+}
+
+test("binds a host conversation to one persona and captures an exact completed turn", async () => {
+  const setup = fixture();
+  try {
+    const conversation = await setup.conversations.startConversation({
+      personaId: setup.skylar.persona.id,
+      authorizationId: setup.authorization.authorization.id,
+      grant: setup.authorization.grant,
+      model: "test-model",
+    });
+    const result = await setup.conversations.sendTurn({
+      conversationId: conversation.id,
+      personaId: setup.skylar.persona.id,
+      grant: setup.authorization.grant,
+      text: "Please keep your responses concise.",
+      context: { limit: 5 },
+    });
+
+    assert.equal(conversation.externalConversationId, "host-conversation-1");
+    assert.equal(conversation.personaId, setup.skylar.persona.id);
+    assert.equal(setup.host.started[0]?.model, "test-model");
+    assert.deepEqual(setup.host.resumed, ["host-conversation-1"]);
+    assert.equal(setup.contexts.queries[0]?.personaId, setup.skylar.persona.id);
+    assert.equal(setup.contexts.queries[0]?.text, "Please keep your responses concise.");
+    assert.equal(setup.host.sent[0]?.memoryContext?.contentRole, "memory_data");
+    assert.equal(result.capture.createdCandidateCount, 1);
+    assert.equal(result.capture.receipt.personaId, setup.skylar.persona.id);
+
+    const source = setup.ingestion.listSources()[0];
+    assert.ok(source);
+    const records = setup.ingestion.getSourceRecords(source.id);
+    assert.deepEqual(
+      records.map(({ authorRole, authorName, content }) => ({
+        authorRole,
+        authorName,
+        content,
+      })),
+      [
+        {
+          authorRole: "user",
+          authorName: null,
+          content: "Please keep your responses concise.",
+        },
+        {
+          authorRole: "assistant",
+          authorName: "Skylar",
+          content: "I will keep that in mind.",
+        },
+      ],
+    );
+    assert.equal(setup.ingestion.listCandidates()[0]?.status, "pending");
+  } finally {
+    setup.database.close();
+  }
+});
+
+test("rejects cross-persona and revoked access before context retrieval or host use", async () => {
+  const setup = fixture();
+  try {
+    const conversation = await setup.conversations.startConversation({
+      personaId: setup.skylar.persona.id,
+      authorizationId: setup.authorization.authorization.id,
+      grant: setup.authorization.grant,
+    });
+    await assert.rejects(
+      setup.conversations.sendTurn({
+        conversationId: conversation.id,
+        personaId: setup.advisor.persona.id,
+        grant: setup.authorization.grant,
+        text: "Cross the boundary.",
+      }),
+      /conversation not found/u,
+    );
+    assert.equal(setup.contexts.queries.length, 0);
+    assert.equal(setup.host.sent.length, 0);
+
+    setup.authorizations.revoke(setup.authorization.authorization.id, {
+      actor: "user",
+      explicitUserAction: true,
+    });
+    await assert.rejects(
+      setup.conversations.sendTurn({
+        conversationId: conversation.id,
+        personaId: setup.skylar.persona.id,
+        grant: setup.authorization.grant,
+        text: "This must not reach the host.",
+      }),
+      /authorization was rejected/u,
+    );
+    assert.equal(setup.contexts.queries.length, 0);
+    assert.equal(setup.host.sent.length, 0);
+  } finally {
+    setup.database.close();
+  }
+});
+
+test("database constraints reject a conversation bound across personas", () => {
+  const setup = fixture();
+  try {
+    assert.throws(
+      () =>
+        setup.database
+          .prepare(
+            `INSERT INTO continuity_conversations (
+               id, user_id, persona_id, relationship_id, authorization_id,
+               host_id, external_conversation_id
+             ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          )
+          .run(
+            "cross-persona-conversation",
+            setup.advisor.persona.userId,
+            setup.advisor.persona.id,
+            setup.advisor.relationship.id,
+            setup.authorization.authorization.id,
+            setup.host.identity.adapterId,
+            "host-cross-persona",
+          ),
+      /does not match its authorization/u,
+    );
+  } finally {
+    setup.database.close();
+  }
+});
+
+test("preserves a completed response when ambient capture fails visibly", async () => {
+  const setup = fixture({ failExtraction: true });
+  try {
+    const conversation = await setup.conversations.startConversation({
+      personaId: setup.skylar.persona.id,
+      authorizationId: setup.authorization.authorization.id,
+      grant: setup.authorization.grant,
+    });
+    await assert.rejects(
+      setup.conversations.sendTurn({
+        conversationId: conversation.id,
+        personaId: setup.skylar.persona.id,
+        grant: setup.authorization.grant,
+        text: "Remember this.",
+      }),
+      (error: unknown) => {
+        assert.ok(error instanceof ContinuityConversationCaptureError);
+        assert.equal(error.turn.assistantText, "I will keep that in mind.");
+        assert.match(String(error.cause), /extraction unavailable/u);
+        return true;
+      },
+    );
+    assert.equal(setup.ingestion.listSources().length, 1);
+    assert.equal(setup.ingestion.listCandidates().length, 0);
+  } finally {
+    setup.database.close();
+  }
+});

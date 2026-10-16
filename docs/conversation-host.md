@@ -34,9 +34,21 @@ required `initialize`/`initialized` handshake, then maps:
 - authoritative assistant text and completion to `item/completed` and
   `turn/completed`.
 
+Production construction requires an explicit absolute working directory. The
+adapter also supplies that directory to `thread/start` so a Continuity
+conversation does not silently inherit instructions or context from whichever
+project happened to launch it. The eventual installer must create and protect a
+dedicated non-project directory for this purpose.
+
 The adapter does not infer completion from accumulated deltas. It accepts final
 assistant content only from completed agent-message items and resolves a turn
 only after a successful completed-turn notification.
+
+When bounded MemTextual context is supplied, the adapter places it in a
+separate text item with an explicit untrusted-memory-data warning and preserves
+the current user text as its own item. Continuity turns use a restricted
+read-only sandbox with no readable roots and an approval policy that never asks
+the user to authorize an action.
 
 The current adapter does not handle approval or other server-initiated
 requests. It returns a method-not-supported error so an unexpected request
@@ -56,11 +68,11 @@ malformed data, concurrency, process failure, and restart.
 
 ## Current boundary
 
-This is an infrastructure package, not the Continuity conversational client.
-It does not yet provide a chat UI, bind conversations to personas, compose
-persona context, or send completed turns into ambient capture. Those are the
-next integration layers and must preserve the existing persona, sensitivity,
-review-policy, and evidence safeguards.
+The persona-bound orchestration layer now persists immutable conversation
+bindings, composes bounded context, and routes successful turns into authorized
+ambient capture. It remains a library rather than the Continuity conversational
+client: chat presentation, persona-behavior prompting, conversation controls,
+and failed-capture recovery are not yet implemented.
 
 OpenAI Responses API hosting, bring-your-own-key configuration,
 MemTextual-managed inference, other cloud providers, and local models remain

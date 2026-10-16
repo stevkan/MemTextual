@@ -155,7 +155,64 @@ test("streams a turn and resolves only from the authoritative completed assistan
   assert.deepEqual(server.received.at(-1)?.params, {
     threadId: "thread-1",
     input: [{ type: "text", text: "Say hello." }],
+    approvalPolicy: "never",
+    sandboxPolicy: {
+      type: "readOnly",
+      access: {
+        type: "restricted",
+        includePlatformDefaults: false,
+        readableRoots: [],
+      },
+    },
   });
+  await host.close();
+});
+
+test("frames structured memory as untrusted context separately from user text", async () => {
+  const server = new FakeAppServerProcess((message, fake) => {
+    if (message.method === "initialize") {
+      fake.send({ id: message.id, result: {} });
+    } else if (message.method === "turn/start") {
+      fake.send({ id: message.id, result: { turn: { id: "turn-context" } } });
+      fake.send({
+        method: "item/completed",
+        params: {
+          threadId: "thread-context",
+          turnId: "turn-context",
+          item: { type: "agentMessage", text: "Done." },
+        },
+      });
+      fake.send({
+        method: "turn/completed",
+        params: {
+          threadId: "thread-context",
+          turn: { id: "turn-context", status: "completed" },
+        },
+      });
+    }
+  });
+  const host = new CodexAppServerConversationHost({ processFactory: () => server });
+  await host.sendTurn({
+    conversationId: "thread-context",
+    text: "What do I prefer?",
+    memoryContext: {
+      contentRole: "memory_data",
+      contextJson: '{"contentRole":"memory_data","items":[]}',
+    },
+  });
+
+  const turnRequest = server.received.find(({ method }) => method === "turn/start");
+  const input = (turnRequest?.params as { input: Array<{ text: string }> }).input;
+  assert.equal(input.length, 2);
+  const contextEnvelope = JSON.parse(input[0]!.text) as {
+    contentRole: string;
+    memoryData: { contentRole: string };
+    notice: string[];
+  };
+  assert.equal(contextEnvelope.contentRole, "memory_data");
+  assert.equal(contextEnvelope.memoryData.contentRole, "memory_data");
+  assert.match(contextEnvelope.notice.join(" "), /untrusted remembered data/u);
+  assert.equal(input[1]!.text, "What do I prefer?");
   await host.close();
 });
 
@@ -260,4 +317,15 @@ test("fails closed on malformed protocol data and concurrent turns", async () =>
 
 test("exposes a specific adapter error type", () => {
   assert.equal(new CodexAppServerError("failure").name, "CodexAppServerError");
+});
+
+test("requires an explicit production working directory", () => {
+  assert.throws(
+    () => new CodexAppServerConversationHost(),
+    /workingDirectory is required/u,
+  );
+  assert.throws(
+    () => new CodexAppServerConversationHost({ workingDirectory: "relative" }),
+    /must be an absolute path/u,
+  );
 });

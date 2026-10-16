@@ -5,6 +5,15 @@ describe only the current design and behavior.
 
 ## Unreleased
 
+- Added persona-bound Continuity conversation orchestration. Immutable schema-17
+  bindings connect one host conversation to one persona relationship and
+  explicit capture authorization; each turn preflights authorization, composes
+  bounded untrusted memory context, preserves the exact user message, waits for
+  authoritative host completion, and captures exact user/assistant records
+  through the existing ambient safeguards. Cross-persona, revoked, malformed,
+  interrupted, and failed-capture paths fail visibly, while the Codex adapter
+  applies a restricted read-only sandbox with no approval requests. The chat UI,
+  persona-behavior prompting, and durable failed-capture recovery remain open.
 - Added the provider-neutral `ConversationHost` contract and an initial Codex
   App Server JSONL stdio adapter. It performs the required handshake, supports
   thread creation and resumption, streams assistant deltas, accepts final text

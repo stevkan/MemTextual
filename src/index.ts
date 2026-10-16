@@ -34,12 +34,23 @@ export {
   type StartConversationInput,
 } from "./domain/conversation-host.js";
 export {
+  continuityConversationTurnEventKind,
+  type ContinuityConversation,
+  type ContinuityConversationTurnPayload,
+  type ContinuityConversationTurnResult,
+  type CreateContinuityConversationRecordInput,
+  type ResumeContinuityConversationInput,
+  type SendContinuityConversationTurnInput,
+  type StartContinuityConversationInput,
+} from "./domain/continuity-conversation.js";
+export {
   CodexAppServerConversationHost,
   CodexAppServerError,
   type CodexAppServerConversationHostOptions,
   type CodexAppServerProcess,
   type CodexAppServerProcessFactory,
 } from "./hosts/codex-app-server-conversation-host.js";
+export { ContinuityConversationTurnAdapter } from "./hosts/continuity-conversation-turn-adapter.js";
 export {
   WindowsServiceIdentityAdapter,
   WindowsTaskSchedulerAdapter,
@@ -177,6 +188,7 @@ export type {
   CaptureAmbientInteractionInput,
 } from "./domain/ambient-memory.js";
 export type {
+  AssertHostCaptureAuthorizedInput,
   AuthorizeHostInput,
   CaptureAuthorizedHostEventInput,
   HostAuthorization,
@@ -295,6 +307,7 @@ export type { ContinuityRankingRepository } from "./repositories/continuity-rank
 export type { ContinuityEmotionRepository } from "./repositories/continuity-emotion-repository.js";
 export type { IngestionRepository } from "./repositories/ingestion-repository.js";
 export type { PersonaRepository } from "./repositories/persona-repository.js";
+export type { ContinuityConversationRepository } from "./repositories/continuity-conversation-repository.js";
 export type { ReviewPolicyRepository } from "./repositories/review-policy-repository.js";
 export type {
   ContinuityCandidateBinding,
@@ -314,6 +327,7 @@ export { SqliteMemoryRepository } from "./repositories/sqlite-memory-repository.
 export { SqlitePersonaRepository } from "./repositories/sqlite-persona-repository.js";
 export { SqliteReviewPolicyRepository } from "./repositories/sqlite-review-policy-repository.js";
 export { SqliteHostEventRepository } from "./repositories/sqlite-host-event-repository.js";
+export { SqliteContinuityConversationRepository } from "./repositories/sqlite-continuity-conversation-repository.js";
 export {
   SqliteContinuityControlRepository,
 } from "./repositories/sqlite-continuity-control-repository.js";
@@ -349,6 +363,12 @@ export {
   AuthorizedHostEventCaptureService,
   HostAuthorizationService,
 } from "./services/host-event-service.js";
+export {
+  ContinuityConversationCaptureError,
+  ContinuityConversationService,
+  type ContinuityConversationContextProvider,
+  type ContinuityConversationServiceOptions,
+} from "./services/continuity-conversation-service.js";
 export {
   StructuredAmbientMemoryExtractor,
   type StructuredAmbientExtractorOptions,
