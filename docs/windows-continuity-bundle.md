@@ -110,6 +110,8 @@ It does not create the database, backup directory, service account, ACLs,
 scheduled tasks, Azure resources, or recovery key. After file staging, use the
 separate deployment and host-installation workflow in
 [windows-continuity-deployment.md](windows-continuity-deployment.md).
+The complete ordered first-use sequence and final read-only gate are documented
+in [continuity-first-use.md](continuity-first-use.md).
 
 Application-file removal remains deliberately separate from host removal. The
 host removal command preserves application files and user data so an uninstall

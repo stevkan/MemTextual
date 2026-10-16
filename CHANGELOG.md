@@ -5,6 +5,16 @@ describe only the current design and behavior.
 
 ## Unreleased
 
+- Added a read-only Windows Continuity installation acceptance gate. It pins
+  the staged bundle publisher, verifies the complete signed inventory, confirms
+  the managed host identity and schedules are already installed, checks SQLite
+  integrity, foreign keys, exact migration parity, and the selected persona,
+  and resolves the explicit Codex conversation configuration without mutating
+  the installation. The signed bundle now requires setup, console, and
+  acceptance entry points, and the ordered first-use workflow documents the
+  remaining backup and live-conversation checks without claiming public-release
+  readiness.
+
 - Added the initial concrete Codex App Server sensitivity classifier and wired
   it into the Continuity conversation runtime. All proposals from one captured
   interaction are classified in a separate bounded structured task with strict

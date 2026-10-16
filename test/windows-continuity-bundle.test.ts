@@ -66,6 +66,18 @@ function createMinimalSource(source: string): void {
     "export const safeguard = true;\n",
   );
   write(
+    join(source, "dist", "src", "cli", "continuity-acceptance.js"),
+    "export const acceptance = true;\n",
+  );
+  write(
+    join(source, "dist", "src", "cli", "continuity-console.js"),
+    "export const console = true;\n",
+  );
+  write(
+    join(source, "dist", "src", "cli", "continuity-setup.js"),
+    "export const setup = true;\n",
+  );
+  write(
     join(source, "node_modules", "production-package", "package.json"),
     '{"name":"production-package","version":"1.0.0"}\n',
   );

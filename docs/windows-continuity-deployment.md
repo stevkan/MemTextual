@@ -146,3 +146,8 @@ Keep the deployment file unchanged while the host integration is installed.
 Changing paths or schedule definitions produces a different confirmation and
 will cause ownership checks to fail rather than altering or removing resources
 under a different definition.
+
+After onboarding and conversation configuration, run the read-only installation
+gate in [continuity-first-use.md](continuity-first-use.md). It verifies the
+signed staged application, expected host installation, current database,
+migrations, and selected persona before normal use.

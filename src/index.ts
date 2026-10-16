@@ -98,6 +98,12 @@ export {
   ExplicitPersonaBehaviorConfigurationRequiredError,
 } from "./services/continuity-persona-behavior-service.js";
 export {
+  verifyContinuityDatabaseAcceptance,
+  verifyContinuityHostAcceptance,
+  type ContinuityDatabaseAcceptance,
+  type ContinuityHostAcceptance,
+} from "./services/continuity-installation-acceptance-service.js";
+export {
   WindowsServiceIdentityAdapter,
   WindowsTaskSchedulerAdapter,
   applyWindowsHostInstallation,
