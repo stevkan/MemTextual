@@ -403,6 +403,7 @@ export {
 } from "./services/continuity-conversation-catalog-service.js";
 export {
   ContinuityConversationAuthorizationService,
+  type ResolvedConversationAuthorization,
   type RevokeStoredConversationAuthorizationResult,
 } from "./services/continuity-conversation-authorization-service.js";
 export {
@@ -414,6 +415,15 @@ export {
   ContinuityConversationOpenRecoveryRequiredError,
   type ContinuityConversationClientOperations,
 } from "./services/continuity-conversation-client-coordinator.js";
+export {
+  ContinuityConversationProtectedClient,
+  type ContinuityConversationProtectedClientOptions,
+  type ContinuityConversationProtectedGrantResolver,
+  type ContinuityConversationProtectedLifecycle,
+  type OpenProtectedContinuityConversationInput,
+  type SendProtectedContinuityConversationTurnInput,
+  type StartProtectedContinuityConversationInput,
+} from "./services/continuity-conversation-protected-client.js";
 export {
   ContinuityConversationCaptureError,
   ContinuityConversationReconciliationCaptureError,

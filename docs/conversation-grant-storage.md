@@ -40,7 +40,14 @@ contain these grants.
 ## Current boundary
 
 The protected store and authorization lifecycle are implemented and verified,
-including a real Windows DPAPI round trip. The local console does not yet
-construct the conversational runtime or expose authorization, start, reopen,
-send, recovery-retry, or revocation controls. Those controls must use this
-service rather than accepting raw grants from browser requests.
+including a real Windows DPAPI round trip. A provider-neutral protected client
+facade now resolves the canonical persona or stored conversation binding and
+loads the bearer internally for start, reopen, and send. Its public operations
+do not accept a grant, and it rejects expired, revoked, malformed, or
+cross-binding resolution and lifecycle results.
+
+The local console does not yet construct this runtime or expose authorization,
+start, reopen, send, recovery-retry, or revocation controls. Live activation
+also requires a concrete ambient extraction provider so completed turns cannot
+silently bypass memory extraction. Browser requests must never supply the raw
+grant.

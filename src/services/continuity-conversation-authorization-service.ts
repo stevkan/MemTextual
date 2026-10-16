@@ -12,11 +12,17 @@ import type {
   HostAuthorization,
   HostAuthorizationMutationContext,
 } from "../domain/host-event.js";
+import type { PersonaContext } from "../domain/persona.js";
 import type { HostAuthorizationService } from "./host-event-service.js";
 
 export interface RevokeStoredConversationAuthorizationResult {
   authorization: HostAuthorization;
   protectedGrantDeleted: boolean;
+}
+
+export interface ResolvedConversationAuthorization {
+  authorization: HostAuthorization;
+  grant: string;
 }
 
 export class ContinuityConversationAuthorizationService {
@@ -58,6 +64,32 @@ export class ContinuityConversationAuthorizationService {
     return this.requireGrant(
       conversationGrantBindingFromAuthorization(authorization),
     );
+  }
+
+  public async resolveForPersonaAuthorization(
+    authorizationId: string,
+    persona: PersonaContext,
+  ): Promise<ResolvedConversationAuthorization> {
+    const normalizedAuthorizationId = requiredIdentifier(
+      authorizationId,
+      "authorizationId",
+    );
+    const authorization = this.authorizations
+      .list(persona.persona.userId, true)
+      .find(({ id }) => id === normalizedAuthorizationId);
+    if (
+      authorization === undefined ||
+      authorization.personaId !== persona.persona.id ||
+      authorization.relationshipId !== persona.relationship.id
+    ) {
+      throw new Error(`Host authorization not found: ${normalizedAuthorizationId}`);
+    }
+    return {
+      authorization,
+      grant: await this.requireGrant(
+        conversationGrantBindingFromAuthorization(authorization),
+      ),
+    };
   }
 
   public async resolveForConversation(

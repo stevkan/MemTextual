@@ -54,8 +54,9 @@ for source-series privacy workflows.
 The conversation view is read-only. It is not a complete mirror of the host:
 the host can contain additional completed turns until history reconciliation
 runs. Starting, reopening, and sending conversation turns remain unavailable
-until the conversational runtime is integrated with the protected grant store.
-The raw grant is intentionally absent from the database, browser state, and
+until the grantless conversational runtime is composed with both the protected
+grant store and a concrete ambient extraction provider. The raw grant is
+intentionally absent from browser requests, the database, browser state, and
 command-line arguments.
 
 ## Persona-memory export

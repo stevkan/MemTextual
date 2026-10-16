@@ -5,6 +5,12 @@ describe only the current design and behavior.
 
 ## Unreleased
 
+- Added a grantless Continuity conversation client boundary. Start, reopen, and
+  send now resolve canonical persona or stored-conversation bindings and load
+  protected host grants internally; public client operations do not accept the
+  bearer. Expired, revoked, malformed, cross-persona, and mismatched lifecycle
+  results fail closed. The console remains read-only until production runtime
+  composition includes a concrete ambient extraction provider.
 - Added provider-neutral protected conversation-grant storage and an initial
   Windows DPAPI adapter. New authorizations can persist their bearer only as a
   CurrentUser-protected, create-once record outside SQLite; storage failure

@@ -130,6 +130,13 @@ per conversation, and any turn failure closes local readiness so the next turn
 requires an explicit reopen and reconciliation. Leaving a conversation also
 removes readiness. This state is process-local and stores no bearer grant.
 
+`ContinuityConversationProtectedClient` is the outer runtime boundary for
+start, reopen, send, and leave. It accepts persona and conversation identifiers,
+not raw grants. It resolves canonical bindings through the protected
+authorization service, loads the bearer only inside the process, delegates to
+the coordinator, and verifies that returned conversations have not crossed an
+authorization or stored-conversation binding.
+
 ## Read-only catalog
 
 `ContinuityConversationCatalogService` lists persisted conversation summaries
@@ -147,12 +154,13 @@ discover additional turns.
 
 This package provides library orchestration plus a read-only graphical
 conversation catalog; it is not yet the graphical conversational client. The
-console does not start, reopen, or send turns. Those actions require a protected
-grant store that can restore the raw host bearer after process restart without
-putting it in SQLite, browser state, or command-line arguments. The
-provider-neutral store, authorization lifecycle, and initial Windows DPAPI
-adapter are now implemented; client composition remains open. Coordinated
-host-thread deletion controls also remain open.
+console does not start, reopen, or send turns. The provider-neutral protected
+store, authorization lifecycle, initial Windows DPAPI adapter, and grantless
+client facade are implemented, but the production console runtime is not yet
+composed. A concrete ambient extraction provider is also required before live
+chat can be enabled; otherwise completed turns could be journaled without
+performing the intended memory-extraction step. Coordinated host-thread
+deletion controls also remain open.
 
 Codex App Server threads are persistent local records outside the MemTextual
 database. They contain the submitted user text, memory-context item, and model

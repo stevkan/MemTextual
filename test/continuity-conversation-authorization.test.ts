@@ -95,9 +95,38 @@ test("conversation authorization stores its bearer only in the protected store",
       await setup.service.resolveForAuthorization(authorization),
       stored?.grant,
     );
+    assert.deepEqual(
+      await setup.service.resolveForPersonaAuthorization(
+        authorization.id,
+        setup.persona,
+      ),
+      { authorization, grant: stored?.grant },
+    );
     assert.equal(
       setup.hostAuthorizations.list(setup.user.id)[0]?.status,
       "active",
+    );
+  } finally {
+    setup.database.close();
+  }
+});
+
+test("persona authorization resolution denies another persona before loading the grant", async () => {
+  const setup = fixture();
+  try {
+    const authorization = await setup.service.authorize(
+      authorizationInput(setup),
+      explicitUserAction,
+    );
+    const otherPersona = new PersonaService(
+      new SqlitePersonaRepository(setup.database),
+    ).createPersona({ userId: setup.user.id, name: "Advisor" });
+    await assert.rejects(
+      setup.service.resolveForPersonaAuthorization(
+        authorization.id,
+        otherPersona,
+      ),
+      /authorization not found/u,
     );
   } finally {
     setup.database.close();

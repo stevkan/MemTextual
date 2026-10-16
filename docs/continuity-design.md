@@ -92,9 +92,12 @@ enabled revision. The console now lists persisted conversations for its bound
 persona and presents exact locally journaled turns plus unresolved recovery
 counts. A provider-neutral protected grant boundary now stores newly issued
 conversation grants outside SQLite, revokes authorization when storage fails,
-and has an initial Windows CurrentUser-DPAPI adapter. Active chat controls
-remain gated on composing that store into the client, and coordinated deletion
-controls remain integration work. Other cloud
+and has an initial Windows CurrentUser-DPAPI adapter. A grantless client facade
+now resolves canonical persona and conversation bindings and loads the bearer
+internally for start, reopen, and send; browser-facing operations do not accept
+the grant. Active chat controls remain gated on production composition with a
+concrete ambient extraction provider, and coordinated deletion controls remain
+integration work. Other cloud
 providers and local models are outside the initial scope and may be
 reconsidered only in response to demonstrated need.
 
@@ -160,8 +163,9 @@ delivered through a URL fragment. The console also includes a read-only
 conversation catalog whose detail view preserves exact journaled dialogue and
 distinguishes local journal state from unreconciled host history. It does not
 expose start, reopen, or send actions until the conversational runtime is
-composed with the protected grant store. That store is implemented separately
-and is never populated from browser input. The console also includes a
+composed with the protected grant store and a concrete ambient extraction
+provider. A grantless client facade now protects that composition boundary;
+the store is never populated from browser input. The console also includes a
 versioned persona-memory JSON export with complete revision histories, plus
 exact-ID-confirmed recoverable deletion and restoration. The export is
 intentionally described as a user-memory record rather than a database backup:
