@@ -5,6 +5,11 @@ describe only the current design and behavior.
 
 ## Unreleased
 
+- Added a versioned, provider-neutral persona-behavior prompt contract for
+  Continuity conversation creation. Explicit user-authored behavior is bound to
+  the selected persona, kept separate from memories and turn text, and mapped
+  to Codex App Server `developerInstructions` with authority limits. Behavior
+  profile persistence and editing remain client integration work.
 - Made Node.js 24.21.0 the exact runtime requirement in package metadata,
   validation, CI, and Windows bundle construction. Runtime-manager-specific
   files and instructions are excluded from the repository.

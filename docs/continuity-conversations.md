@@ -18,6 +18,27 @@ grant and the `conversation.turn.completed` event permission. Revocation stops
 new turns before context retrieval or model submission. The grant is never
 stored in the conversation row.
 
+## Persona behavior
+
+Conversation creation may include explicit `personaBehaviorInstructions`.
+The service packages that exact text in the versioned
+`memtextual.persona_behavior` contract and binds it to the selected persona.
+It never derives behavior from persona descriptions, memories, retrieved
+context, or conversation text. Blank behavior is rejected before host use;
+omitting behavior preserves the prior neutral start behavior.
+
+The Codex App Server adapter supplies the contract through
+`developerInstructions` only when starting the thread. Its framing limits the
+configuration to conversational identity, style, and interaction preferences;
+it does not authorize tools, data access, system changes, or memory-policy
+changes. Memory data and the current user message remain separate turn inputs.
+
+This package defines and transports the prompt contract but does not yet store
+or edit reusable persona behavior profiles. A future client configuration layer
+must make that user-controlled and must start a new conversation when applying
+changed behavior; existing host threads retain the behavior with which they
+were created.
+
 ## Turn flow
 
 For each turn, the service:
@@ -107,10 +128,10 @@ removes readiness. This state is process-local and stores no bearer grant.
 ## Current boundary
 
 This package provides library orchestration, not the graphical conversational
-client. It does not yet provide chat presentation, persona-behavior prompting,
-conversation lists, recovery presentation, or coordinated deletion controls.
-The lifecycle coordinator is ready for those presentation layers, but it is not
-itself a graphical client.
+client. It does not yet provide chat presentation, persisted behavior-profile
+editing, conversation lists, recovery presentation, or coordinated deletion
+controls. The lifecycle coordinator is ready for those presentation layers,
+but it is not itself a graphical client.
 
 Codex App Server threads are persistent local records outside the MemTextual
 database. They contain the submitted user text, memory-context item, and model

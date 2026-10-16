@@ -83,11 +83,13 @@ journal entries can now be reconstructed from exact paginated host history after
 full-history validation. A process-local client coordinator now enforces that
 reconciliation, unresolved-capture checking, and host resumption occur before a
 persisted conversation can accept another turn. It permits one active turn and
-closes readiness after failures without retaining bearer grants. Chat
-presentation, persona-behavior prompting, conversation lists, recovery
-presentation, and coordinated deletion controls remain integration work. Other
-cloud providers and local models are outside the initial scope and may be
-reconsidered only in response to demonstrated need.
+closes readiness after failures without retaining bearer grants. The
+provider-neutral conversation boundary now carries explicit, persona-bound
+start-time behavior without deriving it from memories or persona descriptions.
+Chat presentation, persisted behavior-profile editing, conversation lists,
+recovery presentation, and coordinated deletion controls remain integration
+work. Other cloud providers and local models are outside the initial scope and
+may be reconsidered only in response to demonstrated need.
 
 As of October 15, 2026, OpenAI's official ChatGPT desktop, web, and mobile
 clients expose no supported outbound conversation-turn API or webhook through

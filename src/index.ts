@@ -24,6 +24,8 @@ export {
 } from "./platform/host-platform.js";
 export {
   conversationTurnStatuses,
+  personaBehaviorPromptFormat,
+  personaBehaviorPromptFormatVersion,
   type CompletedConversationTurn,
   type ConversationHost,
   type ConversationHostEvent,
@@ -31,6 +33,7 @@ export {
   type ConversationSession,
   type ConversationTurnStatus,
   type HistoricalCompletedConversationTurn,
+  type PersonaBehaviorPrompt,
   type SendConversationTurnInput,
   type StartConversationInput,
 } from "./domain/conversation-host.js";

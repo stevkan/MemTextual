@@ -16,8 +16,25 @@ export interface ConversationSession {
   id: string;
 }
 
+export const personaBehaviorPromptFormat = "memtextual.persona_behavior" as const;
+export const personaBehaviorPromptFormatVersion = 1 as const;
+
+/**
+ * User-controlled persona behavior supplied as instructions when a host
+ * conversation is created. This is configuration, not remembered user data,
+ * and it does not grant tool, data, or memory-policy authority.
+ */
+export interface PersonaBehaviorPrompt {
+  format: typeof personaBehaviorPromptFormat;
+  formatVersion: typeof personaBehaviorPromptFormatVersion;
+  contentRole: "persona_behavior";
+  personaId: string;
+  instructions: string;
+}
+
 export interface StartConversationInput {
   model?: string;
+  personaBehavior?: PersonaBehaviorPrompt;
 }
 
 export type ConversationHostEvent =

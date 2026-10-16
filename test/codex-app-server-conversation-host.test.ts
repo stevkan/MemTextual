@@ -5,6 +5,8 @@ import test from "node:test";
 import {
   CodexAppServerConversationHost,
   CodexAppServerError,
+  personaBehaviorPromptFormat,
+  personaBehaviorPromptFormatVersion,
   type CodexAppServerProcess,
   type ConversationHostEvent,
 } from "../src/index.js";
@@ -78,7 +80,19 @@ test("starts and resumes Codex App Server conversations after the required hands
   const server = new FakeAppServerProcess(standardHandler);
   const host = new CodexAppServerConversationHost({ processFactory: () => server });
 
-  assert.deepEqual(await host.startConversation({ model: "gpt-test" }), { id: "thread-1" });
+  assert.deepEqual(
+    await host.startConversation({
+      model: "gpt-test",
+      personaBehavior: {
+        format: personaBehaviorPromptFormat,
+        formatVersion: personaBehaviorPromptFormatVersion,
+        contentRole: "persona_behavior",
+        personaId: "persona-skylar",
+        instructions: "Be warm.\nKeep answers concise.",
+      },
+    }),
+    { id: "thread-1" },
+  );
   assert.deepEqual(await host.resumeConversation("thread-1"), { id: "thread-1" });
   assert.deepEqual(host.identity, {
     adapterId: "openai.codex-app-server",
@@ -88,11 +102,45 @@ test("starts and resumes Codex App Server conversations after the required hands
     server.received.map((message) => message.method),
     ["initialize", "initialized", "thread/start", "thread/resume"],
   );
-  assert.deepEqual(server.received[2]?.params, { model: "gpt-test" });
+  const startParams = server.received[2]?.params as Record<string, unknown>;
+  assert.equal(startParams.model, "gpt-test");
+  assert.equal(typeof startParams.developerInstructions, "string");
+  const [notice, serializedBehavior] = (
+    startParams.developerInstructions as string
+  ).split("\n", 2);
+  assert.match(notice ?? "", /persona behavior configuration/);
+  assert.match(notice ?? "", /does not authorize tool use/);
+  assert.deepEqual(JSON.parse(serializedBehavior ?? ""), {
+    format: "memtextual.persona_behavior",
+    formatVersion: 1,
+    contentRole: "persona_behavior",
+    personaId: "persona-skylar",
+    instructions: "Be warm.\nKeep answers concise.",
+  });
   assert.deepEqual(server.received[3]?.params, {
     threadId: "thread-1",
     excludeTurns: true,
   });
+  await host.close();
+});
+
+test("rejects an invalid persona behavior contract before contacting App Server", async () => {
+  const server = new FakeAppServerProcess(standardHandler);
+  const host = new CodexAppServerConversationHost({ processFactory: () => server });
+
+  await assert.rejects(
+    host.startConversation({
+      personaBehavior: {
+        format: personaBehaviorPromptFormat,
+        formatVersion: personaBehaviorPromptFormatVersion,
+        contentRole: "persona_behavior",
+        personaId: "persona-skylar",
+        instructions: "   ",
+      },
+    }),
+    /personaBehavior\.instructions must not be empty/,
+  );
+  assert.deepEqual(server.received, []);
   await host.close();
 });
 

@@ -69,6 +69,8 @@ export interface StartContinuityConversationInput {
   authorizationId: string;
   grant: string;
   model?: string;
+  /** Explicit user-controlled behavior for this persona; never inferred from memory. */
+  personaBehaviorInstructions?: string;
 }
 
 export interface ResumeContinuityConversationInput {

@@ -11,6 +11,7 @@ remain MemTextual responsibilities.
 A conversation host can:
 
 - start a conversation and return an opaque host-assigned identifier;
+- apply an optional persona-behavior prompt when the conversation is created;
 - resume a known conversation;
 - submit one text turn and stream typed lifecycle events;
 - return the authoritative completed assistant text;
@@ -21,6 +22,12 @@ A conversation host can:
 Only one turn may be active for a conversation at a time. Host conversation and
 turn identifiers are opaque. A failed or interrupted turn is rejected and is
 not represented as completed dialog.
+
+Persona behavior uses the versioned `memtextual.persona_behavior` contract. It
+is explicit user-controlled configuration, not remembered data, and is bound to
+the selected persona before reaching the host. A host adapter must keep it
+separate from turn text and memory context. The contract does not grant tool
+use, data access, system changes, or changes to MemTextual memory policy.
 
 ## Initial Codex App Server adapter
 
@@ -36,6 +43,11 @@ required `initialize`/`initialized` handshake, then maps:
 - streamed assistant text to `item/agentMessage/delta`; and
 - authoritative assistant text and completion to `item/completed` and
   `turn/completed`.
+
+At thread creation, the adapter maps optional persona behavior to Codex App
+Server's stable `developerInstructions` field. It prefixes the serialized
+contract with its authority limits and preserves the user-authored instruction
+text exactly. No persona behavior is sent when none was supplied.
 
 Production construction requires an explicit absolute working directory. The
 adapter also supplies that directory to `thread/start` so a Continuity
@@ -81,10 +93,11 @@ malformed data, concurrency, process failure, and restart.
 ## Current boundary
 
 The persona-bound orchestration layer now persists immutable conversation
-bindings, composes bounded context, and routes successful turns into authorized
-ambient capture. It remains a library rather than the Continuity conversational
-client: chat presentation, persona-behavior prompting, conversation controls,
-and coordinated deletion are not yet implemented. Completed turns are
+bindings, composes bounded context, applies explicit start-time persona
+behavior, and routes successful turns into authorized ambient capture. It
+remains a library rather than the Continuity conversational client: chat
+presentation, persisted behavior-profile editing, conversation controls, and
+coordinated deletion are not yet implemented. Completed turns are
 journaled before extraction, failed capture can be listed and retried, and
 missing journal entries can be reconstructed from authoritative host history
 without asking the host to generate the response again.

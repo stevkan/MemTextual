@@ -222,6 +222,8 @@ test("binds a host conversation to one persona and captures an exact completed t
       authorizationId: setup.authorization.authorization.id,
       grant: setup.authorization.grant,
       model: "test-model",
+      personaBehaviorInstructions:
+        "Speak warmly as Skylar while keeping responses concise.\nNever claim a memory was saved unless confirmed.",
     });
     const result = await setup.conversations.sendTurn({
       conversationId: conversation.id,
@@ -234,6 +236,14 @@ test("binds a host conversation to one persona and captures an exact completed t
     assert.equal(conversation.externalConversationId, "host-conversation-1");
     assert.equal(conversation.personaId, setup.skylar.persona.id);
     assert.equal(setup.host.started[0]?.model, "test-model");
+    assert.deepEqual(setup.host.started[0]?.personaBehavior, {
+      format: "memtextual.persona_behavior",
+      formatVersion: 1,
+      contentRole: "persona_behavior",
+      personaId: setup.skylar.persona.id,
+      instructions:
+        "Speak warmly as Skylar while keeping responses concise.\nNever claim a memory was saved unless confirmed.",
+    });
     assert.deepEqual(setup.host.resumed, ["host-conversation-1"]);
     assert.equal(setup.contexts.queries[0]?.personaId, setup.skylar.persona.id);
     assert.equal(setup.contexts.queries[0]?.text, "Please keep your responses concise.");
@@ -270,6 +280,24 @@ test("binds a host conversation to one persona and captures an exact completed t
       ],
     );
     assert.equal(setup.ingestion.listCandidates()[0]?.status, "pending");
+  } finally {
+    setup.database.close();
+  }
+});
+
+test("rejects empty persona behavior before starting a host conversation", async () => {
+  const setup = fixture();
+  try {
+    await assert.rejects(
+      setup.conversations.startConversation({
+        personaId: setup.skylar.persona.id,
+        authorizationId: setup.authorization.authorization.id,
+        grant: setup.authorization.grant,
+        personaBehaviorInstructions: "  \n ",
+      }),
+      /personaBehaviorInstructions must not be empty/,
+    );
+    assert.deepEqual(setup.host.started, []);
   } finally {
     setup.database.close();
   }

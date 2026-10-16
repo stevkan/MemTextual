@@ -8,6 +8,10 @@ import type {
   HistoricalCompletedConversationTurn,
 } from "../domain/conversation-host.js";
 import {
+  personaBehaviorPromptFormat,
+  personaBehaviorPromptFormatVersion,
+} from "../domain/conversation-host.js";
+import {
   continuityConversationTurnEventKind,
   type ContinuityConversation,
   type ContinuityConversationCaptureRetryResult,
@@ -98,9 +102,23 @@ export class ContinuityConversationService {
     ) {
       throw new Error("The conversation authorization does not match its persona.");
     }
-    const session = await this.host.startConversation(
-      input.model === undefined ? {} : { model: input.model },
-    );
+    const session = await this.host.startConversation({
+      ...(input.model === undefined ? {} : { model: input.model }),
+      ...(input.personaBehaviorInstructions === undefined
+        ? {}
+        : {
+            personaBehavior: {
+              format: personaBehaviorPromptFormat,
+              formatVersion: personaBehaviorPromptFormatVersion,
+              contentRole: "persona_behavior" as const,
+              personaId,
+              instructions: requiredPreservedText(
+                input.personaBehaviorInstructions,
+                "personaBehaviorInstructions",
+              ),
+            },
+          }),
+    });
     return this.repository.createConversation({
       id: randomUUID(),
       userId: persona.persona.userId,
@@ -493,4 +511,11 @@ function requiredText(value: string, label: string): string {
     throw new Error(`${label} must not be empty.`);
   }
   return normalized;
+}
+
+function requiredPreservedText(value: string, label: string): string {
+  if (value.trim().length === 0) {
+    throw new Error(`${label} must not be empty.`);
+  }
+  return value;
 }
