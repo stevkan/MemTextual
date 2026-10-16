@@ -5,6 +5,11 @@ describe only the current design and behavior.
 
 ## Unreleased
 
+- Added a process-local Continuity client lifecycle coordinator. Persisted
+  conversations reconcile authoritative host history, surface exact unresolved
+  capture records, and resume the host before accepting another turn. It
+  prevents overlapping turns, closes readiness after failure or leave, and
+  retains no bearer grants. Graphical presentation remains separate work.
 - Added fail-closed host-history reconciliation. The provider-neutral host
   contract can list exact completed turns, and the Codex adapter pages
   oldest-first full history through `thread/turns/list`. Persona-bound

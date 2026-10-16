@@ -80,10 +80,14 @@ routing are now implemented in the library orchestration layer. Completed turns
 are journaled before extraction, failed capture is visible and retriable without
 another model turn, and retry remains authorization- and persona-bound. Missing
 journal entries can now be reconstructed from exact paginated host history after
-full-history validation. Chat presentation, persona-behavior prompting,
-conversation controls, and client reconciliation scheduling remain integration
-work. Other cloud providers and local models are outside the initial scope and
-may be reconsidered only in response to demonstrated need.
+full-history validation. A process-local client coordinator now enforces that
+reconciliation, unresolved-capture checking, and host resumption occur before a
+persisted conversation can accept another turn. It permits one active turn and
+closes readiness after failures without retaining bearer grants. Chat
+presentation, persona-behavior prompting, conversation lists, recovery
+presentation, and coordinated deletion controls remain integration work. Other
+cloud providers and local models are outside the initial scope and may be
+reconsidered only in response to demonstrated need.
 
 As of October 15, 2026, OpenAI's official ChatGPT desktop, web, and mobile
 clients expose no supported outbound conversation-turn API or webhook through

@@ -50,6 +50,8 @@ The system provides:
 - a durable completed-turn capture journal with persona-bound, idempotent retry;
 - fail-closed host-history reconciliation for completed turns missing from that
   journal;
+- a client lifecycle gate that reconciles persisted conversations, blocks on
+  unresolved capture recovery, and prevents overlapping turns;
 - an explicit, persona-scoped user-control service for review and lifecycle actions;
 - a local, persona-bound Continuity control console for explicit memory creation,
   review, and inspection;

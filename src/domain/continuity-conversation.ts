@@ -136,3 +136,8 @@ export interface ContinuityConversationReconciliationResult {
   existingCaptureCount: number;
   recovered: RecoveredContinuityConversationTurn[];
 }
+
+export interface OpenContinuityConversationResult {
+  conversation: ContinuityConversation;
+  reconciliation: ContinuityConversationReconciliationResult;
+}

@@ -49,6 +49,7 @@ export {
   type ResumeContinuityConversationInput,
   type ReconcileContinuityConversationInput,
   type RecoveredContinuityConversationTurn,
+  type OpenContinuityConversationResult,
   type RetryContinuityConversationCaptureInput,
   type SendContinuityConversationTurnInput,
   type StartContinuityConversationInput,
@@ -373,6 +374,11 @@ export {
   AuthorizedHostEventCaptureService,
   HostAuthorizationService,
 } from "./services/host-event-service.js";
+export {
+  ContinuityConversationClientCoordinator,
+  ContinuityConversationOpenRecoveryRequiredError,
+  type ContinuityConversationClientOperations,
+} from "./services/continuity-conversation-client-coordinator.js";
 export {
   ContinuityConversationCaptureError,
   ContinuityConversationReconciliationCaptureError,

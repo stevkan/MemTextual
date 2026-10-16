@@ -88,16 +88,29 @@ If extraction fails, the new journal entry becomes `failed`, the operation
 throws `ContinuityConversationReconciliationCaptureError`, and ordinary
 `retryCapture` remains available.
 
-The future client must invoke reconciliation when reopening a bound
-conversation and surface failures before accepting another user turn. The
-library provides the operation but does not silently choose a client schedule.
+## Client lifecycle gate
+
+`ContinuityConversationClientCoordinator` provides the lifecycle a future
+client must use. A newly started conversation becomes ready immediately. A
+persisted conversation remains closed until the coordinator has reconciled its
+authoritative host history, checked for pending or failed capture records for
+that exact conversation, and resumed the host session in that order.
+
+Unresolved records produce
+`ContinuityConversationOpenRecoveryRequiredError`, including the exact
+persona-authorized records the client must present for recovery. Reconciliation
+or resume failure leaves the conversation closed. Only one turn can be active
+per conversation, and any turn failure closes local readiness so the next turn
+requires an explicit reopen and reconciliation. Leaving a conversation also
+removes readiness. This state is process-local and stores no bearer grant.
 
 ## Current boundary
 
 This package provides library orchestration, not the graphical conversational
 client. It does not yet provide chat presentation, persona-behavior prompting,
-conversation lists, or coordinated deletion controls. Client wiring for when
-to run and display reconciliation also remains integration work.
+conversation lists, recovery presentation, or coordinated deletion controls.
+The lifecycle coordinator is ready for those presentation layers, but it is not
+itself a graphical client.
 
 Codex App Server threads are persistent local records outside the MemTextual
 database. They contain the submitted user text, memory-context item, and model
