@@ -1,5 +1,6 @@
 import type {
   ContinuityConversation,
+  ContinuityConversationHostDeletion,
   ContinuityConversationSummary,
   ContinuityConversationTurnCapture,
   CreateContinuityConversationRecordInput,
@@ -11,6 +12,20 @@ export interface ContinuityConversationRepository {
     input: CreateContinuityConversationRecordInput,
   ): ContinuityConversation;
   getConversation(id: string): ContinuityConversation | null;
+  getHostDeletion(conversationId: string): ContinuityConversationHostDeletion | null;
+  beginHostDeletion(
+    conversationId: string,
+    attemptedAt: string,
+  ): ContinuityConversationHostDeletion;
+  markHostDeletionFailed(
+    conversationId: string,
+    attemptedAt: string,
+    failureCode: string,
+  ): ContinuityConversationHostDeletion;
+  markHostDeleted(
+    conversationId: string,
+    attemptedAt: string,
+  ): ContinuityConversationHostDeletion;
   listConversations(personaId: string): ContinuityConversationSummary[];
   listConversationTurnCaptures(
     conversationId: string,

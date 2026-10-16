@@ -17,6 +17,7 @@ import type { PersonaContext } from "../domain/persona.js";
 import type { ContinuityControlService } from "../services/continuity-control-service.js";
 import type { ContinuityConversationAuthorizationService } from "../services/continuity-conversation-authorization-service.js";
 import type { ContinuityConversationCatalogService } from "../services/continuity-conversation-catalog-service.js";
+import type { ContinuityConversationHostDeletionService } from "../services/continuity-conversation-host-deletion-service.js";
 import { ContinuityConversationOpenRecoveryRequiredError } from "../services/continuity-conversation-client-coordinator.js";
 import type { ContinuityConversationProtectedClient } from "../services/continuity-conversation-protected-client.js";
 import {
@@ -119,6 +120,13 @@ const conversationStartSchema = z
 const conversationTurnSchema = z
   .object({ text: z.string().trim().min(1).max(50_000) })
   .strict();
+const conversationHostDeletionSchema = z
+  .object({
+    confirmation: z.string().min(1).max(1_000),
+    acknowledgeLocalDataRemains: z.boolean(),
+    acknowledgeBackupsMayRemain: z.boolean(),
+  })
+  .strict();
 
 class HttpError extends Error {
   public constructor(
@@ -152,6 +160,10 @@ export interface ContinuityConsoleConversationRuntime {
     | "retryCapture"
     | "sendTurn"
     | "startConversation"
+  >;
+  hostDeletion: Pick<
+    ContinuityConversationHostDeletionService,
+    "deleteHostConversation" | "preview"
   >;
   hostIdentity: ConversationHostIdentity;
 }
@@ -550,6 +562,19 @@ export function createContinuityConsoleApplication(
           });
         }
 
+        const hostDeletionPreviewId = routeId(
+          url.pathname,
+          "/host-delete-preview",
+          "conversations",
+        );
+        if (request.method === "GET" && hostDeletionPreviewId !== null) {
+          const runtime = requireConversationRuntime(options.conversationRuntime);
+          return jsonResponse(
+            200,
+            runtime.hostDeletion.preview(hostDeletionPreviewId, personaId),
+          );
+        }
+
         const conversationId = routeId(url.pathname, "", "conversations");
         if (request.method === "GET" && conversationId !== null) {
           return jsonResponse(
@@ -750,6 +775,28 @@ export function createContinuityConsoleApplication(
             conversationId: leaveConversationId,
             left: true,
           });
+        }
+        const hostDeletionId = routeId(
+          url.pathname,
+          "/host-delete",
+          "conversations",
+        );
+        if (hostDeletionId !== null) {
+          const input = parseBody(conversationHostDeletionSchema, body);
+          const runtime = requireConversationRuntime(options.conversationRuntime);
+          return jsonResponse(
+            200,
+            await runtime.hostDeletion.deleteHostConversation(
+              {
+                conversationId: hostDeletionId,
+                personaId,
+                confirmation: input.confirmation,
+                acknowledgeLocalDataRemains: input.acknowledgeLocalDataRemains,
+                acknowledgeBackupsMayRemain: input.acknowledgeBackupsMayRemain,
+              },
+              { actor: "user", explicitUserAction: true },
+            ),
+          );
         }
         if (url.pathname === "/api/behavior") {
           const input = parseBody(personaBehaviorSchema, body);

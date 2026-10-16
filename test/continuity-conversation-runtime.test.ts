@@ -80,6 +80,7 @@ class RuntimeHost implements StructuredConversationHost {
   };
   readonly structuredTasks: CodexAppServerStructuredTaskInput[] = [];
   readonly history: HistoricalCompletedConversationTurn[] = [];
+  readonly deleted: string[] = [];
   closeCalls = 0;
   failStructuredTask = false;
   nextTurn = 1;
@@ -90,6 +91,11 @@ class RuntimeHost implements StructuredConversationHost {
 
   async resumeConversation(conversationId: string): Promise<ConversationSession> {
     return { id: conversationId };
+  }
+
+  async deleteConversation(conversationId: string) {
+    this.deleted.push(conversationId);
+    return { conversationId, deleted: true as const };
   }
 
   async sendTurn(input: SendConversationTurnInput): Promise<CompletedConversationTurn> {
@@ -434,6 +440,39 @@ test("console conversation API keeps identity and grants behind the loopback bou
       {},
     );
     assert.equal(secondLeave.status, 200);
+    const deletionPreviewResponse = await request(
+      `/api/conversations/${encodeURIComponent(conversation.id)}/host-delete-preview`,
+      undefined,
+      "GET",
+    );
+    assert.equal(deletionPreviewResponse.status, 200);
+    const deletionPreview = JSON.parse(deletionPreviewResponse.body) as {
+      confirmation: string;
+      localJournalWillRemain: boolean;
+      snapshotsAndBackupsMayRemain: boolean;
+    };
+    assert.equal(deletionPreview.localJournalWillRemain, true);
+    assert.equal(deletionPreview.snapshotsAndBackupsMayRemain, true);
+    const deletionResponse = await request(
+      `/api/conversations/${encodeURIComponent(conversation.id)}/host-delete`,
+      {
+        confirmation: deletionPreview.confirmation,
+        acknowledgeLocalDataRemains: true,
+        acknowledgeBackupsMayRemain: true,
+      },
+    );
+    assert.equal(deletionResponse.status, 200);
+    assert.equal(
+      (JSON.parse(deletionResponse.body) as { status: string }).status,
+      "deleted",
+    );
+    assert.deepEqual(hostAdapter.deleted, ["host-conversation-1"]);
+    const rejectedDeletedOpen = await request(
+      `/api/conversations/${encodeURIComponent(conversation.id)}/open`,
+      {},
+    );
+    assert.equal(rejectedDeletedOpen.status, 400);
+    assert.match(rejectedDeletedOpen.body, /external host thread.*deleted/iu);
     const revokeResponse = await request(
       `/api/conversation-authorizations/${encodeURIComponent(authorization.id)}/revoke`,
       {},

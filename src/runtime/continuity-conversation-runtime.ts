@@ -1,7 +1,10 @@
 import type Database from "better-sqlite3";
 import type { AmbientSensitivityClassifier } from "../domain/ambient-memory.js";
 import type { ConversationGrantStore } from "../domain/conversation-grant-store.js";
-import type { ConversationHost } from "../domain/conversation-host.js";
+import type {
+  ConversationHost,
+  DeletableConversationHost,
+} from "../domain/conversation-host.js";
 import {
   CodexAppServerConversationHost,
   type CodexAppServerConversationHostOptions,
@@ -25,6 +28,7 @@ import { AmbientMemoryService } from "../services/ambient-memory-service.js";
 import { ContinuityLexicalContextService } from "../services/continuity-context-service.js";
 import { ContinuityConversationAuthorizationService } from "../services/continuity-conversation-authorization-service.js";
 import { ContinuityConversationClientCoordinator } from "../services/continuity-conversation-client-coordinator.js";
+import { ContinuityConversationHostDeletionService } from "../services/continuity-conversation-host-deletion-service.js";
 import { ContinuityConversationProtectedClient } from "../services/continuity-conversation-protected-client.js";
 import { ContinuityConversationService } from "../services/continuity-conversation-service.js";
 import { ContinuityPersonaBehaviorService } from "../services/continuity-persona-behavior-service.js";
@@ -35,7 +39,8 @@ import {
 import { IngestionService } from "../services/ingestion-service.js";
 
 export type StructuredConversationHost = ConversationHost &
-  CodexAppServerStructuredTaskRunner;
+  CodexAppServerStructuredTaskRunner &
+  DeletableConversationHost;
 
 export interface ContinuityConversationRuntimeOptions {
   database: Database.Database;
@@ -49,6 +54,7 @@ export interface ContinuityConversationRuntimeOptions {
 export interface ContinuityConversationRuntime {
   authorizations: ContinuityConversationAuthorizationService;
   client: ContinuityConversationProtectedClient;
+  hostDeletion: ContinuityConversationHostDeletionService;
   hostIdentity: ConversationHost["identity"];
   close(): Promise<void>;
 }
@@ -130,11 +136,21 @@ export function createContinuityConversationRuntime(
     lifecycle,
     personas,
   });
+  const hostDeletion = new ContinuityConversationHostDeletionService(
+    conversations,
+    options.host,
+    {
+      leaveConversation: (conversationId, personaId) =>
+        client.leaveConversation(conversationId, personaId),
+      ...(options.now === undefined ? {} : { now: options.now }),
+    },
+  );
   let closed = false;
 
   return {
     authorizations,
     client,
+    hostDeletion,
     hostIdentity: { ...options.host.identity },
     async close(): Promise<void> {
       if (closed) {

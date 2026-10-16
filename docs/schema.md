@@ -281,6 +281,13 @@ that predates migration 019. Database triggers reject partial references,
 disabled revisions, revision mismatches, and profiles belonging to another
 persona.
 
+`continuity_conversation_host_deletions` is the durable state journal for an
+explicit external-thread deletion. Its `pending`, `failed`, and `deleted`
+states preserve attempt count and timestamps without storing provider error
+text. A row is written before provider use, transitions are constrained, and a
+provider-confirmed deleted row cannot be changed or removed. The linked
+`continuity_conversations` row and its local turn-capture journal remain intact.
+
 ## SQLite-enforced invariants
 
 - Enum-like values and confidence ranges are checked.
@@ -292,6 +299,8 @@ persona.
 - Persona behavior revisions are sequential, immutable, undeletable, and
   persona-bound; conversation bindings may reference only a matching enabled
   revision.
+- Host-deletion records are undeletable; confirmed deletion is terminal, and
+  retry attempts must advance the attempt count through a pending state.
 - Emotional profile revisions are sequential, immutable, persona-bound, and
   restricted to a retained current memory revision.
 - Source-series identities and version numbers are unique, and source-version

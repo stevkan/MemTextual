@@ -18,6 +18,45 @@ export const continuityConversationCaptureStatuses = [
 export type ContinuityConversationCaptureStatus =
   (typeof continuityConversationCaptureStatuses)[number];
 
+export const continuityConversationHostDeletionStatuses = [
+  "pending",
+  "failed",
+  "deleted",
+] as const;
+
+export type ContinuityConversationHostDeletionStatus =
+  (typeof continuityConversationHostDeletionStatuses)[number];
+
+export interface ContinuityConversationHostDeletion {
+  conversationId: string;
+  status: ContinuityConversationHostDeletionStatus;
+  attemptCount: number;
+  lastAttemptAt: string;
+  failureCode: string | null;
+  deletedAt: string | null;
+  updatedAt: string;
+}
+
+export interface ContinuityConversationHostDeletionPreview {
+  conversationId: string;
+  hostId: string;
+  status: ContinuityConversationHostDeletionStatus | "not_requested";
+  turnCount: number;
+  unresolvedCaptureCount: number;
+  confirmation: string;
+  localJournalWillRemain: true;
+  derivedMemoriesWillRemain: true;
+  snapshotsAndBackupsMayRemain: true;
+}
+
+export interface DeleteContinuityConversationHostInput {
+  conversationId: string;
+  personaId: string;
+  confirmation: string;
+  acknowledgeLocalDataRemains: boolean;
+  acknowledgeBackupsMayRemain: boolean;
+}
+
 export interface ContinuityConversation {
   id: string;
   userId: string;
@@ -56,6 +95,7 @@ export interface ContinuityConversationTurnCapture {
 
 export interface ContinuityConversationSummary {
   conversation: ContinuityConversation;
+  hostDeletion: ContinuityConversationHostDeletion | null;
   turnCount: number;
   unresolvedCaptureCount: number;
   lastActivityAt: string;

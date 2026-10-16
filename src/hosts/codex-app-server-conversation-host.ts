@@ -5,6 +5,7 @@ import type { Readable, Writable } from "node:stream";
 import type {
   CompletedConversationTurn,
   ConversationHost,
+  ConversationHostDeletionReceipt,
   ConversationHostEvent,
   ConversationHostIdentity,
   ConversationSession,
@@ -164,6 +165,27 @@ export class CodexAppServerConversationHost implements ConversationHost {
       throw new CodexAppServerError("Codex App Server resumed an unexpected thread.");
     }
     return { id: returnedId };
+  }
+
+  async deleteConversation(
+    conversationId: string,
+  ): Promise<ConversationHostDeletionReceipt> {
+    const threadId = requireNonEmpty(conversationId, "conversationId");
+    if (this.#turnsByConversation.has(threadId)) {
+      throw new CodexAppServerError(
+        `Conversation ${threadId} has an active turn and cannot be deleted.`,
+      );
+    }
+    const result = requireRecord(
+      await this.#request("thread/delete", { threadId }),
+      "thread/delete result",
+    );
+    if (Object.keys(result).length !== 0) {
+      throw new CodexAppServerError(
+        "Codex App Server returned an unexpected thread/delete result.",
+      );
+    }
+    return { conversationId: threadId, deleted: true };
   }
 
   async sendTurn(input: SendConversationTurnInput): Promise<CompletedConversationTurn> {

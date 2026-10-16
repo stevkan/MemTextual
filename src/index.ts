@@ -28,10 +28,12 @@ export {
   personaBehaviorPromptFormatVersion,
   type CompletedConversationTurn,
   type ConversationHost,
+  type ConversationHostDeletionReceipt,
   type ConversationHostEvent,
   type ConversationHostIdentity,
   type ConversationSession,
   type ConversationTurnStatus,
+  type DeletableConversationHost,
   type HistoricalCompletedConversationTurn,
   type PersonaBehaviorPrompt,
   type SendConversationTurnInput,
@@ -44,10 +46,14 @@ export type {
 } from "./domain/continuity-persona-behavior.js";
 export {
   continuityConversationCaptureStatuses,
+  continuityConversationHostDeletionStatuses,
   continuityConversationTurnEventKind,
   type ContinuityConversation,
   type ContinuityConversationCaptureRetryResult,
   type ContinuityConversationCaptureStatus,
+  type ContinuityConversationHostDeletion,
+  type ContinuityConversationHostDeletionPreview,
+  type ContinuityConversationHostDeletionStatus,
   type ContinuityConversationDetail,
   type ContinuityConversationReconciliationResult,
   type ContinuityConversationSummary,
@@ -56,6 +62,7 @@ export {
   type ContinuityConversationTurnResult,
   type CreateContinuityConversationRecordInput,
   type CreateContinuityConversationTurnCaptureInput,
+  type DeleteContinuityConversationHostInput,
   type ResumeContinuityConversationInput,
   type ReconcileContinuityConversationInput,
   type RecoveredContinuityConversationTurn,
@@ -423,6 +430,12 @@ export {
   ContinuityConversationOpenRecoveryRequiredError,
   type ContinuityConversationClientOperations,
 } from "./services/continuity-conversation-client-coordinator.js";
+export {
+  ContinuityConversationHostDeletionService,
+  ConversationHostDeletionFinalizationError,
+  ExplicitConversationHostDeletionRequiredError,
+  type ContinuityConversationHostDeletionServiceOptions,
+} from "./services/continuity-conversation-host-deletion-service.js";
 export {
   ContinuityConversationProtectedClient,
   type ContinuityConversationProtectedClientOptions,

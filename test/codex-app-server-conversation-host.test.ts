@@ -128,6 +128,41 @@ test("starts and resumes Codex App Server conversations after the required hands
   await host.close();
 });
 
+test("deletes a Codex thread only after an empty successful provider response", async () => {
+  const server = new FakeAppServerProcess((message, fake) => {
+    standardHandler(message, fake);
+    if (message.method === "thread/delete") {
+      fake.send({ id: message.id, result: {} });
+    }
+  });
+  const host = new CodexAppServerConversationHost({ processFactory: () => server });
+
+  assert.deepEqual(await host.deleteConversation("thread-delete"), {
+    conversationId: "thread-delete",
+    deleted: true,
+  });
+  assert.deepEqual(server.received.at(-1)?.params, {
+    threadId: "thread-delete",
+  });
+  await host.close();
+});
+
+test("does not claim Codex thread deletion for malformed provider results", async () => {
+  const server = new FakeAppServerProcess((message, fake) => {
+    if (message.method === "initialize") {
+      fake.send({ id: message.id, result: {} });
+    } else if (message.method === "thread/delete") {
+      fake.send({ id: message.id, result: { deleted: true } });
+    }
+  });
+  const host = new CodexAppServerConversationHost({ processFactory: () => server });
+  await assert.rejects(
+    host.deleteConversation("thread-delete"),
+    /unexpected thread\/delete result/u,
+  );
+  await host.close();
+});
+
 test("runs an ephemeral structured task with a restricted turn", async () => {
   const schema = {
     type: "object",

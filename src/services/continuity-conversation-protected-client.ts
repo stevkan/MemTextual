@@ -62,6 +62,7 @@ export interface ContinuityConversationProtectedClientOptions {
   authorizations: ContinuityConversationProtectedGrantResolver;
   conversations: {
     getConversation(id: string): ContinuityConversation | null;
+    getHostDeletion(id: string): { status: "pending" | "failed" | "deleted" } | null;
   };
   lifecycle: ContinuityConversationProtectedLifecycle;
   personas: {
@@ -112,6 +113,7 @@ export class ContinuityConversationProtectedClient {
       input.conversationId,
       input.personaId,
     );
+    this.requireHostConversationAvailable(conversation.id);
     const grant = requireGrant(
       await this.#authorizations.resolveForConversation(conversation),
     );
@@ -131,6 +133,7 @@ export class ContinuityConversationProtectedClient {
       input.conversationId,
       input.personaId,
     );
+    this.requireHostConversationAvailable(conversation.id);
     const grant = requireGrant(
       await this.#authorizations.resolveForConversation(conversation),
     );
@@ -177,6 +180,20 @@ export class ContinuityConversationProtectedClient {
       throw new Error(`Persona not found: ${normalizedPersonaId}`);
     }
     return persona;
+  }
+
+  private requireHostConversationAvailable(conversationId: string): void {
+    const deletion = this.#conversations.getHostDeletion(conversationId);
+    if (deletion?.status === "deleted") {
+      throw new Error(
+        `The external host thread for conversation ${conversationId} was deleted.`,
+      );
+    }
+    if (deletion !== null) {
+      throw new Error(
+        `Host-thread deletion for conversation ${conversationId} has a ${deletion.status} outcome; host availability is not confirmed.`,
+      );
+    }
   }
 
   private requireConversation(

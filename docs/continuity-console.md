@@ -123,6 +123,19 @@ durable journal so the completed response remains visible, marks the
 conversation closed locally, and requires an explicit capture retry followed by
 another open-and-reconcile action. Retry does not submit another model turn.
 
+## External host-thread deletion
+
+For a journaled conversation, the console can request a fresh deletion preview
+from the enabled host runtime. The preview discloses the current local turn and
+unresolved-capture counts and supplies an exact confirmation phrase. The final
+action requires that phrase, two retained-copy acknowledgements, and a browser
+confirmation before asking the provider to delete its thread.
+
+Successful provider deletion is journaled and disables reopen and send controls.
+The exact local conversation journal remains visible. Derived memories, exports,
+database snapshots, encrypted replicas, filesystem copies, and provider backup
+retention are outside this action and are never reported as erased.
+
 ## Persona-memory export
 
 The downloaded `memtextual-continuity-persona-memories` format is versioned and
@@ -177,6 +190,8 @@ outside the operation and are disclosed rather than silently claimed as erased.
   sending text, retrying capture, and leaving local readiness each require a
   visible user action. The page does not silently create authorization or retry
   failed operations.
+- External host-thread deletion additionally requires a fresh preview, exact
+  confirmation, retained-copy acknowledgements, and provider confirmation.
 - API requests require the per-launch bearer token.
 - Mutations also require an exact same-origin browser request.
 - Host validation, strict JSON schemas, a 64 KiB body limit, no-store responses,

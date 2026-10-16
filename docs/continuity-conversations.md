@@ -96,6 +96,28 @@ therefore included in database snapshots and encrypted replication. Deletion
 and retention controls must account for both this journal and the separately
 stored host thread.
 
+## External host-thread deletion
+
+Migration 020 adds a durable host-deletion journal with `pending`, `failed`,
+and provider-confirmed `deleted` states. A deletion attempt is recorded before
+the external request, retains only a generic failure code, and cannot be erased.
+The provider-neutral deletion capability returns a receipt only after the host
+accepts its delete request. The Codex adapter maps this operation to
+`thread/delete` and accepts only the protocol's empty success result.
+
+The console first returns a fresh, persona-bound preview. Its exact confirmation
+changes if the local turn or recovery counts change. Deletion then requires a
+visible user action, that exact confirmation, acknowledgement that the local
+journal and derived memories remain, and acknowledgement that snapshots and
+backups may retain copies. An active process-local conversation is closed before
+the attempt. A provider-confirmed thread cannot be reopened or sent new turns,
+but its local journal remains available and failed capture can still be retried.
+
+This is deliberately not a complete-erasure operation. It does not delete the
+MemTextual journal, candidates, memories, exports, snapshots, backups, or other
+provider-controlled retained copies. Automatic retention schedules are not
+installed or inferred.
+
 ## Host-history reconciliation
 
 `reconcileConversationHistory` closes the process-loss gap between host
@@ -175,11 +197,12 @@ explicit grantless authorization, start, open-and-reconcile, send, leave, and
 capture-retry controls while continuing to render the exact durable journal.
 Completed output remains visible when capture fails, and the page requires
 recovery before reopening rather than silently retrying or regenerating a turn.
-Coordinated host-thread deletion controls also remain open.
+The same page exposes preview-bound external host-thread deletion with explicit
+retained-copy acknowledgements and provider-confirmed status.
 
 Codex App Server threads are persistent local records outside the MemTextual
 database. They contain the submitted user text, memory-context item, and model
 output, so MemTextual database deletion or restore does not alter those copies.
-The conversational client must disclose that retention and add coordinated
-thread deletion controls before this path is presented as a complete privacy
-workflow.
+The coordinated control can delete the host thread, but it does not alter the
+separate MemTextual journal or retained backup copies and is not presented as a
+complete privacy-erasure workflow.

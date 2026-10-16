@@ -92,6 +92,18 @@ export interface HistoricalCompletedConversationTurn
   };
 }
 
+export interface ConversationHostDeletionReceipt {
+  conversationId: string;
+  deleted: true;
+}
+
+/** Optional destructive capability implemented only by hosts that can confirm deletion. */
+export interface DeletableConversationHost {
+  deleteConversation(
+    conversationId: string,
+  ): Promise<ConversationHostDeletionReceipt>;
+}
+
 /**
  * Provider-neutral boundary for a client-owned conversation. Host identifiers
  * are opaque and must not be interpreted by Continuity services.

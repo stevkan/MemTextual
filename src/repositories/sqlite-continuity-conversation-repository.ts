@@ -1,6 +1,7 @@
 import type Database from "better-sqlite3";
 import type {
   ContinuityConversation,
+  ContinuityConversationHostDeletion,
   ContinuityConversationSummary,
   ContinuityConversationTurnCapture,
   CreateContinuityConversationRecordInput,
@@ -42,9 +43,25 @@ interface TurnCaptureRow {
 }
 
 interface ConversationSummaryRow extends ConversationRow {
+  deletion_status: ContinuityConversationHostDeletion["status"] | null;
+  deletion_attempt_count: number | null;
+  deletion_last_attempt_at: string | null;
+  deletion_failure_code: string | null;
+  host_deleted_at: string | null;
+  deletion_updated_at: string | null;
   turn_count: number;
   unresolved_capture_count: number;
   last_activity_at: string;
+}
+
+interface HostDeletionRow {
+  conversation_id: string;
+  status: ContinuityConversationHostDeletion["status"];
+  attempt_count: number;
+  last_attempt_at: string;
+  failure_code: string | null;
+  deleted_at: string | null;
+  updated_at: string;
 }
 
 const columns = `
@@ -58,6 +75,11 @@ const turnCaptureColumns = `
   assistant_text, completed_at, context_format_version,
   memory_revision_ids_json, status, attempt_count, last_attempt_at,
   failure_code, receipt_id, captured_at, created_at, updated_at
+`;
+
+const hostDeletionColumns = `
+  conversation_id, status, attempt_count, last_attempt_at, failure_code,
+  deleted_at, updated_at
 `;
 
 function mapConversation(row: ConversationRow): ContinuityConversation {
@@ -97,11 +119,37 @@ function mapTurnCapture(row: TurnCaptureRow): ContinuityConversationTurnCapture 
   };
 }
 
+function mapHostDeletion(
+  row: HostDeletionRow,
+): ContinuityConversationHostDeletion {
+  return {
+    conversationId: row.conversation_id,
+    status: row.status,
+    attemptCount: row.attempt_count,
+    lastAttemptAt: row.last_attempt_at,
+    failureCode: row.failure_code,
+    deletedAt: row.deleted_at,
+    updatedAt: row.updated_at,
+  };
+}
+
 function mapConversationSummary(
   row: ConversationSummaryRow,
 ): ContinuityConversationSummary {
   return {
     conversation: mapConversation(row),
+    hostDeletion:
+      row.deletion_status === null
+        ? null
+        : mapHostDeletion({
+            conversation_id: row.id,
+            status: row.deletion_status,
+            attempt_count: row.deletion_attempt_count!,
+            last_attempt_at: row.deletion_last_attempt_at!,
+            failure_code: row.deletion_failure_code,
+            deleted_at: row.host_deleted_at,
+            updated_at: row.deletion_updated_at!,
+          }),
     turnCount: row.turn_count,
     unresolvedCaptureCount: row.unresolved_capture_count,
     lastActivityAt: row.last_activity_at,
@@ -149,6 +197,86 @@ export class SqliteContinuityConversationRepository
     return row === undefined ? null : mapConversation(row);
   }
 
+  public getHostDeletion(
+    conversationId: string,
+  ): ContinuityConversationHostDeletion | null {
+    const row = this.database
+      .prepare(
+        `SELECT ${hostDeletionColumns}
+         FROM continuity_conversation_host_deletions
+         WHERE conversation_id = ?`,
+      )
+      .get(conversationId) as HostDeletionRow | undefined;
+    return row === undefined ? null : mapHostDeletion(row);
+  }
+
+  public beginHostDeletion(
+    conversationId: string,
+    attemptedAt: string,
+  ): ContinuityConversationHostDeletion {
+    const current = this.getHostDeletion(conversationId);
+    if (current?.status === "deleted") {
+      return current;
+    }
+    this.database
+      .prepare(
+        `INSERT INTO continuity_conversation_host_deletions (
+           conversation_id, status, attempt_count, last_attempt_at, updated_at
+         ) VALUES (?, 'pending', 1, ?, ?)
+         ON CONFLICT(conversation_id) DO UPDATE SET
+           status = 'pending',
+           attempt_count = attempt_count + 1,
+           last_attempt_at = excluded.last_attempt_at,
+           failure_code = NULL,
+           deleted_at = NULL,
+           updated_at = excluded.updated_at
+         WHERE continuity_conversation_host_deletions.status IN ('pending', 'failed')`,
+      )
+      .run(conversationId, attemptedAt, attemptedAt);
+    return this.requireHostDeletion(conversationId);
+  }
+
+  public markHostDeletionFailed(
+    conversationId: string,
+    attemptedAt: string,
+    failureCode: string,
+  ): ContinuityConversationHostDeletion {
+    const result = this.database
+      .prepare(
+        `UPDATE continuity_conversation_host_deletions
+         SET status = 'failed', failure_code = ?, deleted_at = NULL, updated_at = ?
+         WHERE conversation_id = ? AND status = 'pending'
+           AND last_attempt_at = ?`,
+      )
+      .run(failureCode, attemptedAt, conversationId, attemptedAt);
+    if (result.changes !== 1) {
+      throw new Error(`Pending conversation host deletion not found: ${conversationId}`);
+    }
+    return this.requireHostDeletion(conversationId);
+  }
+
+  public markHostDeleted(
+    conversationId: string,
+    attemptedAt: string,
+  ): ContinuityConversationHostDeletion {
+    const current = this.requireHostDeletion(conversationId);
+    if (current.status === "deleted") {
+      return current;
+    }
+    const result = this.database
+      .prepare(
+        `UPDATE continuity_conversation_host_deletions
+         SET status = 'deleted', failure_code = NULL, deleted_at = ?, updated_at = ?
+         WHERE conversation_id = ? AND status = 'pending'
+           AND last_attempt_at = ?`,
+      )
+      .run(attemptedAt, attemptedAt, conversationId, attemptedAt);
+    if (result.changes !== 1) {
+      throw new Error(`Pending conversation host deletion not found: ${conversationId}`);
+    }
+    return this.requireHostDeletion(conversationId);
+  }
+
   public listConversations(personaId: string): ContinuityConversationSummary[] {
     const prefixedColumns = columns
       .split(",")
@@ -157,6 +285,12 @@ export class SqliteContinuityConversationRepository
     const rows = this.database
       .prepare(
         `SELECT ${prefixedColumns},
+                deletion.status AS deletion_status,
+                deletion.attempt_count AS deletion_attempt_count,
+                deletion.last_attempt_at AS deletion_last_attempt_at,
+                deletion.failure_code AS deletion_failure_code,
+                deletion.deleted_at AS host_deleted_at,
+                deletion.updated_at AS deletion_updated_at,
                 COUNT(capture.id) AS turn_count,
                 COALESCE(SUM(CASE WHEN capture.status IN ('pending', 'failed')
                                   THEN 1 ELSE 0 END), 0)
@@ -168,6 +302,8 @@ export class SqliteContinuityConversationRepository
          FROM continuity_conversations conversation
          LEFT JOIN continuity_conversation_turn_captures capture
            ON capture.conversation_id = conversation.id
+         LEFT JOIN continuity_conversation_host_deletions deletion
+           ON deletion.conversation_id = conversation.id
          WHERE conversation.persona_id = ?
          GROUP BY conversation.id
          ORDER BY last_activity_at DESC, conversation.id DESC`,
@@ -343,6 +479,16 @@ export class SqliteContinuityConversationRepository
       throw new Error(`Conversation capture not found: ${id}`);
     }
     return capture;
+  }
+
+  private requireHostDeletion(
+    conversationId: string,
+  ): ContinuityConversationHostDeletion {
+    const deletion = this.getHostDeletion(conversationId);
+    if (deletion === null) {
+      throw new Error(`Conversation host deletion not found: ${conversationId}`);
+    }
+    return deletion;
   }
 }
 

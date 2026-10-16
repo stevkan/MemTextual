@@ -118,13 +118,16 @@ class FakeLifecycle implements ContinuityConversationProtectedLifecycle {
   }
 }
 
-function fixture() {
+function fixture(
+  hostDeletion: { status: "pending" | "failed" | "deleted" } | null = null,
+) {
   const grants = new FakeGrantResolver();
   const lifecycle = new FakeLifecycle();
   const client = new ContinuityConversationProtectedClient({
     authorizations: grants,
     conversations: {
       getConversation: (id) => (id === conversation.id ? conversation : null),
+      getHostDeletion: () => hostDeletion,
     },
     lifecycle,
     personas: {
@@ -133,6 +136,29 @@ function fixture() {
   });
   return { client, grants, lifecycle };
 }
+
+test("protected client blocks host use after any deletion attempt", async () => {
+  for (const status of ["pending", "failed", "deleted"] as const) {
+    const setup = fixture({ status });
+    await assert.rejects(
+      setup.client.openConversation({
+        conversationId: conversation.id,
+        personaId: persona.persona.id,
+      }),
+      /host thread|host availability/iu,
+    );
+    await assert.rejects(
+      setup.client.sendTurn({
+        conversationId: conversation.id,
+        personaId: persona.persona.id,
+        text: "Do not send.",
+      }),
+      /host thread|host availability/iu,
+    );
+    assert.equal(setup.grants.calls.length, 0);
+    assert.equal(setup.lifecycle.calls.length, 0);
+  }
+});
 
 test("protected client resolves start authorization without a public grant input", async () => {
   const setup = fixture();

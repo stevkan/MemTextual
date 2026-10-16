@@ -476,6 +476,14 @@ export const continuityConsoleJavaScript = `
         : "Persona behavior revision " + conversation.behaviorProfileRevision + " was applied when this conversation started.";
       detailPanel.append(node("p", behavior, "meta"));
       detailPanel.append(node("p", "This view shows MemTextual's durable local capture journal. The host may contain additional turns until the conversation can be safely reconciled.", "warning"));
+      if (summary.hostDeletion) {
+        state.readyConversationIds.delete(id);
+      }
+      if (summary.hostDeletion && summary.hostDeletion.status === "deleted") {
+        detailPanel.append(node("p", "The external host thread was confirmed deleted on " + new Date(summary.hostDeletion.deletedAt).toLocaleString() + ". This local journal and any derived memories remain stored.", "warning"));
+      } else if (summary.hostDeletion && summary.hostDeletion.status !== "deleted") {
+        detailPanel.append(node("p", "The most recent host-thread deletion attempt is " + summary.hostDeletion.status + ". No complete-erasure claim is being made.", "warning"));
+      }
       if (summary.unresolvedCaptureCount > 0) {
         detailPanel.append(node("p", summary.unresolvedCaptureCount + " turn capture" + (summary.unresolvedCaptureCount === 1 ? " requires" : "s require") + " recovery before the conversation can safely resume.", "warning"));
       }
@@ -520,7 +528,11 @@ export const continuityConsoleJavaScript = `
 
       const controls = node("div", undefined, "section");
       controls.append(node("h3", "Conversation controls"));
-      if (!conversationRuntimeEnabled()) {
+      if (summary.hostDeletion) {
+        controls.append(node("p", summary.hostDeletion.status === "deleted"
+          ? "The deleted external host thread cannot be reopened or sent new messages."
+          : "Host availability is not confirmed after a deletion attempt. Retry deletion instead of reopening or sending.", "meta"));
+      } else if (!conversationRuntimeEnabled()) {
         controls.append(node("p", "Live conversation controls are disabled for this console session.", "meta"));
       } else if (state.readyConversationIds.has(id)) {
         controls.append(node("p", "This conversation is open and reconciled in the current process.", "meta"));
@@ -595,6 +607,69 @@ export const continuityConsoleJavaScript = `
         }));
       }
       detailPanel.append(controls);
+
+      const hostDeletion = node("div", undefined, "section");
+      hostDeletion.append(node("h3", "External host-thread deletion"));
+      hostDeletion.append(node("p", "This deletes only the provider's conversation thread. MemTextual's local journal, derived memories, snapshots, and backups are separate copies and are not deleted by this action.", "warning"));
+      if (summary.hostDeletion && summary.hostDeletion.status === "deleted") {
+        hostDeletion.append(node("p", "The provider confirmed deletion. Local retained copies are still shown above.", "meta"));
+      } else if (!conversationRuntimeEnabled()) {
+        hostDeletion.append(node("p", "Live host deletion is disabled for this console session.", "meta"));
+      } else {
+        hostDeletion.append(actionButton("Preview host-thread deletion", async () => {
+          const preview = await api("/api/conversations/" + encodeURIComponent(id) + "/host-delete-preview");
+          hostDeletion.replaceChildren(node("h3", "Confirm external host-thread deletion"));
+          hostDeletion.append(node("p", "The provider thread will be deleted. " + preview.turnCount + " local journaled turn" + (preview.turnCount === 1 ? "" : "s") + " and " + preview.unresolvedCaptureCount + " unresolved capture" + (preview.unresolvedCaptureCount === 1 ? "" : "s") + " will remain in MemTextual.", "warning"));
+
+          const confirmationLabel = node("label", "Type this exact confirmation: " + preview.confirmation, "field");
+          const confirmation = document.createElement("input");
+          confirmation.type = "text";
+          confirmation.autocomplete = "off";
+          confirmationLabel.append(confirmation);
+          hostDeletion.append(confirmationLabel);
+
+          const localLabel = node("label", undefined, "check");
+          const localAcknowledgement = document.createElement("input");
+          localAcknowledgement.type = "checkbox";
+          localLabel.append(localAcknowledgement, document.createTextNode("I understand the local journal and derived memories will remain."));
+          hostDeletion.append(localLabel);
+
+          const backupLabel = node("label", undefined, "check");
+          const backupAcknowledgement = document.createElement("input");
+          backupAcknowledgement.type = "checkbox";
+          backupLabel.append(backupAcknowledgement, document.createTextNode("I understand snapshots and backups may retain copies."));
+          hostDeletion.append(backupLabel);
+
+          const deletionActions = node("div", undefined, "actions");
+          deletionActions.append(actionButton("Delete external host thread", async () => {
+            if (confirmation.value !== preview.confirmation) throw new Error("Type the exact preview confirmation.");
+            if (!localAcknowledgement.checked || !backupAcknowledgement.checked) throw new Error("Acknowledge both retained-copy disclosures.");
+            if (!window.confirm("Permanently delete the external provider thread?")) return;
+            try {
+              await api("/api/conversations/" + encodeURIComponent(id) + "/host-delete", {
+                method: "POST",
+                body: JSON.stringify({
+                  confirmation: confirmation.value,
+                  acknowledgeLocalDataRemains: localAcknowledgement.checked,
+                  acknowledgeBackupsMayRemain: backupAcknowledgement.checked,
+                }),
+              });
+            } catch (error) {
+              state.readyConversationIds.delete(id);
+              await refreshDashboard();
+              await showConversation(id);
+              throw error;
+            }
+            state.readyConversationIds.delete(id);
+            setNotice("The provider confirmed host-thread deletion. Local retained copies were not deleted.");
+            await refreshDashboard();
+            await showConversation(id);
+          }, true));
+          hostDeletion.append(deletionActions);
+          confirmation.focus();
+        }, true));
+      }
+      detailPanel.append(hostDeletion);
     } catch (error) { setNotice(error.message, true); }
   }
 

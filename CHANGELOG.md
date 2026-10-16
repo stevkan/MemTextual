@@ -5,6 +5,13 @@ describe only the current design and behavior.
 
 ## Unreleased
 
+- Added coordinated external host-thread deletion for Continuity conversations.
+  A persona-bound preview supplies state-sensitive exact confirmation; the user
+  must acknowledge retained local data and backups before deletion. Attempts are
+  durably journaled before provider use, Codex `thread/delete` success is
+  validated, deleted threads cannot be reopened or sent new turns, and the UI
+  explicitly retains the MemTextual journal and avoids complete-erasure claims.
+
 - Added graphical Continuity conversation controls over the grantless loopback
   API. A user can explicitly create or revoke persona-bound host authorization,
   start or reconcile a conversation, send and leave, and retry a failed capture
