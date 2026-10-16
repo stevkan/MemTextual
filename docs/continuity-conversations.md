@@ -170,8 +170,11 @@ without another model response. The packaged Windows CLI constructs this
 runtime only when given an explicit, secret-free conversation configuration
 that references the existing deployment configuration. It verifies that the
 deployment database is the database opened by the console and closes the
-listener, host, and database in dependency order. The graphical page remains a
-read-only conversation catalog until browser controls are added.
+listener, host, and database in dependency order. The graphical page exposes
+explicit grantless authorization, start, open-and-reconcile, send, leave, and
+capture-retry controls while continuing to render the exact durable journal.
+Completed output remains visible when capture fails, and the page requires
+recovery before reopening rather than silently retrying or regenerating a turn.
 Coordinated host-thread deletion controls also remain open.
 
 Codex App Server threads are persistent local records outside the MemTextual

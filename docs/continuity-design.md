@@ -95,14 +95,16 @@ conversation grants outside SQLite, revokes authorization when storage fails,
 and has an initial Windows CurrentUser-DPAPI adapter. A grantless client facade
 now resolves canonical persona and conversation bindings and loads the bearer
 internally for start, reopen, and send; browser-facing operations do not accept
-the grant. Active chat controls remain gated on production composition with a
-concrete ambient extraction provider. The initial Codex App Server provider now
-runs bounded ephemeral structured tasks, records its configured model in its
-version, and passes output through the existing fail-closed validator. A
-concrete sensitivity classifier remains open, so unassessed proposals are
-sensitive and pending. Coordinated deletion controls remain integration work.
-Other cloud providers and local models are outside the initial scope and may be
-reconsidered only in response to demonstrated need.
+the grant. The Windows console can now explicitly compose that runtime from a
+secret-free configuration bound to the installed deployment. Its graphical
+controls create or revoke authorization, start or open-and-reconcile a
+conversation, send and leave, and retry failed capture. The initial Codex App
+Server provider runs bounded ephemeral structured tasks, records its configured
+model in its version, and passes output through the existing fail-closed
+validator. A concrete sensitivity classifier remains open, so unassessed
+proposals are sensitive and pending. Coordinated deletion controls remain
+integration work. Other cloud providers and local models are outside the initial
+scope and may be reconsidered only in response to demonstrated need.
 
 As of October 15, 2026, OpenAI's official ChatGPT desktop, web, and mobile
 clients expose no supported outbound conversation-turn API or webhook through
@@ -162,14 +164,14 @@ restore. It now also displays match suggestions, supports explicit revise,
 reaffirm, contradict, supersede, and ignore outcomes against persona-validated
 targets, and creates immutable direct-correction revisions. It binds to one
 persona and IPv4 loopback for one process lifetime, with a fresh bearer token
-delivered through a URL fragment. The console also includes a read-only
-conversation catalog whose detail view preserves exact journaled dialogue and
-distinguishes local journal state from unreconciled host history. It does not
-expose start, reopen, or send actions until the conversational runtime is
-composed with the protected grant store and a concrete ambient extraction
-provider. Both exist but are not yet wired into the console process. A grantless
-client facade protects that composition boundary; the store is never populated
-from browser input. The console also includes a
+delivered through a URL fragment. The console includes a conversation catalog
+whose detail view preserves exact journaled dialogue and distinguishes local
+journal state from unreconciled host history. When explicitly configured, its
+visible controls use the grantless client facade to create or revoke
+authorization, start or open-and-reconcile conversations, send turns, leave
+process-local readiness, and retry failed capture. The protected store is never
+populated from browser input, and the browser never receives a raw grant. The
+console also includes a
 versioned persona-memory JSON export with complete revision histories, plus
 exact-ID-confirmed recoverable deletion and restoration. The export is
 intentionally described as a user-memory record rather than a database backup:

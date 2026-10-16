@@ -82,6 +82,9 @@ aside { padding: 24px 16px; border-right: 1px solid var(--line); background: rgb
 .detail.empty { display: grid; place-items: center; text-align: center; }
 .section { padding-top: 16px; margin-top: 16px; border-top: 1px solid var(--line); }
 .evidence, .history { padding: 12px; margin: 8px 0; border-left: 3px solid var(--accent); background: #151b15; }
+.conversation-tools { padding: 12px; margin-bottom: 16px; border: 1px solid var(--line); border-radius: 10px; background: #151b15; }
+.conversation-message { padding: 12px; margin: 8px 0; border-left: 3px solid #7ca4d8; background: #14191f; white-space: pre-wrap; }
+.conversation-message.assistant { border-left-color: var(--accent); background: #151b15; }
 .warning { padding: 12px; border-left: 3px solid var(--danger); background: #211817; color: #ffd2ca; line-height: 1.5; }
 .check { display: flex; align-items: flex-start; gap: 9px; margin-top: 12px; color: var(--muted); line-height: 1.4; }
 .check input { width: auto; margin: 3px 0 0; }
@@ -90,6 +93,7 @@ aside { padding: 24px 16px; border-right: 1px solid var(--line); background: rgb
 button.action { border: 1px solid var(--line); border-radius: 8px; padding: 9px 12px; background: #2a352a; color: inherit; cursor: pointer; }
 button.action:hover { border-color: var(--accent); }
 button.action.danger { color: var(--danger); }
+button:disabled { cursor: wait; opacity: .6; }
 textarea, select, input { width: 100%; margin-top: 8px; padding: 10px; border: 1px solid var(--line); border-radius: 8px; color: inherit; background: #101410; }
 @media (max-width: 850px) {
   main { grid-template-columns: 1fr; }
@@ -103,7 +107,11 @@ export const continuityConsoleJavaScript = `
   const params = new URLSearchParams(window.location.hash.slice(1));
   const token = params.get("token") || "";
   history.replaceState(null, "", window.location.pathname);
-  const state = { dashboard: null, view: "candidates" };
+  const state = {
+    dashboard: null,
+    view: "candidates",
+    readyConversationIds: new Set(),
+  };
   const listPanel = document.getElementById("list-panel");
   const detailPanel = document.getElementById("detail-panel");
   const notice = document.getElementById("notice");
@@ -127,7 +135,12 @@ export const continuityConsoleJavaScript = `
       },
     });
     const payload = await response.json();
-    if (!response.ok) throw new Error(payload.error || "The request failed.");
+    if (!response.ok) {
+      const error = new Error(payload.error || "The request failed.");
+      error.status = response.status;
+      error.payload = payload;
+      throw error;
+    }
     return payload;
   }
 
@@ -139,6 +152,10 @@ export const continuityConsoleJavaScript = `
   function clearDetail() {
     detailPanel.replaceChildren(node("p", "Select an item to inspect its evidence, history, and controls."));
     detailPanel.className = "detail empty";
+  }
+
+  function conversationRuntimeEnabled() {
+    return Boolean(state.dashboard && state.dashboard.conversationRuntime.enabled);
   }
 
   function renderList() {
@@ -155,6 +172,18 @@ export const continuityConsoleJavaScript = `
       return;
     }
     const items = state.dashboard[state.view];
+    if (state.view === "conversations") {
+      const tools = node("div", undefined, "conversation-tools");
+      if (conversationRuntimeEnabled()) {
+        tools.append(node("p", "Live conversation runtime enabled for this local session.", "meta"));
+        tools.append(actionButton("New conversation and authorizations", async () => {
+          await showConversationSetup();
+        }));
+      } else {
+        tools.append(node("p", "Live conversations are disabled. Relaunch with an explicit conversation configuration to enable them.", "warning"));
+      }
+      listPanel.append(tools);
+    }
     if (items.length === 0) {
       const empty = state.view === "candidates"
         ? "No pending candidates."
@@ -176,6 +205,9 @@ export const continuityConsoleJavaScript = `
           pills.append(pill(item.unresolvedCaptureCount + " need recovery"));
         } else {
           pills.append(pill("capture complete"));
+        }
+        if (state.readyConversationIds.has(conversation.id)) {
+          pills.append(pill("open locally"));
         }
         button.append(pills);
         button.addEventListener("click", () => showConversation(conversation.id));
@@ -263,6 +295,106 @@ export const continuityConsoleJavaScript = `
     });
     label.append(select);
     return { label, select };
+  }
+
+  function authorizationIsActive(authorization) {
+    return authorization.status === "active" &&
+      (authorization.expiresAt === null || authorization.expiresAt > new Date().toISOString());
+  }
+
+  async function showConversationSetup() {
+    try {
+      if (!conversationRuntimeEnabled()) {
+        throw new Error("The Continuity conversation runtime is not enabled.");
+      }
+      const authorizations = await api("/api/conversation-authorizations");
+      const active = authorizations.filter(authorizationIsActive);
+      detailPanel.className = "detail";
+      detailPanel.replaceChildren(node("h2", "New conversation"));
+      detailPanel.append(node("p", "A host authorization explicitly permits this persona's completed turns to be captured for memory processing. Candidate acceptance still follows the configured review policy.", "warning"));
+
+      const authorizationSection = node("div", undefined, "section");
+      authorizationSection.append(node("h3", "Host authorizations"));
+      if (authorizations.length === 0) {
+        authorizationSection.append(node("p", "No host authorization has been created for this persona.", "empty"));
+      } else {
+        authorizations.slice().reverse().forEach((authorization) => {
+          const card = node("div", undefined, "history");
+          const usable = authorizationIsActive(authorization);
+          card.append(node("strong", usable ? "Active authorization" : authorization.status === "revoked" ? "Revoked authorization" : "Expired authorization"));
+          card.append(node("p", "Created " + new Date(authorization.authorizedAt).toLocaleString() + (authorization.expiresAt ? " · expires " + new Date(authorization.expiresAt).toLocaleString() : " · no automatic expiration"), "meta"));
+          if (usable) {
+            card.append(actionButton("Revoke authorization", async () => {
+              if (!window.confirm("Revoke this host authorization? Conversations bound to it cannot continue.")) return;
+              const result = await api("/api/conversation-authorizations/" + encodeURIComponent(authorization.id) + "/revoke", {
+                method: "POST",
+                body: "{}",
+              });
+              if (state.dashboard) {
+                state.dashboard.conversations
+                  .filter((item) => item.conversation.authorizationId === authorization.id)
+                  .forEach((item) => state.readyConversationIds.delete(item.conversation.id));
+              }
+              setNotice(result.protectedGrantDeleted
+                ? "Host authorization revoked and its protected grant removed."
+                : "Host authorization revoked. No matching protected grant remained to remove.");
+              await showConversationSetup();
+              renderList();
+            }, true));
+          }
+          authorizationSection.append(card);
+        });
+      }
+
+      const expirationLabel = node("label", "Optional authorization expiration", "field");
+      const expiration = document.createElement("input");
+      expiration.type = "datetime-local";
+      expirationLabel.append(expiration);
+      authorizationSection.append(expirationLabel);
+      const authorizationActions = node("div", undefined, "actions");
+      authorizationActions.append(actionButton("Create authorization", async () => {
+        let expiresAt;
+        if (expiration.value) {
+          const parsed = new Date(expiration.value);
+          if (Number.isNaN(parsed.getTime())) throw new Error("Enter a valid authorization expiration.");
+          expiresAt = parsed.toISOString();
+        }
+        await api("/api/conversation-authorizations", {
+          method: "POST",
+          body: JSON.stringify(expiresAt ? { expiresAt } : {}),
+        });
+        setNotice("Host authorization created. Its protected grant was not returned to the browser.");
+        await showConversationSetup();
+      }));
+      authorizationSection.append(authorizationActions);
+      detailPanel.append(authorizationSection);
+
+      const startSection = node("div", undefined, "section");
+      startSection.append(node("h3", "Start a new conversation"));
+      if (active.length === 0) {
+        startSection.append(node("p", "Create an active authorization before starting a conversation.", "empty"));
+      } else {
+        const authorization = selectField("Authorization", active.map((item) => [
+          item.id,
+          "Authorized " + new Date(item.authorizedAt).toLocaleString() + (item.expiresAt ? " · expires " + new Date(item.expiresAt).toLocaleString() : ""),
+        ]));
+        startSection.append(authorization.label);
+        const startActions = node("div", undefined, "actions");
+        startActions.append(actionButton("Start conversation", async () => {
+          if (!authorization.select.value) throw new Error("Select an active authorization.");
+          const conversation = await api("/api/conversations", {
+            method: "POST",
+            body: JSON.stringify({ authorizationId: authorization.select.value }),
+          });
+          state.readyConversationIds.add(conversation.id);
+          setNotice("Conversation started and ready for messages.");
+          await refreshDashboard();
+          await showConversation(conversation.id);
+        }));
+        startSection.append(startActions);
+      }
+      detailPanel.append(startSection);
+    } catch (error) { setNotice(error.message, true); }
   }
 
   async function showPersonaBehavior() {
@@ -356,14 +488,113 @@ export const continuityConsoleJavaScript = `
         detail.turns.forEach((turn) => {
           const card = node("div", undefined, "history");
           card.append(node("strong", new Date(turn.completedAt).toLocaleString() + " · " + turn.status));
-          card.append(node("p", "You", "meta"), node("p", turn.userText));
-          card.append(node("p", state.dashboard.persona.name, "meta"), node("p", turn.assistantText));
+          card.append(node("p", "You", "meta"), node("p", turn.userText, "conversation-message"));
+          card.append(node("p", state.dashboard.persona.name, "meta"), node("p", turn.assistantText, "conversation-message assistant"));
           if (turn.failureCode) card.append(node("p", "Capture failure: " + turn.failureCode, "warning"));
           history.append(card);
         });
       }
       detailPanel.append(history);
-      detailPanel.append(node("p", "Starting, reopening, and sending messages are not enabled yet. Those actions will remain unavailable until the conversational runtime is integrated with protected host-authorization grant storage, keeping bearer credentials out of the database, browser, and command line.", "meta"));
+
+      const unresolved = detail.turns.filter((turn) => turn.status === "pending" || turn.status === "failed");
+      if (unresolved.length > 0 && conversationRuntimeEnabled()) {
+        const recovery = node("div", undefined, "section");
+        recovery.append(node("h3", "Capture recovery"));
+        recovery.append(node("p", "Retrying capture reprocesses the already journaled turn. It does not generate another model response.", "warning"));
+        unresolved.forEach((turn) => {
+          const card = node("div", undefined, "history");
+          card.append(node("strong", new Date(turn.completedAt).toLocaleString() + " · " + turn.status));
+          card.append(actionButton("Retry capture", async () => {
+            await api("/api/conversations/" + encodeURIComponent(id) + "/captures/" + encodeURIComponent(turn.id) + "/retry", {
+              method: "POST",
+              body: "{}",
+            });
+            setNotice("Turn capture completed. Reopen the conversation to reconcile before sending.");
+            await refreshDashboard();
+            await showConversation(id);
+          }));
+          recovery.append(card);
+        });
+        detailPanel.append(recovery);
+      }
+
+      const controls = node("div", undefined, "section");
+      controls.append(node("h3", "Conversation controls"));
+      if (!conversationRuntimeEnabled()) {
+        controls.append(node("p", "Live conversation controls are disabled for this console session.", "meta"));
+      } else if (state.readyConversationIds.has(id)) {
+        controls.append(node("p", "This conversation is open and reconciled in the current process.", "meta"));
+        const messageLabel = node("label", "Message", "field");
+        const message = document.createElement("textarea");
+        message.rows = 5;
+        message.maxLength = 50000;
+        message.placeholder = "Write the next message to " + state.dashboard.persona.name + ".";
+        messageLabel.append(message);
+        controls.append(messageLabel);
+        const actions = node("div", undefined, "actions");
+        actions.append(actionButton("Send message", async () => {
+          const text = message.value.trim();
+          if (!text) throw new Error("Enter a message before sending.");
+          try {
+            await api("/api/conversations/" + encodeURIComponent(id) + "/turns", {
+              method: "POST",
+              body: JSON.stringify({ text }),
+            });
+            setNotice("Response completed and the turn was captured.");
+          } catch (error) {
+            state.readyConversationIds.delete(id);
+            await refreshDashboard();
+            await showConversation(id);
+            if (error.payload && error.payload.status === "capture_failed") {
+              setNotice("The model response completed and is shown in the journal, but memory capture failed. Retry capture before reopening.", true);
+              return;
+            }
+            throw error;
+          }
+          await refreshDashboard();
+          await showConversation(id);
+        }));
+        actions.append(actionButton("Leave conversation", async () => {
+          await api("/api/conversations/" + encodeURIComponent(id) + "/leave", {
+            method: "POST",
+            body: "{}",
+          });
+          state.readyConversationIds.delete(id);
+          setNotice("Conversation closed in this local process. Its journal remains stored.");
+          renderList();
+          await showConversation(id);
+        }));
+        controls.append(actions);
+      } else {
+        controls.append(node("p", "Opening first reconciles authoritative host history and blocks sending if any capture requires recovery.", "meta"));
+        controls.append(actionButton("Open and reconcile", async () => {
+          try {
+            const result = await api("/api/conversations/" + encodeURIComponent(id) + "/open", {
+              method: "POST",
+              body: "{}",
+            });
+            state.readyConversationIds.add(id);
+            const recovered = result.reconciliation.recovered.length;
+            setNotice("Conversation opened and reconciled" + (recovered ? "; " + recovered + " missing turn" + (recovered === 1 ? " was" : "s were") + " recovered." : "."));
+          } catch (error) {
+            state.readyConversationIds.delete(id);
+            await refreshDashboard();
+            await showConversation(id);
+            if (error.payload && error.payload.status === "recovery_required") {
+              setNotice("Conversation history was reconciled, but capture recovery is required before sending.", true);
+              return;
+            }
+            if (error.payload && error.payload.status === "reconciliation_capture_failed") {
+              setNotice("A host turn was recovered into the journal, but its memory capture failed. Retry capture before reopening.", true);
+              return;
+            }
+            throw error;
+          }
+          await refreshDashboard();
+          await showConversation(id);
+        }));
+      }
+      detailPanel.append(controls);
     } catch (error) { setNotice(error.message, true); }
   }
 

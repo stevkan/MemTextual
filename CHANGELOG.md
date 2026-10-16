@@ -5,6 +5,13 @@ describe only the current design and behavior.
 
 ## Unreleased
 
+- Added graphical Continuity conversation controls over the grantless loopback
+  API. A user can explicitly create or revoke persona-bound host authorization,
+  start or reconcile a conversation, send and leave, and retry a failed capture
+  without generating another response. The page retains only process-local
+  readiness IDs, never receives protected grants, preserves completed output in
+  the durable journal after capture failure, and requires visible recovery
+  before reopening.
 - Added opt-in packaged activation for the Windows Continuity conversation
   runtime. One strict, secret-free conversation configuration references the
   existing deployment paths and explicitly selects the Codex adapter,

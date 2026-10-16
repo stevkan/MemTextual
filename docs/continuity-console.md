@@ -21,9 +21,9 @@ for an available port.
 
 ### Explicit conversation runtime
 
-The browser page remains a read-only conversation journal, but a Windows
-installation can explicitly enable the existing grantless conversation API by
-supplying one secret-free configuration file:
+The browser page always provides a read-only local conversation journal. A
+Windows installation can additionally enable graphical live-conversation and
+recovery controls by supplying one secret-free configuration file:
 
 ```json
 {
@@ -78,6 +78,11 @@ the listener stops first, followed by the Codex host and then SQLite.
   user and assistant text held in MemTextual's durable local capture journal.
   Each conversation shows its journaled-turn count and any pending or failed
   captures that require recovery.
+- When the conversation runtime is explicitly enabled, create, inspect, and
+  revoke persona-bound host authorizations without exposing their protected
+  grants; start a conversation; open an existing conversation through host
+  history reconciliation; send turns; leave local readiness; and retry failed
+  capture without generating another response.
 - Correct an active memory by creating a new immutable revision while retaining
   its earlier wording in history.
 - Pin or unpin, protect or unprotect, archive, and restore a memory.
@@ -91,9 +96,10 @@ the listener stops first, followed by the Codex host and then SQLite.
 The trusted privacy CLI remains available for the same memory operations and
 for source-series privacy workflows.
 
-The browser conversation view remains read-only. It is not a complete mirror of
-the host: the host can contain additional completed turns until history
-reconciliation runs.
+The durable journal is not necessarily a complete mirror of the host: the host
+can contain additional completed turns until opening performs history
+reconciliation. A new browser or console process treats stored conversations as
+closed until the user explicitly opens and reconciles them.
 
 The loopback server now has an optional conversation API boundary for explicit
 authorization creation, authorization listing and revocation, conversation
@@ -108,9 +114,14 @@ generate another model response.
 The packaged console command enables this optional runtime only when the
 explicit configuration above is supplied. Without it, the dashboard reports
 conversations as disabled and mutation routes return a service-unavailable
-response. The page does not call the routes yet, so graphical live-chat controls
-remain unavailable. Raw grants remain absent from the database, browser
-requests, browser state, responses, configuration, and command-line arguments.
+response. With it, the page exposes explicit authorization and conversation
+controls. Raw grants remain absent from the database, browser requests, browser
+state, responses, configuration, and command-line arguments.
+
+If a model response completes but ambient capture fails, the page refreshes the
+durable journal so the completed response remains visible, marks the
+conversation closed locally, and requires an explicit capture retry followed by
+another open-and-reconcile action. Retry does not submit another model turn.
 
 ## Persona-memory export
 
@@ -162,6 +173,10 @@ outside the operation and are disclosed rather than silently claimed as erased.
 - When enabled, conversation authorization and lifecycle routes derive identity,
   relationship, host, and event permissions from the server-bound runtime and
   reject extra browser-selected fields.
+- Creating and revoking host authorization, starting or opening conversations,
+  sending text, retrying capture, and leaving local readiness each require a
+  visible user action. The page does not silently create authorization or retry
+  failed operations.
 - API requests require the per-launch bearer token.
 - Mutations also require an exact same-origin browser request.
 - Host validation, strict JSON schemas, a 64 KiB body limit, no-store responses,

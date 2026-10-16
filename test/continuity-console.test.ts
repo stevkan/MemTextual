@@ -36,6 +36,18 @@ test("Continuity console browser script parses as JavaScript", () => {
   assert.doesNotThrow(() => new Function(continuityConsoleJavaScript));
 });
 
+test("Continuity console browser exposes grantless conversation and recovery controls", () => {
+  assert.match(continuityConsoleJavaScript, /New conversation and authorizations/u);
+  assert.match(continuityConsoleJavaScript, /Create authorization/u);
+  assert.match(continuityConsoleJavaScript, /Open and reconcile/u);
+  assert.match(continuityConsoleJavaScript, /Send message/u);
+  assert.match(continuityConsoleJavaScript, /Retry capture/u);
+  assert.match(continuityConsoleJavaScript, /capture_failed/u);
+  assert.match(continuityConsoleJavaScript, /reconciliation_capture_failed/u);
+  assert.equal(continuityConsoleJavaScript.includes("innerHTML"), false);
+  assert.equal(continuityConsoleJavaScript.includes("grant:"), false);
+});
+
 function fixture() {
   const database = openMemTextualDatabase({
     filename: ":memory:",

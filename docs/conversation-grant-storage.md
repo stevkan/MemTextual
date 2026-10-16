@@ -49,6 +49,7 @@ cross-binding resolution and lifecycle results.
 The local console server exposes grantless authorization, start, reopen, send,
 recovery-retry, and revocation routes. The packaged Windows CLI constructs the
 runtime only when given an explicit, secret-free conversation configuration
-bound to the existing deployment and database. The graphical page does not call
-these routes yet. Browser requests and configuration must never supply the raw
-grant.
+bound to the existing deployment and database. The graphical page calls these
+routes through visible user actions and retains only process-local conversation
+readiness identifiers. Browser requests, browser state, and configuration never
+supply or receive the raw grant.
