@@ -18,6 +18,10 @@ function setup(invalidOutput = false) {
   const bundleDirectory = join(root, "bundle");
   mkdirSync(join(bundleDirectory, "dist"), { recursive: true });
   writeFileSync(join(bundleDirectory, "dist", "app.js"), "app\n");
+  mkdirSync(join(bundleDirectory, "dist", "src", "cli"), { recursive: true });
+  mkdirSync(join(bundleDirectory, "runtime"), { recursive: true });
+  writeFileSync(join(bundleDirectory, "dist", "src", "cli", "windows-msi-host-action.js"), "host\n");
+  writeFileSync(join(bundleDirectory, "runtime", "node.exe"), "node\n");
   for (const name of ["bundle-manifest.json", "bundle-manifest.sig", "bundle-signing-certificate.pem"]) writeFileSync(join(bundleDirectory, name), `${name}\n`);
   const wixExecutablePath = join(root, "wix.exe");
   const outputPath = join(root, "MemTextual-unsigned.msi");
@@ -40,7 +44,11 @@ function setup(invalidOutput = false) {
     bundleDirectory: resolve(bundleDirectory), fileCount: 4,
     manifest: {
       architecture: "x64", createdAt: "2027-01-01T00:00:00.000Z",
-      files: [{ bytes: 4, path: "dist/app.js", sha256: "a".repeat(64) }],
+      files: [
+        { bytes: 4, path: "dist/app.js", sha256: "a".repeat(64) },
+        { bytes: 5, path: "dist/src/cli/windows-msi-host-action.js", sha256: "d".repeat(64) },
+        { bytes: 5, path: "runtime/node.exe", sha256: "e".repeat(64) },
+      ],
       formatVersion: 1, nodeVersion: "24.21.0", packageName: "memtextual-continuity",
       packageVersion: "0.8.0", platform: "windows", signingCertificateFingerprint256: "b".repeat(64),
     },
@@ -58,7 +66,9 @@ function setup(invalidOutput = false) {
 describe("Windows MSI build boundary", () => {
   it("renders a per-machine, x64 component inventory with stable product identity", () => {
     const source = renderWindowsMsiSource({
-      bundleDirectory: "C:\\bundle", files: ["dist/app&one.js", "README.md"],
+      bundleDirectory: "C:\\bundle", files: [
+        "dist/app&one.js", "dist/src/cli/windows-msi-host-action.js", "README.md", "runtime/node.exe",
+      ],
       manufacturer: "Owner & Publisher", packageVersion: "0.8.0",
     });
     assert.match(source, /Scope="perMachine"/u);
@@ -66,6 +76,11 @@ describe("Windows MSI build boundary", () => {
     assert.match(source, /Bitness="always64"/u);
     assert.match(source, /Owner &amp; Publisher/u);
     assert.match(source, /app&amp;one\.js/u);
+    assert.match(source, /Execute="rollback" Impersonate="no"/u);
+    assert.match(source, /MEMTEXTUAL_HOST_ACTIONS = 1 AND NOT Installed/u);
+    assert.match(source, /NOT UPGRADINGPRODUCTCODE/u);
+    assert.equal(source.match(/HideTarget="yes"/gu)?.length, 4);
+    assert.match(source, /C:\\ProgramData\\MemTextual Continuity\\deployment\.json/u);
   });
 
   it("previews, exactly confirms, builds, and validates an unsigned MSI", async () => {

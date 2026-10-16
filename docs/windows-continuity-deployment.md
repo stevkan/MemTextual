@@ -10,6 +10,12 @@ recovery key. Those inputs must exist before host installation. The separate
 [signed-bundle workflow](windows-continuity-bundle.md) can assemble, verify, and
 stage application files without selecting the user's data or service settings.
 
+The selected [MSI workflow](windows-msi.md) can invoke this same host boundary
+only when installation explicitly sets `MEMTEXTUAL_HOST_ACTIONS=1`. Its deferred
+install, uninstall, and paired rollback actions use the fixed deployment path
+`C:\ProgramData\MemTextual Continuity\deployment.json`. MSI omission of that
+property remains application-files-only installation.
+
 ## Deployment layout
 
 `applicationDirectory` is immutable application content readable by the

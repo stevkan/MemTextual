@@ -187,12 +187,18 @@ export {
   renderWindowsMsiSource,
   windowsMsiReportFormatVersion,
   windowsMsiUpgradeCode,
+  windowsMsiDeploymentConfigPath,
   type WindowsMsiBuildOptions,
   type WindowsMsiBuildPreview,
   type WindowsMsiBuildReport,
   type WindowsMsiBundleVerifier,
   type WindowsMsiOperations,
 } from "./packaging/windows-msi.js";
+export {
+  executeWindowsMsiHostAction,
+  windowsMsiHostActions,
+  type WindowsMsiHostAction,
+} from "./services/windows-msi-host-action-service.js";
 export {
   memoryStatuses,
   memoryTypes,

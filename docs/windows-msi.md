@@ -4,11 +4,12 @@ MSI is the adopted Windows installer container for MemTextual Continuity. The
 package is per-machine and x64 because the supported Windows deployment uses a
 dedicated local account, protected machine paths, and Task Scheduler resources.
 
-The initial MSI boundary packages application files only. It does not yet
-create the account, change ACLs, register tasks, create data directories, or run
-the application. Those host mutations remain in the existing preview-first
-host integration and will be connected through separately rollback-tested,
-deferred installer actions.
+The MSI can optionally connect the existing host integration. Host mutation is
+off by default and is enabled only when installation explicitly supplies
+`MEMTEXTUAL_HOST_ACTIONS=1`. The deployment file must already exist at
+`C:\ProgramData\MemTextual Continuity\deployment.json`; it remains secret-free
+and retains the user's previously selected data, backup, credential, and
+replication paths.
 
 ## Build safeguards
 
@@ -21,6 +22,20 @@ deferred installer actions.
 - The package uses one stable upgrade code and blocks downgrades.
 - The release owner or manufacturer is a required build input. MemTextual does
   not invent a legal entity.
+- Account, ACL, and scheduled-task changes run only in deferred,
+  non-impersonating actions after application files exist. Custom-action targets
+  are hidden from MSI logging even though the fixed configuration path contains
+  no secret.
+- Install and uninstall each have a preceding rollback action. They call the
+  existing ownership-checked host service, which generates and consumes a fresh
+  state-bound confirmation internally under the explicit Windows Installer
+  action.
+- A managed registry marker remembers the opt-in for uninstall. Major upgrades
+  deliberately skip both old-package removal and new-package creation so the
+  owned host resources remain bound to the stable installation path.
+- Normal uninstall removes only verified MemTextual-owned account and schedule
+  resources and restores recorded ACLs. Databases, backups, replication
+  packages, credentials, recovery keys, and deployment configuration remain.
 - Preview binds the bundle manifest, WiX executable and hash, WiX version,
   output path, manufacturer, version, scope, and upgrade code to an exact
   confirmation token.
@@ -81,9 +96,20 @@ npm run windows-msi -- apply `
 The result remains unsigned. Pass it through the separately confirmed
 [Authenticode workflow](windows-authenticode.md) before release testing.
 
+To opt into host provisioning after creating and previewing the documented
+deployment configuration, add the public MSI property to the install command:
+
+```powershell
+msiexec.exe /i MemTextual-Continuity.msi MEMTEXTUAL_HOST_ACTIONS=1
+```
+
+Omitting the property installs application files only. It does not infer consent
+to create an account, modify ACLs, or register schedules.
+
 ## Remaining installer work
 
-1. Add rollback-capable deferred host-provisioning and removal actions.
+1. Compile the authoring with an approved WiX 7 binary and correct any
+   real-tool schema or ICE findings.
 2. Prove install, repair, major upgrade, rollback, and data-preserving uninstall
    on a disposable Windows target.
 3. Add an approved EULA and installation UI after legal ownership and terms are

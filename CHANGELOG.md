@@ -5,6 +5,14 @@ describe only the current design and behavior.
 
 ## Unreleased
 
+- Added opt-in MSI host integration using the existing ownership-checked Windows
+  host service. `MEMTEXTUAL_HOST_ACTIONS=1` enables deferred, non-impersonating,
+  hidden-target account, ACL, and schedule actions against the fixed secret-free
+  deployment file. Install and uninstall have paired rollback actions; ordinary
+  uninstall preserves all user data and recovery material, and major upgrades
+  leave stable owned host resources in place. Real WiX compilation and
+  disposable-target execution remain explicit validation gates.
+
 - Adopted MSI as the Windows Continuity installer container and added a
   preview-first unsigned MSI build boundary. It accepts only an exactly verified
   signed-manifest bundle, emits an explicit per-machine x64 file inventory with

@@ -72,6 +72,7 @@ function createCandidateSource(source: string): void {
     "safeguard",
     "windows-host",
     "windows-elevated-host-validation",
+    "windows-msi-host-action",
   ]) {
     write(join(source, "dist", "src", "cli", `${name}.js`), "export {};\n");
   }

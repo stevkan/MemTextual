@@ -114,6 +114,7 @@ const requiredBundleFiles = new Set([
   "dist/src/cli/continuity-release-validation.js",
   "dist/src/cli/windows-host.js",
   "dist/src/cli/windows-elevated-host-validation.js",
+  "dist/src/cli/windows-msi-host-action.js",
   "runtime/LICENSE",
   "runtime/node.exe",
   "scripts/windows-host-executor.ps1",

@@ -6,7 +6,10 @@ import { verifyWindowsContinuityBundle, type WindowsContinuityBundleVerification
 
 export const windowsMsiReportFormatVersion = 1 as const;
 export const windowsMsiUpgradeCode = "{9B631561-76E8-4DF0-BE45-ED9CE553829D}" as const;
+export const windowsMsiDeploymentConfigPath = "C:\\ProgramData\\MemTextual Continuity\\deployment.json" as const;
 const bundleMetadataFiles = ["bundle-manifest.json", "bundle-manifest.sig", "bundle-signing-certificate.pem"] as const;
+const hostActionCliPath = "dist/src/cli/windows-msi-host-action.js";
+const nodeRuntimePath = "runtime/node.exe";
 
 export interface WindowsMsiOperations {
   build(sourcePath: string, outputPath: string): Promise<void>;
@@ -96,6 +99,9 @@ export function renderWindowsMsiSource(options: {
   manufacturer: string;
   packageVersion: string;
 }): string {
+  for (const required of [hostActionCliPath, nodeRuntimePath]) {
+    if (!options.files.includes(required)) throw new Error(`MSI bundle inventory is missing required host-action file: ${required}.`);
+  }
   const directories = new Map<string, string>();
   for (const path of options.files) {
     const parts = path.split("/").slice(0, -1);
@@ -137,22 +143,44 @@ export function renderWindowsMsiSource(options: {
     return lines;
   };
   const directoryLines = renderDirectory("", "        ");
+  const hostActionCliId = id("File", hostActionCliPath);
+  const nodeRuntimeId = id("File", nodeRuntimePath);
+  const hostRegistryComponentId = "Cmp_HostActionsEnabled";
+  componentIds.push(hostRegistryComponentId);
+  const actionCommand = (action: string): string =>
+    `&quot;[#${hostActionCliId}]&quot; ${action} --config &quot;${xml(windowsMsiDeploymentConfigPath)}&quot;`;
   return [
     '<?xml version="1.0" encoding="utf-8"?>',
     '<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs" RequiredVersion="7.0.0">',
     `  <Package Name="MemTextual Continuity" Manufacturer="${xml(options.manufacturer)}" Version="${xml(options.packageVersion)}" UpgradeCode="${windowsMsiUpgradeCode}" Scope="perMachine" InstallerVersion="500" Compressed="yes">`,
     '    <MajorUpgrade DowngradeErrorMessage="A newer version of MemTextual Continuity is already installed." />',
     '    <MediaTemplate EmbedCab="yes" />',
+    '    <Property Id="MEMTEXTUAL_HOST_ACTIONS" Secure="yes">',
+    '      <RegistrySearch Id="FindHostActionsEnabled" Root="HKLM" Key="Software\\MemTextual\\Continuity" Name="HostActionsEnabled" Type="raw" Bitness="always64" />',
+    '    </Property>',
+    `    <CustomAction Id="MtxRollbackInstallHost" FileRef="${nodeRuntimeId}" ExeCommand="${actionCommand("rollback-install")}" Execute="rollback" Impersonate="no" Return="check" HideTarget="yes" />`,
+    `    <CustomAction Id="MtxInstallHost" FileRef="${nodeRuntimeId}" ExeCommand="${actionCommand("install")}" Execute="deferred" Impersonate="no" Return="check" HideTarget="yes" />`,
+    `    <CustomAction Id="MtxRollbackUninstallHost" FileRef="${nodeRuntimeId}" ExeCommand="${actionCommand("rollback-uninstall")}" Execute="rollback" Impersonate="no" Return="check" HideTarget="yes" />`,
+    `    <CustomAction Id="MtxUninstallHost" FileRef="${nodeRuntimeId}" ExeCommand="${actionCommand("uninstall")}" Execute="deferred" Impersonate="no" Return="check" HideTarget="yes" />`,
     '    <StandardDirectory Id="ProgramFiles64Folder">',
     '      <Directory Id="MemTextualFolder" Name="MemTextual">',
     '        <Directory Id="INSTALLFOLDER" Name="Continuity">',
     ...directoryLines,
+    `          <Component Id="${hostRegistryComponentId}" Guid="*" Bitness="always64" Condition="MEMTEXTUAL_HOST_ACTIONS = 1">`,
+    '            <RegistryValue Root="HKLM" Key="Software\\MemTextual\\Continuity" Name="HostActionsEnabled" Type="string" Value="1" KeyPath="yes" />',
+    '          </Component>',
     '        </Directory>',
     '      </Directory>',
     '    </StandardDirectory>',
     '    <Feature Id="MainFeature" Title="MemTextual Continuity">',
     ...componentIds.sort().map((componentId) => `      <ComponentRef Id="${componentId}" />`),
     '    </Feature>',
+    '    <InstallExecuteSequence>',
+    '      <Custom Action="MtxRollbackInstallHost" After="InstallFiles" Condition="MEMTEXTUAL_HOST_ACTIONS = 1 AND NOT Installed AND NOT WIX_UPGRADE_DETECTED" />',
+    '      <Custom Action="MtxInstallHost" After="MtxRollbackInstallHost" Condition="MEMTEXTUAL_HOST_ACTIONS = 1 AND NOT Installed AND NOT WIX_UPGRADE_DETECTED" />',
+    '      <Custom Action="MtxRollbackUninstallHost" Before="MtxUninstallHost" Condition="MEMTEXTUAL_HOST_ACTIONS = 1 AND REMOVE = &quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE" />',
+    '      <Custom Action="MtxUninstallHost" Before="RemoveFiles" Condition="MEMTEXTUAL_HOST_ACTIONS = 1 AND REMOVE = &quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE" />',
+    '    </InstallExecuteSequence>',
     '  </Package>',
     '</Wix>',
     '',
