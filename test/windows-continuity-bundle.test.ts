@@ -85,6 +85,10 @@ function createMinimalSource(source: string): void {
     "export const upgrade = true;\n",
   );
   write(
+    join(source, "dist", "src", "cli", "continuity-release-validation.js"),
+    "export const releaseValidation = true;\n",
+  );
+  write(
     join(source, "node_modules", "production-package", "package.json"),
     '{"name":"production-package","version":"1.0.0"}\n',
   );

@@ -111,6 +111,7 @@ const requiredBundleFiles = new Set([
   "dist/src/cli/continuity-console.js",
   "dist/src/cli/continuity-setup.js",
   "dist/src/cli/continuity-upgrade.js",
+  "dist/src/cli/continuity-release-validation.js",
   "dist/src/cli/windows-host.js",
   "runtime/LICENSE",
   "runtime/node.exe",

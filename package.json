@@ -14,6 +14,7 @@
     "memtextual-continuity-setup": "dist/src/cli/continuity-setup.js",
     "memtextual-continuity-acceptance": "dist/src/cli/continuity-acceptance.js",
     "memtextual-continuity-upgrade": "dist/src/cli/continuity-upgrade.js",
+    "memtextual-continuity-release": "dist/src/cli/continuity-release-validation.js",
     "memtextual-continuity": "dist/src/cli/continuity-console.js",
     "memtextual-windows-host": "dist/src/cli/windows-host.js",
     "memtextual-windows-bundle": "dist/src/cli/windows-bundle.js"
@@ -29,6 +30,7 @@
     "continuity-setup": "tsx src/cli/continuity-setup.ts",
     "continuity-acceptance": "tsx src/cli/continuity-acceptance.ts",
     "continuity-upgrade": "tsx src/cli/continuity-upgrade.ts",
+    "continuity-release": "tsx src/cli/continuity-release-validation.ts",
     "safeguard": "tsx src/cli/safeguard.ts",
     "privacy": "tsx src/cli/privacy.ts",
     "continuity": "tsx src/cli/continuity-console.ts",

@@ -28,7 +28,7 @@ or redistribution rights.
 | Core TypeScript, SQLite, migrations, and tests | CI gate configured | CI gate configured | CI gate configured |
 | Developer source workflows | Initial target | Compatibility tracked | Compatibility tracked |
 | Continuity desktop packaging | Signed-manifest directory bundle and confirmed staging available; Authenticode and installer-container choice deferred | Deferred | Deferred |
-| Upgrade, rollback, and removal | Side-by-side workflow, disposable-copy migration validation, snapshot rollback boundary, and confirmed application-only removal available; release-candidate exercise pending | Deferred | Deferred |
+| Upgrade, rollback, and removal | Side-by-side workflow plus a synthetic, non-privileged release-candidate lifecycle harness available; elevated dedicated-account and Task Scheduler exercise pending | Deferred | Deferred |
 | Unattended scheduler integration | Adapter, confirmed orchestration, privileged executor, and preview-first installer CLI available; application bundle staged separately | Deferred adapter | Deferred adapter |
 | Certificate credential provider | Core provider and confirmed certificate-path ACL protection available | Core provider available; packaging deferred | Core provider available; packaging deferred |
 | Dedicated service identity | Planned where appropriate | Platform-specific decision deferred | Platform-specific decision deferred |
@@ -78,3 +78,10 @@ installation path has been exercised on that platform. At minimum, release
 validation must cover installation, database creation and migration, normal
 memory operations, backup and restore, encrypted replication, upgrade, and
 uninstall behavior that preserves user data by default.
+
+The Windows non-privileged lifecycle can be exercised with
+`memtextual-continuity-release validate` as documented in
+`windows-release-validation.md`. Its report explicitly records that elevated
+dedicated-account and Task Scheduler validation was not run. That host test,
+Authenticode, installer-container selection, and the other public-distribution
+gates remain separate requirements.

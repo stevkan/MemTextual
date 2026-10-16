@@ -544,6 +544,13 @@ export {
   ProtectedMemoryError,
 } from "./services/memory-service.js";
 export {
+  continuityReleaseValidationFormatVersion,
+  validateContinuityReleaseCandidate,
+  type ContinuityReleaseValidationOptions,
+  type ContinuityReleaseValidationPhase,
+  type ContinuityReleaseValidationReport,
+} from "./services/continuity-release-validation-service.js";
+export {
   createDatabaseSnapshot,
   databaseSafeguardIdentity,
   verifyDatabaseAgainstManifest,

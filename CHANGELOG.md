@@ -5,6 +5,15 @@ describe only the current design and behavior.
 
 ## Unreleased
 
+- Added a non-privileged Windows Continuity release-candidate validation
+  harness. Against an explicitly selected signed bundle, prior migration set,
+  and absent workspace, it uses synthetic data to exercise signed staging,
+  database creation, memory retrieval, backup and restore drill, encrypted
+  replication import, prospective and live upgrade, acceptance, rollback, and
+  data-preserving application removal. Its retained report explicitly marks
+  dedicated-account and Task Scheduler mutation as a separate elevated opt-in
+  test rather than claiming it ran.
+
 - Added a Windows Continuity lifecycle workflow for side-by-side upgrades,
   rollback, and data-preserving application removal. Upgrade validation locks
   against backup/restore work, retains a verified snapshot, migrates only a

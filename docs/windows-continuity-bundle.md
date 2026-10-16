@@ -112,6 +112,8 @@ separate deployment and host-installation workflow in
 [windows-continuity-deployment.md](windows-continuity-deployment.md).
 The complete ordered first-use sequence and final read-only gate are documented
 in [continuity-first-use.md](continuity-first-use.md).
+The synthetic non-privileged release lifecycle is documented in
+[windows-release-validation.md](windows-release-validation.md).
 
 Application-file removal remains deliberately separate from host removal. The
 host removal command preserves application files and user data so an uninstall
