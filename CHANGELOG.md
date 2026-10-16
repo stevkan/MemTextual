@@ -5,6 +5,13 @@ describe only the current design and behavior.
 
 ## Unreleased
 
+- Added the initial concrete Codex App Server sensitivity classifier and wired
+  it into the Continuity conversation runtime. All proposals from one captured
+  interaction are classified in a separate bounded structured task with strict
+  indexed output, fixed reason codes, and a declared-sensitivity floor. The
+  runtime now evaluates the existing user-configured review policy afterward;
+  it creates no policy, and every existing automation guardrail still applies.
+
 - Added permanent local conversation-journal purge after provider-confirmed
   host deletion. A persona-bound, state-fingerprinted preview counts captured
   turns, host events, source lineage, and candidates; retained-memory evidence,

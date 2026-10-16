@@ -473,6 +473,11 @@ export {
   type CodexAppServerStructuredTaskRunner,
 } from "./providers/codex-app-server-ambient-extraction-provider.js";
 export {
+  CodexAppServerSensitivityClassifier,
+  codexSensitivityReasonCodes,
+  type CodexAppServerSensitivityClassifierOptions,
+} from "./providers/codex-app-server-sensitivity-classifier.js";
+export {
   StructuredAmbientMemoryExtractor,
   type StructuredAmbientExtractorOptions,
 } from "./providers/structured-ambient-extractor.js";

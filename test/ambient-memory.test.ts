@@ -489,6 +489,103 @@ test("sensitivity classification may raise but never lower a proposal", async ()
   }
 });
 
+test("ambient capture uses one batch sensitivity assessment per interaction", async () => {
+  let batchCalls = 0;
+  const extractor: AmbientMemoryExtractor = {
+    id: "test.batch-sensitivity-extractor",
+    version: "1",
+    extract: ({ records }) => [
+      {
+        assertion: "First proposal.",
+        type: "fact",
+        memoryClass: "episodic",
+        evidence: [{ sourceRecordId: records[0]!.id }],
+      },
+      {
+        assertion: "Second proposal.",
+        type: "preference",
+        memoryClass: "durable",
+        evidence: [{ sourceRecordId: records[0]!.id }],
+      },
+    ],
+  };
+  const classifier: AmbientSensitivityClassifier = {
+    id: "test.batch-sensitivity",
+    version: "1",
+    classify: () => {
+      throw new Error("Individual classification should not run.");
+    },
+    classifyBatch: (inputs) => {
+      batchCalls += 1;
+      return inputs.map(() => ({
+        sensitivity: "normal",
+        confidence: 1,
+        reasonCodes: ["normal_content"],
+      }));
+    },
+  };
+  const setup = fixture(extractor, false, classifier);
+  try {
+    const result = await setup.ambient.captureInteraction({
+      personaId: setup.skylar.persona.id,
+      source: {
+        kind: "chat",
+        title: "Batch sensitivity assessment",
+        records: [{ kind: "message", content: "Evidence" }],
+      },
+    });
+    assert.equal(batchCalls, 1);
+    assert.equal(result.candidates.length, 2);
+    assert.ok(
+      result.candidates.every(({ sensitivity }) => sensitivity === "normal"),
+    );
+  } finally {
+    setup.database.close();
+  }
+});
+
+test("ambient capture rejects an incomplete batch sensitivity assessment", async () => {
+  const extractor: AmbientMemoryExtractor = {
+    id: "test.incomplete-batch-extractor",
+    version: "1",
+    extract: ({ records }) => [
+      {
+        assertion: "Proposal without an assessment.",
+        type: "fact",
+        memoryClass: "durable",
+        evidence: [{ sourceRecordId: records[0]!.id }],
+      },
+    ],
+  };
+  const classifier: AmbientSensitivityClassifier = {
+    id: "test.incomplete-batch",
+    version: "1",
+    classify: () => ({
+      sensitivity: "normal",
+      confidence: 1,
+      reasonCodes: ["normal_content"],
+    }),
+    classifyBatch: () => [],
+  };
+  const setup = fixture(extractor, false, classifier);
+  try {
+    await assert.rejects(
+      setup.ambient.captureInteraction({
+        personaId: setup.skylar.persona.id,
+        source: {
+          kind: "chat",
+          title: "Incomplete batch",
+          records: [{ kind: "message", content: "Evidence" }],
+        },
+      }),
+      /one assessment per proposal/u,
+    );
+    assert.deepEqual(setup.ingestion.listCandidates(), []);
+  } finally {
+    setup.database.close();
+  }
+});
+
 test("invalid sensitivity assessments fail before candidate creation", async () => {
   const extractor: AmbientMemoryExtractor = {
     id: "test.invalid-assessment-extractor",

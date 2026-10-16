@@ -237,6 +237,9 @@ relationship and evidence. It defaults extracted claims to inferred and pending;
 only explicit review or an existing user-configured policy can accept them. A
 versioned sensitivity classifier may assess proposals; absent assessment fails
 closed to sensitive, and classification can never lower declared protection.
+The trusted Codex conversation runtime supplies a separate bounded classifier
+task and then evaluates only review policies the user previously configured;
+it creates no automatic policy itself.
 Explicit validity windows and review dates survive candidate acceptance;
 default retrieval excludes out-of-window memories without deleting them and
 explicit historical retrieval reports their temporal state.

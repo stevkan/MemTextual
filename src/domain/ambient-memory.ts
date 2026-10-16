@@ -70,6 +70,9 @@ export interface AmbientSensitivityClassifier {
   classify(
     input: AmbientSensitivityInput,
   ): AmbientSensitivityAssessment | Promise<AmbientSensitivityAssessment>;
+  classifyBatch?(
+    inputs: AmbientSensitivityInput[],
+  ): AmbientSensitivityAssessment[] | Promise<AmbientSensitivityAssessment[]>;
 }
 
 export interface CaptureAmbientInteractionInput {

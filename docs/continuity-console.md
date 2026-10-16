@@ -37,10 +37,11 @@ recovery controls by supplying one secret-free configuration file:
 
 `deploymentConfigurationPath` reuses the database, migrations, host-state,
 application, and executor paths already selected by the Windows deployment.
-`extractionModel` selects only the model used to produce structured memory
-candidates; a conversation start may separately choose a conversation model or
-use the Codex host default. The working directory is the dedicated directory
-assigned to the Codex conversation host.
+`extractionModel` selects the model used for both structured memory extraction
+and the separate sensitivity-classification task; a conversation start may
+separately choose a conversation model or use the Codex host default. The
+working directory is the dedicated directory assigned to the Codex
+conversation host.
 
 Do not put an API key, password, token, connection string, certificate, or other
 secret in this file. Unknown properties are rejected. Both configuration files,

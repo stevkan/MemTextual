@@ -41,8 +41,10 @@ other ambient capture.
 Host adapters and extraction providers may be asynchronous. Concrete vendor
 event subscriptions and credentials remain deployment integrations rather than
 MemTextual core dependencies. The initial concrete extraction provider uses a
-bounded Codex App Server structured task; it does not make the host-event
-boundary available to applications that cannot deliver authorized events.
+bounded Codex App Server structured task. The trusted conversation runtime uses
+a second bounded task to classify all resulting proposals before candidate
+review automation. These providers do not make the host-event boundary
+available to applications that cannot deliver authorized events.
 
 ## Replay and receipts
 

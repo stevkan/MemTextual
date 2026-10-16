@@ -236,7 +236,6 @@ Current limitations include:
 - resumable imports;
 - standalone-source deletion outside an external source series;
 - an explicitly configured local or external semantic-provider adapter;
-- a concrete ambient sensitivity-classification provider;
 - additional vendor extraction providers and host-event subscription adapters;
 - source-level sensitivity and redaction; and
 - remote transport authentication and authorization.

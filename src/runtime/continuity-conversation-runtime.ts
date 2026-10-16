@@ -16,6 +16,7 @@ import {
   CodexAppServerAmbientExtractionProvider,
   type CodexAppServerStructuredTaskRunner,
 } from "../providers/codex-app-server-ambient-extraction-provider.js";
+import { CodexAppServerSensitivityClassifier } from "../providers/codex-app-server-sensitivity-classifier.js";
 import { StructuredAmbientMemoryExtractor } from "../providers/structured-ambient-extractor.js";
 import { SqliteContinuityConversationRepository } from "../repositories/sqlite-continuity-conversation-repository.js";
 import { SqliteContinuityMemoryRepository } from "../repositories/sqlite-continuity-memory-repository.js";
@@ -24,6 +25,7 @@ import { SqliteHostEventRepository } from "../repositories/sqlite-host-event-rep
 import { SqliteIngestionRepository } from "../repositories/sqlite-ingestion-repository.js";
 import { SqliteMemoryRepository } from "../repositories/sqlite-memory-repository.js";
 import { SqlitePersonaRepository } from "../repositories/sqlite-persona-repository.js";
+import { SqliteReviewPolicyRepository } from "../repositories/sqlite-review-policy-repository.js";
 import { AmbientMemoryService } from "../services/ambient-memory-service.js";
 import { ContinuityLexicalContextService } from "../services/continuity-context-service.js";
 import { ContinuityConversationAuthorizationService } from "../services/continuity-conversation-authorization-service.js";
@@ -37,6 +39,7 @@ import {
   HostAuthorizationService,
 } from "../services/host-event-service.js";
 import { IngestionService } from "../services/ingestion-service.js";
+import { ReviewAutomationService } from "../services/review-automation-service.js";
 
 export type StructuredConversationHost = ConversationHost &
   CodexAppServerStructuredTaskRunner &
@@ -92,8 +95,17 @@ export function createContinuityConversationRuntime(
     options.database,
   );
   const hostEvents = new SqliteHostEventRepository(options.database);
+  const ingestionRepository = new SqliteIngestionRepository(
+    options.database,
+    memories,
+  );
+  const reviewAutomation = new ReviewAutomationService(
+    ingestionRepository,
+    new SqliteReviewPolicyRepository(options.database, ingestionRepository),
+  );
   const ingestion = new IngestionService(
-    new SqliteIngestionRepository(options.database, memories),
+    ingestionRepository,
+    reviewAutomation,
   );
   const extractionProvider = new CodexAppServerAmbientExtractionProvider(
     options.host,
@@ -103,7 +115,10 @@ export function createContinuityConversationRuntime(
     ingestion,
     personas,
     new StructuredAmbientMemoryExtractor(extractionProvider),
-    options.sensitivityClassifier,
+    options.sensitivityClassifier ??
+      new CodexAppServerSensitivityClassifier(options.host, {
+        model: extractionModel,
+      }),
   );
   const capture = new AuthorizedHostEventCaptureService(
     hostEvents,

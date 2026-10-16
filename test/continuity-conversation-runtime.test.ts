@@ -18,6 +18,8 @@ import {
   SqliteIngestionRepository,
   SqliteMemoryRepository,
   SqlitePersonaRepository,
+  SqliteReviewPolicyRepository,
+  ReviewAutomationService,
   continuityConversationTurnEventKind,
   createContinuityConsoleApplication,
   createContinuityConversationRuntime,
@@ -139,8 +141,20 @@ class RuntimeHost implements StructuredConversationHost {
       throw new Error("structured extraction unavailable");
     }
     const payload = JSON.parse(input.input) as {
+      format: string;
       records: Array<{ id: string; authorRole: string; content: string }>;
+      proposals: Array<{ proposalIndex: number }>;
     };
+    if (payload.format === "memtextual.sensitivity_classification_input") {
+      return JSON.stringify({
+        assessments: payload.proposals.map(({ proposalIndex }) => ({
+          proposalIndex,
+          sensitivity: "normal",
+          confidence: 1,
+          reasonCodes: ["normal_content"],
+        })),
+      });
+    }
     const userRecord = payload.records.find(
       ({ authorRole }) => authorRole === "user",
     )!;
@@ -194,6 +208,27 @@ test("production runtime composes protected conversation and ambient capture bou
     );
     const user = personas.createUser({ displayName: "Steve" });
     const persona = personas.createPersona({ userId: user.id, name: "Skylar" });
+    const policyIngestion = new SqliteIngestionRepository(
+      database,
+      memoryRepository,
+    );
+    new ReviewAutomationService(
+      policyIngestion,
+      new SqliteReviewPolicyRepository(database, policyIngestion),
+    ).setPolicy(
+      {
+        scopeId: persona.relationship.scopeId,
+        name: "Trust assessed Codex extraction",
+        mode: "automatic_threshold",
+        conditions: {
+          minimumConfidence: 1,
+          trustedProposerIds: [
+            "openai.codex-app-server.ambient-extraction",
+          ],
+        },
+      },
+      { actor: "user", explicitUserAction: true },
+    );
     const authorization = await runtime.authorizations.authorize(
       {
         userId: user.id,
@@ -214,13 +249,15 @@ test("production runtime composes protected conversation and ambient capture bou
     });
 
     assert.equal(result.capture.createdCandidateCount, 1);
-    assert.equal(host.structuredTasks.length, 1);
+    assert.equal(host.structuredTasks.length, 2);
     assert.equal(host.structuredTasks[0]?.model, "gpt-runtime-test");
+    assert.equal(host.structuredTasks[1]?.model, "gpt-runtime-test");
     const candidates = ingestion.listCandidates();
     assert.equal(candidates.length, 1);
     assert.equal(candidates[0]?.assertion, "Steve prefers tea.");
-    assert.equal(candidates[0]?.status, "pending");
-    assert.equal(candidates[0]?.sensitivity, "sensitive");
+    assert.equal(candidates[0]?.status, "accepted");
+    assert.equal(candidates[0]?.sensitivity, "normal");
+    assert.notEqual(candidates[0]?.acceptedMemoryId, null);
     const ambientProfile = database
       .prepare(
         `SELECT sensitivity_assessment_status, assessed_sensitivity,
@@ -233,9 +270,10 @@ test("production runtime composes protected conversation and ambient capture bou
       sensitivity_classifier_id: string;
     };
     assert.deepEqual(ambientProfile, {
-      sensitivity_assessment_status: "unassessed",
-      assessed_sensitivity: "sensitive",
-      sensitivity_classifier_id: "memtextual.unassessed",
+      sensitivity_assessment_status: "assessed",
+      assessed_sensitivity: "normal",
+      sensitivity_classifier_id:
+        "openai.codex-app-server.sensitivity-classification",
     });
 
     await runtime.close();
@@ -378,8 +416,9 @@ test("console conversation API keeps identity and grants behind the loopback bou
     );
     assert.equal(turnResponse.status, 200);
     assert.equal(turnResponse.body.includes("mthg_"), false);
-    assert.equal(hostAdapter.structuredTasks.length, 1);
+    assert.equal(hostAdapter.structuredTasks.length, 2);
     assert.equal(ingestion.listCandidates().length, 1);
+    assert.equal(ingestion.listCandidates()[0]?.status, "pending");
 
     const leaveResponse = await request(
       `/api/conversations/${encodeURIComponent(conversation.id)}/leave`,

@@ -58,6 +58,24 @@ reject malformed assessments or a candidate whose effective sensitivity is
 lower than either its declared or assessed value. Schema-11 rows are preserved
 as `legacy_unassessed` without rewriting their candidate state.
 
+The trusted Codex conversation runtime supplies
+`CodexAppServerSensitivityClassifier` by default. After extraction, it sends
+all proposals from that interaction in one separately bounded structured task
+using the same explicitly configured model. Only assertions, declared
+sensitivity, and cited evidence records are sent; persona, relationship,
+source, proposal, and record metadata are omitted. The classifier has a fixed
+reason-code vocabulary, requires one indexed result per proposal, and applies
+the proposal's declared sensitivity as a lower bound even if provider output
+attempts to reduce it. Invalid, incomplete, oversized, or malformed output
+fails the capture rather than creating an unassessed candidate.
+
+The runtime also connects candidate creation to the existing review-policy
+processor. It does not create or select a policy. Assessed normal candidates
+can be accepted automatically only when a policy previously configured by the
+user passes every existing provenance, explicitness, confidence, evidence,
+type, and conflict guardrail. Sensitive, restricted, inferred, protected,
+instruction, or otherwise ineligible candidates remain pending.
+
 ## Persona and provenance boundary
 
 Each proposal must name `episodic` or `durable` as its memory class and cite at
@@ -104,12 +122,11 @@ archive, or delete the memory. Validity bounds are inclusive.
 
 ## Current boundary
 
-This package defines and validates the capture, structured-provider, and
-explicit temporal contracts and includes the initial Codex App Server
-extraction adapter. It does not include a concrete sensitivity classifier,
-temporal inference model, background listener, scheduler, or MCP capture tool.
-Without a configured classifier, extracted proposals remain fail-closed as
-unassessed sensitive candidates and cannot be automatically accepted. The
-Codex provider must still be composed by the trusted Continuity runtime with an
-explicit model. Ordinary chat platforms still need an authorized integration
-to deliver events; see `host-capture.md`.
+This package defines and validates the capture, structured-provider,
+sensitivity, and explicit temporal contracts and includes the initial Codex App
+Server extraction and sensitivity adapters. A generic composition that omits a
+classifier still fails closed to unassessed sensitive candidates. Temporal
+inference models, background listeners, schedulers, and MCP capture tools remain
+outside this package. The Codex providers are composed by the trusted
+Continuity runtime with an explicit model. Ordinary chat platforms still need
+an authorized integration to deliver events; see `host-capture.md`.

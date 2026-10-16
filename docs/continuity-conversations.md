@@ -207,8 +207,10 @@ authorized turn capture, the durable conversation journal, protected grant
 resolution, persona behavior, and the grantless client facade. The Windows
 composition uses the DPAPI grant store through an injected PowerShell bridge.
 The runtime owns and closes its host, but never closes the caller-owned database.
-No embedding provider is required, and absent sensitivity classification still
-fails closed to sensitive, pending candidates.
+No embedding provider is required. The Codex runtime classifies all proposals
+through a separate bounded structured task and then applies only a review policy
+the user previously configured. Generic compositions that omit classification
+still fail closed to sensitive, pending candidates.
 
 The local console server exposes optional, same-origin, token-protected
 authorization and conversation operations without accepting or returning host

@@ -7,7 +7,9 @@ import type {
   AmbientCaptureResult,
   AmbientMemoryExtractor,
   AmbientMemoryProposal,
+  AmbientSensitivityAssessment,
   AmbientSensitivityClassifier,
+  AmbientSensitivityInput,
   CaptureAmbientInteractionInput,
 } from "../domain/ambient-memory.js";
 import type {
@@ -144,6 +146,71 @@ function validateMemoryClass(memoryClass: PersonaMemoryClass): void {
   }
 }
 
+function validateAssessment(
+  classifier: AmbientSensitivityClassifier,
+  assessment: AmbientSensitivityAssessment,
+  declaredSensitivity: Sensitivity | null,
+): AmbientSensitivityAssessmentContext {
+  if (typeof assessment !== "object" || assessment === null) {
+    throw new Error("A sensitivity classifier must return an assessment.");
+  }
+  validateSensitivity(assessment.sensitivity);
+  if (
+    !Number.isFinite(assessment.confidence) ||
+    assessment.confidence < 0 ||
+    assessment.confidence > 1
+  ) {
+    throw new Error(
+      "Sensitivity assessment confidence must be between 0 and 1.",
+    );
+  }
+  return {
+    status: "assessed",
+    declaredSensitivity,
+    assessedSensitivity: assessment.sensitivity,
+    confidence: assessment.confidence,
+    classifierId: requiredText(
+      classifier.id,
+      "An ambient sensitivity classifier ID",
+    ),
+    classifierVersion: requiredText(
+      classifier.version,
+      "An ambient sensitivity classifier version",
+    ),
+    reasonCodes: normalizeReasonCodes(assessment.reasonCodes),
+  };
+}
+
+async function classifySensitivity(
+  classifier: AmbientSensitivityClassifier | undefined,
+  inputs: AmbientSensitivityInput[],
+  declaredSensitivities: Array<Sensitivity | null>,
+): Promise<AmbientSensitivityAssessmentContext[]> {
+  if (classifier === undefined) {
+    return declaredSensitivities.map((declaredSensitivity) => ({
+      status: "unassessed",
+      declaredSensitivity,
+      assessedSensitivity: "sensitive",
+      confidence: 0,
+      classifierId: "memtextual.unassessed",
+      classifierVersion: "1",
+      reasonCodes: ["classifier_unavailable"],
+    }));
+  }
+  const assessments =
+    classifier.classifyBatch === undefined
+      ? await Promise.all(inputs.map((input) => classifier.classify(input)))
+      : await classifier.classifyBatch(inputs);
+  if (!Array.isArray(assessments) || assessments.length !== inputs.length) {
+    throw new Error(
+      "A sensitivity classifier must return one assessment per proposal.",
+    );
+  }
+  return assessments.map((assessment, index) =>
+    validateAssessment(classifier, assessment, declaredSensitivities[index]!),
+  );
+}
+
 export class AmbientMemoryService {
   private readonly extractorId: string;
   private readonly extractorVersion: string;
@@ -189,72 +256,44 @@ export class AmbientMemoryService {
     }
 
     const records = new Map(imported.records.map((record) => [record.id, record]));
-    const prepared = await Promise.all(
-      proposals.map(async (proposal) => {
-        validateMemoryClass(proposal.memoryClass);
-        const evidence = validateEvidence(proposal, records);
-        const declaredSensitivity = proposal.sensitivity ?? null;
-        if (declaredSensitivity !== null) {
-          validateSensitivity(declaredSensitivity);
-        }
-        const evidenceRecords = evidence.map(
-          ({ sourceRecordId }) => records.get(sourceRecordId)!,
-        );
-        let sensitivityAssessment: AmbientSensitivityAssessmentContext;
-        if (this.sensitivityClassifier === undefined) {
-          sensitivityAssessment = {
-            status: "unassessed",
-            declaredSensitivity,
-            assessedSensitivity: "sensitive",
-            confidence: 0,
-            classifierId: "memtextual.unassessed",
-            classifierVersion: "1",
-            reasonCodes: ["classifier_unavailable"],
-          };
-        } else {
-          const assessment = await this.sensitivityClassifier.classify({
-            personaContext: context,
-            source: imported.source,
-            records: imported.records,
-            proposal,
-            evidenceRecords,
-          });
-          if (typeof assessment !== "object" || assessment === null) {
-            throw new Error(
-              "A sensitivity classifier must return an assessment.",
-            );
-          }
-          validateSensitivity(assessment.sensitivity);
-          if (
-            !Number.isFinite(assessment.confidence) ||
-            assessment.confidence < 0 ||
-            assessment.confidence > 1
-          ) {
-            throw new Error(
-              "Sensitivity assessment confidence must be between 0 and 1.",
-            );
-          }
-          sensitivityAssessment = {
-            status: "assessed",
-            declaredSensitivity,
-            assessedSensitivity: assessment.sensitivity,
-            confidence: assessment.confidence,
-            classifierId: requiredText(
-              this.sensitivityClassifier.id,
-              "An ambient sensitivity classifier ID",
-            ),
-            classifierVersion: requiredText(
-              this.sensitivityClassifier.version,
-              "An ambient sensitivity classifier version",
-            ),
-            reasonCodes: normalizeReasonCodes(assessment.reasonCodes),
-          };
-        }
+    const preparedProposals = proposals.map((proposal) => {
+      validateMemoryClass(proposal.memoryClass);
+      const evidence = validateEvidence(proposal, records);
+      const declaredSensitivity = proposal.sensitivity ?? null;
+      if (declaredSensitivity !== null) {
+        validateSensitivity(declaredSensitivity);
+      }
+      const evidenceRecords = evidence.map(
+        ({ sourceRecordId }) => records.get(sourceRecordId)!,
+      );
+      const sensitivityInput: AmbientSensitivityInput = {
+        personaContext: context,
+        source: imported.source,
+        records: imported.records,
+        proposal,
+        evidenceRecords,
+      };
+      const temporal = normalizeTemporalWindow(proposal);
+      return {
+        proposal,
+        evidence,
+        declaredSensitivity,
+        sensitivityInput,
+        temporal,
+      };
+    });
+    const sensitivityAssessments = await classifySensitivity(
+      this.sensitivityClassifier,
+      preparedProposals.map(({ sensitivityInput }) => sensitivityInput),
+      preparedProposals.map(({ declaredSensitivity }) => declaredSensitivity),
+    );
+    const prepared = preparedProposals.map(
+      ({ proposal, evidence, declaredSensitivity, temporal }, index) => {
+        const sensitivityAssessment = sensitivityAssessments[index]!;
         const sensitivity = effectiveSensitivity(
           declaredSensitivity,
           sensitivityAssessment.assessedSensitivity,
         );
-        const temporal = normalizeTemporalWindow(proposal);
         const externalId = candidateExternalId(
           imported.source.id,
           this.extractorId,
@@ -271,7 +310,7 @@ export class AmbientMemoryService {
           sensitivityAssessment,
           temporal,
         };
-      }),
+      },
     );
 
     let createdCandidateCount = 0;

@@ -101,10 +101,13 @@ controls create or revoke authorization, start or open-and-reconcile a
 conversation, send and leave, and retry failed capture. The initial Codex App
 Server provider runs bounded ephemeral structured tasks, records its configured
 model in its version, and passes output through the existing fail-closed
-validator. A concrete sensitivity classifier remains open, so unassessed
-proposals are sensitive and pending. Coordinated deletion controls remain
-integration work. Other cloud providers and local models are outside the initial
-scope and may be reconsidered only in response to demonstrated need.
+validator. A separate bounded Codex structured task now classifies every
+proposal with a fixed reason-code vocabulary and a declared-sensitivity floor.
+The runtime invokes existing user-configured review automation only after that
+assessment; it does not create a policy. Provider-confirmed host deletion and a
+separately confirmed active-database journal purge are also implemented. Other
+cloud providers and local models are outside the initial scope and may be
+reconsidered only in response to demonstrated need.
 
 As of October 15, 2026, OpenAI's official ChatGPT desktop, web, and mobile
 clients expose no supported outbound conversation-turn API or webhook through
