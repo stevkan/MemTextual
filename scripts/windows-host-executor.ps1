@@ -1,16 +1,19 @@
 param(
   [Parameter(Mandatory = $true)]
   [ValidateSet(
+    "delete-conversation-grant",
     "inspect-identity",
     "inspect-schedule",
     "install-schedule",
     "invoke-schedule",
+    "load-conversation-grant",
     "protect-paths",
     "provision-identity",
     "remove-identity",
     "remove-schedule",
     "restore-paths",
-    "self-test"
+    "self-test",
+    "store-conversation-grant"
   )]
   [string]$Action,
 
@@ -29,6 +32,7 @@ $taskMarker = "MemTextual managed schedule v1:"
 $taskPath = "\MemTextual\"
 $maximumInputBytes = 1MB
 $entropy = [System.Text.Encoding]::UTF8.GetBytes("MemTextual Windows protected state v1")
+$conversationGrantEntropy = [System.Text.Encoding]::UTF8.GetBytes("MemTextual Continuity conversation grant v1")
 
 function Assert-SafeIdentifier([string]$Value, [string]$Label, [int]$Maximum = 128) {
   if ([string]::IsNullOrWhiteSpace($Value) -or $Value.Length -gt $Maximum -or $Value -notmatch '^[A-Za-z0-9][A-Za-z0-9._-]*$') {
@@ -94,6 +98,11 @@ function Get-PathAclManifestPath([bool]$Create) {
   return Join-Path (Get-DirectStateDirectory $Create) "protected-path-acls.json"
 }
 
+function Get-ConversationGrantPath([string]$AuthorizationId, [bool]$Create) {
+  Assert-SafeIdentifier $AuthorizationId "Conversation authorization identifier" 200
+  return Join-Path (Get-DirectStateDirectory $Create) "conversation-grant-$AuthorizationId.dpapi"
+}
+
 function Protect-Bytes([byte[]]$Bytes) {
   Add-Type -AssemblyName System.Security
   return [Security.Cryptography.ProtectedData]::Protect(
@@ -110,6 +119,72 @@ function Unprotect-Bytes([byte[]]$Bytes) {
     $entropy,
     [Security.Cryptography.DataProtectionScope]::LocalMachine
   )
+}
+
+function Protect-ConversationGrantBytes([byte[]]$Bytes) {
+  Add-Type -AssemblyName System.Security
+  return [Security.Cryptography.ProtectedData]::Protect(
+    $Bytes,
+    $conversationGrantEntropy,
+    [Security.Cryptography.DataProtectionScope]::CurrentUser
+  )
+}
+
+function Unprotect-ConversationGrantBytes([byte[]]$Bytes) {
+  Add-Type -AssemblyName System.Security
+  return [Security.Cryptography.ProtectedData]::Unprotect(
+    $Bytes,
+    $conversationGrantEntropy,
+    [Security.Cryptography.DataProtectionScope]::CurrentUser
+  )
+}
+
+function Assert-ConversationGrantBinding($Value) {
+  Assert-SafeIdentifier ([string]$Value.authorizationId) "Conversation authorization identifier" 200
+  foreach ($name in @("userId", "personaId", "relationshipId", "hostId")) {
+    $text = [string]$Value.$name
+    if ([string]::IsNullOrWhiteSpace($text) -or $text.Length -gt 500) {
+      throw "Conversation grant binding is invalid."
+    }
+  }
+}
+
+function Assert-ConversationGrantMatches($Record, $Binding) {
+  Assert-ConversationGrantBinding $Record
+  if (
+    [int]$Record.formatVersion -ne 1 -or
+    [string]$Record.authorizationId -ne [string]$Binding.authorizationId -or
+    [string]$Record.userId -ne [string]$Binding.userId -or
+    [string]$Record.personaId -ne [string]$Binding.personaId -or
+    [string]$Record.relationshipId -ne [string]$Binding.relationshipId -or
+    [string]$Record.hostId -ne [string]$Binding.hostId -or
+    [string]$Record.grant -notmatch '^mthg_[A-Za-z0-9_-]{43}$'
+  ) {
+    throw "Protected conversation grant does not match its binding."
+  }
+}
+
+function Read-ConversationGrant($Binding) {
+  Assert-ConversationGrantBinding $Binding
+  $path = Get-ConversationGrantPath ([string]$Binding.authorizationId) $false
+  if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+    return $null
+  }
+  $item = Get-Item -LiteralPath $path -Force
+  if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -or $item.Length -le 0 -or $item.Length -gt 65536) {
+    throw "Protected conversation grant file is invalid."
+  }
+  $protected = [IO.File]::ReadAllBytes($path)
+  $plaintext = Unprotect-ConversationGrantBytes $protected
+  try {
+    $record = [Text.Encoding]::UTF8.GetString($plaintext) | ConvertFrom-Json
+  } catch {
+    throw "Protected conversation grant payload is invalid."
+  } finally {
+    [Array]::Clear($plaintext, 0, $plaintext.Length)
+  }
+  Assert-ConversationGrantMatches $record $Binding
+  return $record
 }
 
 function Set-RestrictedAcl(
@@ -141,6 +216,27 @@ function Set-RestrictedAcl(
     $acl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new($ServiceSid, $ServiceRights, $inheritance, $propagation, $allow))
   }
   Set-Acl -LiteralPath $Path -AclObject $acl
+}
+
+function Set-CurrentUserRestrictedFileAcl([string]$Path) {
+  $item = Get-Item -LiteralPath $Path -Force
+  if (-not $item.PSIsContainer -and -not ($item.Attributes -band [IO.FileAttributes]::ReparsePoint)) {
+    $acl = [Security.AccessControl.FileSecurity]::new()
+    $acl.SetAccessRuleProtection($true, $false)
+    $allow = [Security.AccessControl.AccessControlType]::Allow
+    $rights = [Security.AccessControl.FileSystemRights]::FullControl
+    $inheritance = [Security.AccessControl.InheritanceFlags]::None
+    $propagation = [Security.AccessControl.PropagationFlags]::None
+    $currentSid = [Security.Principal.WindowsIdentity]::GetCurrent().User
+    $systemSid = [Security.Principal.SecurityIdentifier]::new("S-1-5-18")
+    $administratorsSid = [Security.Principal.SecurityIdentifier]::new("S-1-5-32-544")
+    foreach ($sid in @($currentSid, $systemSid, $administratorsSid)) {
+      $acl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new($sid, $rights, $inheritance, $propagation, $allow))
+    }
+    [IO.File]::SetAccessControl($Path, $acl)
+    return
+  }
+  throw "Protected conversation grant path must be a direct file."
 }
 
 function Grant-ServiceAcl(
@@ -381,6 +477,108 @@ try {
   }
 
   switch ($Action) {
+    "store-conversation-grant" {
+      Assert-ConversationGrantBinding $request
+      if ([string]$request.grant -notmatch '^mthg_[A-Za-z0-9_-]{43}$') {
+        throw "Conversation grant value is invalid."
+      }
+      $record = [ordered]@{
+        formatVersion = 1
+        authorizationId = [string]$request.authorizationId
+        userId = [string]$request.userId
+        personaId = [string]$request.personaId
+        relationshipId = [string]$request.relationshipId
+        hostId = [string]$request.hostId
+        grant = [string]$request.grant
+      }
+      $path = Get-ConversationGrantPath ([string]$request.authorizationId) $true
+      if (Test-Path -LiteralPath $path) {
+        $existing = Read-ConversationGrant $request
+        if ([string]$existing.grant -ne [string]$request.grant) {
+          throw "A different protected conversation grant already exists."
+        }
+        Write-Result ([pscustomobject]@{
+          authorizationId = [string]$request.authorizationId
+          created = $false
+          stored = $true
+        })
+        break
+      }
+      $plaintext = [Text.Encoding]::UTF8.GetBytes(($record | ConvertTo-Json -Compress))
+      try {
+        $protected = Protect-ConversationGrantBytes $plaintext
+      } finally {
+        [Array]::Clear($plaintext, 0, $plaintext.Length)
+      }
+      $stream = $null
+      $createdFile = $false
+      try {
+        $stream = [IO.File]::Open(
+          $path,
+          [IO.FileMode]::CreateNew,
+          [IO.FileAccess]::Write,
+          [IO.FileShare]::None
+        )
+        $createdFile = $true
+        $stream.Write($protected, 0, $protected.Length)
+        $stream.Flush($true)
+      } catch {
+        if ($null -ne $stream) { $stream.Dispose(); $stream = $null }
+        if ($createdFile) {
+          Remove-Item -LiteralPath $path -Force -ErrorAction SilentlyContinue
+          throw
+        }
+        if (Test-Path -LiteralPath $path -PathType Leaf) {
+          $existing = Read-ConversationGrant $request
+          if ([string]$existing.grant -eq [string]$request.grant) {
+            Write-Result ([pscustomobject]@{
+              authorizationId = [string]$request.authorizationId
+              created = $false
+              stored = $true
+            })
+            break
+          }
+        }
+        throw
+      } finally {
+        if ($null -ne $stream) { $stream.Dispose() }
+      }
+      try {
+        Set-CurrentUserRestrictedFileAcl $path
+      } catch {
+        Remove-Item -LiteralPath $path -Force -ErrorAction SilentlyContinue
+        throw
+      }
+      Write-Result ([pscustomobject]@{
+        authorizationId = [string]$request.authorizationId
+        created = $true
+        stored = $true
+      })
+    }
+    "load-conversation-grant" {
+      $record = Read-ConversationGrant $request
+      if ($null -eq $record) {
+        Write-Result ([pscustomobject]@{ found = $false })
+      } else {
+        Write-Result ([pscustomobject]@{
+          found = $true
+          grant = [string]$record.grant
+        })
+      }
+    }
+    "delete-conversation-grant" {
+      $record = Read-ConversationGrant $request
+      $deleted = $false
+      if ($null -ne $record) {
+        $path = Get-ConversationGrantPath ([string]$request.authorizationId) $false
+        Remove-Item -LiteralPath $path -Force
+        $deleted = $true
+      }
+      Write-Result ([pscustomobject]@{
+        authorizationId = [string]$request.authorizationId
+        deleted = $deleted
+      })
+    }
     "inspect-identity" {
       Write-Result (Get-ManagedIdentity ([string]$request.identityName))
     }

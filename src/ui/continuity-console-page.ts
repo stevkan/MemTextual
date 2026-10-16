@@ -363,7 +363,7 @@ export const continuityConsoleJavaScript = `
         });
       }
       detailPanel.append(history);
-      detailPanel.append(node("p", "Starting, reopening, and sending messages are not enabled yet. Those actions require protected host-authorization grant storage so bearer credentials are not exposed to the database, browser, or command line.", "meta"));
+      detailPanel.append(node("p", "Starting, reopening, and sending messages are not enabled yet. Those actions will remain unavailable until the conversational runtime is integrated with protected host-authorization grant storage, keeping bearer credentials out of the database, browser, and command line.", "meta"));
     } catch (error) { setNotice(error.message, true); }
   }
 

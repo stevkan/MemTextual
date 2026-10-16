@@ -8,11 +8,13 @@ protocol.
 
 ## Security model
 
-The executor is `scripts/windows-host-executor.ps1`. Its mutation actions must
-run from an elevated administrator process. Requests are read from standard
-input, successful responses are JSON on standard output, and diagnostic errors
-go to standard error. The command line carries only the action and non-secret
-state-directory path.
+The executor is `scripts/windows-host-executor.ps1`. Its identity, scheduled-
+task, and protected-path mutation actions must run from an elevated
+administrator process. Conversation-grant actions run as the identity that owns
+the grant and do not require elevation. Requests are read from standard input,
+successful responses are JSON on standard output, and diagnostic errors go to
+standard error. The command line carries only the action and non-secret state-
+directory path.
 
 The executor:
 
@@ -23,6 +25,9 @@ The executor:
 - accepts scheduled environment values only through the standard-input JSON
   request, protects them with DPAPI, and grants the service account read access
   only to the required protected values;
+- accepts conversation bearer grants only through the same bounded protocol,
+  protects them with current-user DPAPI, and creates non-replacing files with
+  restrictive ACLs and complete authorization-binding validation;
 - applies either additive service-account ACL grants for ordinary application,
   database, backup, and configuration paths or restrictive non-inheriting ACLs
   for explicitly sensitive paths such as the certificate private key;

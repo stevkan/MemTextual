@@ -65,6 +65,14 @@ export {
   type StartContinuityConversationInput,
 } from "./domain/continuity-conversation.js";
 export {
+  conversationGrantBindingFromAuthorization,
+  conversationGrantBindingFromConversation,
+  type ConversationGrantBinding,
+  type ConversationGrantStore,
+  type ConversationGrantStoreReceipt,
+  type StoreConversationGrantInput,
+} from "./domain/conversation-grant-store.js";
+export {
   CodexAppServerConversationHost,
   CodexAppServerError,
   type CodexAppServerConversationHostOptions,
@@ -393,6 +401,14 @@ export {
 export {
   ContinuityConversationCatalogService,
 } from "./services/continuity-conversation-catalog-service.js";
+export {
+  ContinuityConversationAuthorizationService,
+  type RevokeStoredConversationAuthorizationResult,
+} from "./services/continuity-conversation-authorization-service.js";
+export {
+  WindowsDpapiConversationGrantStore,
+  type WindowsDpapiConversationGrantStoreOptions,
+} from "./platform/windows-dpapi-conversation-grant-store.js";
 export {
   ContinuityConversationClientCoordinator,
   ContinuityConversationOpenRecoveryRequiredError,

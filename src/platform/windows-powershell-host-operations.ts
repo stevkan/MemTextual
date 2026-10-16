@@ -15,14 +15,17 @@ import type {
 } from "./windows-host-integration.js";
 
 export type WindowsPowerShellHostAction =
+  | "delete-conversation-grant"
   | "inspect-identity"
   | "inspect-schedule"
   | "install-schedule"
+  | "load-conversation-grant"
   | "protect-paths"
   | "provision-identity"
   | "remove-identity"
   | "remove-schedule"
-  | "restore-paths";
+  | "restore-paths"
+  | "store-conversation-grant";
 
 export interface WindowsPowerShellBridge {
   execute(action: WindowsPowerShellHostAction, payload: unknown): Promise<unknown>;
@@ -166,14 +169,17 @@ export function createWindowsPowerShellBridge(
     );
   }
   const actions = new Set<WindowsPowerShellHostAction>([
+    "delete-conversation-grant",
     "inspect-identity",
     "inspect-schedule",
     "install-schedule",
+    "load-conversation-grant",
     "protect-paths",
     "provision-identity",
     "remove-identity",
     "remove-schedule",
     "restore-paths",
+    "store-conversation-grant",
   ]);
 
   return {

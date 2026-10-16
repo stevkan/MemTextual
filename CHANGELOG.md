@@ -5,6 +5,13 @@ describe only the current design and behavior.
 
 ## Unreleased
 
+- Added provider-neutral protected conversation-grant storage and an initial
+  Windows DPAPI adapter. New authorizations can persist their bearer only as a
+  CurrentUser-protected, create-once record outside SQLite; storage failure
+  revokes the new authorization, full bindings are revalidated before use or
+  revocation, and revoked or expired grants are never returned. A real Windows
+  DPAPI integration test covers store, restart-safe load, idempotency, and
+  deletion. Console chat controls remain separate composition work.
 - Added a persona-scoped, read-only conversation catalog to the Continuity
   console. It lists persisted conversations, exact durable journal text, and
   pending or failed capture counts while denying cross-persona detail access.

@@ -149,7 +149,9 @@ This package provides library orchestration plus a read-only graphical
 conversation catalog; it is not yet the graphical conversational client. The
 console does not start, reopen, or send turns. Those actions require a protected
 grant store that can restore the raw host bearer after process restart without
-putting it in SQLite, browser state, or command-line arguments. Coordinated
+putting it in SQLite, browser state, or command-line arguments. The
+provider-neutral store, authorization lifecycle, and initial Windows DPAPI
+adapter are now implemented; client composition remains open. Coordinated
 host-thread deletion controls also remain open.
 
 Codex App Server threads are persistent local records outside the MemTextual

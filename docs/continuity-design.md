@@ -90,8 +90,11 @@ The local control console now stores immutable, explicitly user-authored
 behavior revisions for each persona; new conversations snapshot the current
 enabled revision. The console now lists persisted conversations for its bound
 persona and presents exact locally journaled turns plus unresolved recovery
-counts. Active chat controls remain gated on protected host-grant storage, and
-coordinated deletion controls remain integration work. Other cloud
+counts. A provider-neutral protected grant boundary now stores newly issued
+conversation grants outside SQLite, revokes authorization when storage fails,
+and has an initial Windows CurrentUser-DPAPI adapter. Active chat controls
+remain gated on composing that store into the client, and coordinated deletion
+controls remain integration work. Other cloud
 providers and local models are outside the initial scope and may be
 reconsidered only in response to demonstrated need.
 
@@ -156,9 +159,10 @@ persona and IPv4 loopback for one process lifetime, with a fresh bearer token
 delivered through a URL fragment. The console also includes a read-only
 conversation catalog whose detail view preserves exact journaled dialogue and
 distinguishes local journal state from unreconciled host history. It does not
-expose start, reopen, or send actions while the raw host grant has no protected
-post-restart store. The console also includes a versioned persona-memory JSON
-export with complete revision histories, plus
+expose start, reopen, or send actions until the conversational runtime is
+composed with the protected grant store. That store is implemented separately
+and is never populated from browser input. The console also includes a
+versioned persona-memory JSON export with complete revision histories, plus
 exact-ID-confirmed recoverable deletion and restoration. The export is
 intentionally described as a user-memory record rather than a database backup:
 it excludes source, candidate, audit, ranking, emotional-annotation, and backup

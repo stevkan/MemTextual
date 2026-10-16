@@ -54,8 +54,8 @@ for source-series privacy workflows.
 The conversation view is read-only. It is not a complete mirror of the host:
 the host can contain additional completed turns until history reconciliation
 runs. Starting, reopening, and sending conversation turns remain unavailable
-in this console until MemTextual has protected storage for the raw host bearer
-grant. The grant is intentionally absent from the database, browser state, and
+until the conversational runtime is integrated with the protected grant store.
+The raw grant is intentionally absent from the database, browser state, and
 command-line arguments.
 
 ## Persona-memory export
