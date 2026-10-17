@@ -5,13 +5,26 @@ describe only the current design and behavior.
 
 ## Unreleased
 
+- Proved the successful opt-in MSI host lifecycle in a clean,
+  network-disabled Windows Sandbox using synthetic data. Installation created
+  the owned dedicated account, batch-logon right, ACL grants, and scheduled
+  backup; the naturally triggered task completed with result `0` and created a
+  recovery point. Uninstall removed all owned host resources and ownership
+  records while preserving the database, configuration, and recovery point.
+  The host executor now handles Windows' 48-character local-user description
+  limit, uses a resolvable machine-qualified task account, grants and revokes
+  `SeBatchLogonRight`, avoids an invalid infinite task repetition duration,
+  waits through Task Scheduler's running result, and verifies restored ACL
+  ownership, group, entries, order, and control state before deleting its
+  recovery manifest.
+
 - Exercised synthetic unsigned `0.8.0` and `0.8.1` MSIs in a fresh,
   network-disabled Windows Sandbox. The run passed deliberately failed
   host-action install rollback, normal install, exact-file repair, major
   upgrade with a single current product registration, and data-preserving
   uninstall. It preserved external synthetic data and deployment configuration
-  byte-for-byte. Successful opted-in host provisioning, production signing,
-  approved legal terms, and public-release validation remain separate gates.
+  byte-for-byte. Production signing, approved legal terms, and public-release
+  validation remain separate gates.
 
 - Added an optional, preview-bound MSI build workspace so WiX native cabinet
   creation can use a short unprotected path independently of the final output
@@ -26,8 +39,8 @@ describe only the current design and behavior.
   deployment file. Install and uninstall have paired rollback actions; ordinary
   uninstall preserves all user data and recovery material, and major upgrades
   leave stable owned host resources in place. Real WiX compilation and failed
-  host-action rollback have now been exercised; successful opted-in host
-  provisioning remains an explicit validation gate.
+  host-action rollback and successful opted-in host provisioning have now been
+  exercised.
 
 - Adopted MSI as the Windows Continuity installer container and added a
   preview-first unsigned MSI build boundary. It accepts only an exactly verified
@@ -46,7 +59,7 @@ describe only the current design and behavior.
   timestamp, requires Authenticode policy verification, rechecks the untouched
   source, and removes incomplete output on failure. No private-key material or
   PFX password is accepted through the command interface; production-certificate
-  execution and successful opted-in MSI host provisioning remain release gates.
+  execution remains a release gate.
 
 - Added a separately confirmed elevated Windows host lifecycle validator. It
   binds a release-validated synthetic workspace to the exact signed candidate,

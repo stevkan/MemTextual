@@ -27,7 +27,7 @@ or redistribution rights.
 | --- | --- | --- | --- |
 | Core TypeScript, SQLite, migrations, and tests | CI gate configured | CI gate configured | CI gate configured |
 | Developer source workflows | Initial target | Compatibility tracked | Compatibility tracked |
-| Continuity desktop packaging | MSI adopted; WiX 7 compilation, ICE validation, and synthetic Sandbox install/repair evidence passed; production signing and successful opted-in host provisioning remain pending | Deferred | Deferred |
+| Continuity desktop packaging | MSI adopted; WiX 7 compilation, ICE validation, and synthetic Sandbox install, repair, upgrade, opted-in host provisioning, and removal evidence passed; production signing remains pending | Deferred | Deferred |
 | Upgrade, rollback, and removal | Synthetic Sandbox failure rollback, major upgrade, and data-preserving uninstall passed; production-signed release evidence remains pending | Deferred | Deferred |
 | Unattended scheduler integration | Adapter, confirmed orchestration, privileged executor, and preview-first installer CLI available; application bundle staged separately | Deferred adapter | Deferred adapter |
 | Certificate credential provider | Core provider and confirmed certificate-path ACL protection available | Core provider available; packaging deferred | Core provider available; packaging deferred |
@@ -73,11 +73,13 @@ its unsigned input. MSI is the selected container, with a previewed and
 confirmed per-machine x64 build boundary over the exact verified bundle.
 Rollback-paired host-action authoring has compiled and passed WiX 7 MSI
 validation with a synthetic test-certificate bundle. A deliberately failed
-opt-in host-action install then proved application and registration rollback in
-Windows Sandbox. Successful opted-in account, schedule, and ACL provisioning
-through the MSI, installation UI, production signing, and public-distribution
-validation remain required before describing a public end-user installer as
-supported.
+  opt-in host-action install then proved application and registration rollback in
+  Windows Sandbox. A separate successful opt-in run proved owned account,
+  batch-logon-right, schedule, and ACL provisioning, a naturally triggered
+  unattended backup, verified removal, and exact preservation of external
+  synthetic data and recovery material. Installation UI, production signing,
+  and public-distribution validation remain required before describing a public
+  end-user installer as supported.
 
 ## Release gates
 

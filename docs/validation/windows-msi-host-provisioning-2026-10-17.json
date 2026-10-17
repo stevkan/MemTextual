@@ -1,0 +1,45 @@
+{
+  "formatVersion": 1,
+  "operation": "validate-windows-msi-host-provisioning-lifecycle",
+  "completedAt": "2026-10-17T09:07:51.2924593Z",
+  "environment": {
+    "target": "fresh Windows Sandbox",
+    "networkDisabled": true,
+    "data": "synthetic-only",
+    "wixVersion": "7.0.0",
+    "nodeVersion": "24.21.0"
+  },
+  "artifacts": {
+    "bundleManifestSha256": "51f49972135b29daa22c24e92de704a40e867fad245e8e2cb40f3c719e904e92",
+    "bundleFileCount": 11809,
+    "msiSha256": "d92723554705fe8389910cabc6bf0554989a0a679ab8a819eacb2327c32ee5e8",
+    "msiBytes": 52236588,
+    "syntheticDatabaseInputSha256": "bcbe0fa24d0880cf0ab9bb267fc6d7fac63a390f1a49de3763d80ea19b026909"
+  },
+  "checks": {
+    "applicationInstalled": true,
+    "ownedIdentityCreated": true,
+    "batchLogonRightGranted": true,
+    "ownedScheduleCreated": true,
+    "aclManifestCreated": true,
+    "naturalScheduledRunCompleted": true,
+    "lastTaskResult": 0,
+    "recoveryPointFileCount": 6,
+    "productRemoved": true,
+    "applicationRemoved": true,
+    "identityRemoved": true,
+    "scheduleRemoved": true,
+    "batchLogonRightRevokedWithIdentityRemoval": true,
+    "aclOwnerGroupEntriesAndControlRestored": true,
+    "databasePreservedExactly": true,
+    "deploymentConfigurationPreservedExactly": true,
+    "recoveryPointPreservedExactly": true,
+    "ownershipRecordsRemoved": true
+  },
+  "aclNormalization": {
+    "allowedDifference": "DACL_AUTO_INHERITED",
+    "reason": "Windows sets this control flag when it rewrites an inheriting DACL through the current automatic-inheritance model.",
+    "otherDifferencesAllowed": false
+  },
+  "passed": true
+}

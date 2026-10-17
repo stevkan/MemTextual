@@ -32,6 +32,8 @@ $identityMarker = "Managed by MemTextual Continuity"
 $taskMarker = "MemTextual managed schedule v1:"
 $taskPath = "\MemTextual\"
 $maximumInputBytes = 1MB
+$maximumIdentityDescriptionLength = 48
+$taskStillRunningResult = 0x00041301
 $entropy = [System.Text.Encoding]::UTF8.GetBytes("MemTextual Windows protected state v1")
 $conversationGrantEntropy = [System.Text.Encoding]::UTF8.GetBytes("MemTextual Continuity conversation grant v1")
 
@@ -83,6 +85,122 @@ function Read-Request {
 
 function Write-Result($Value) {
   [Console]::Out.Write(($Value | ConvertTo-Json -Depth 12 -Compress))
+}
+
+function Initialize-LocalSecurityAuthorityType {
+  if ($null -ne ("MemTextualLocalSecurityAuthority" -as [type])) { return }
+  Add-Type -TypeDefinition @'
+using System;
+using System.ComponentModel;
+using System.Runtime.InteropServices;
+using System.Security.Principal;
+
+public static class MemTextualLocalSecurityAuthority
+{
+    [StructLayout(LayoutKind.Sequential)]
+    private struct LsaObjectAttributes
+    {
+        public uint Length;
+        public IntPtr RootDirectory;
+        public IntPtr ObjectName;
+        public uint Attributes;
+        public IntPtr SecurityDescriptor;
+        public IntPtr SecurityQualityOfService;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct LsaUnicodeString
+    {
+        public ushort Length;
+        public ushort MaximumLength;
+        public IntPtr Buffer;
+    }
+
+    [DllImport("advapi32.dll")]
+    private static extern uint LsaOpenPolicy(
+        IntPtr systemName,
+        ref LsaObjectAttributes objectAttributes,
+        uint desiredAccess,
+        out IntPtr policyHandle);
+
+    [DllImport("advapi32.dll")]
+    private static extern uint LsaAddAccountRights(
+        IntPtr policyHandle,
+        IntPtr accountSid,
+        LsaUnicodeString[] userRights,
+        uint countOfRights);
+
+    [DllImport("advapi32.dll")]
+    private static extern uint LsaRemoveAccountRights(
+        IntPtr policyHandle,
+        IntPtr accountSid,
+        bool allRights,
+        LsaUnicodeString[] userRights,
+        uint countOfRights);
+
+    [DllImport("advapi32.dll")]
+    private static extern uint LsaClose(IntPtr policyHandle);
+
+    [DllImport("advapi32.dll")]
+    private static extern uint LsaNtStatusToWinError(uint status);
+
+    private const uint PolicyCreateAccount = 0x00000010;
+    private const uint PolicyLookupNames = 0x00000800;
+
+    public static void SetBatchLogonRight(string sidValue, bool remove)
+    {
+        SecurityIdentifier sid = new SecurityIdentifier(sidValue);
+        byte[] sidBytes = new byte[sid.BinaryLength];
+        sid.GetBinaryForm(sidBytes, 0);
+        IntPtr sidPointer = Marshal.AllocHGlobal(sidBytes.Length);
+        IntPtr rightPointer = IntPtr.Zero;
+        IntPtr policyHandle = IntPtr.Zero;
+        try
+        {
+            Marshal.Copy(sidBytes, 0, sidPointer, sidBytes.Length);
+            string rightName = "SeBatchLogonRight";
+            rightPointer = Marshal.StringToHGlobalUni(rightName);
+            LsaUnicodeString right = new LsaUnicodeString();
+            right.Buffer = rightPointer;
+            right.Length = checked((ushort)(rightName.Length * 2));
+            right.MaximumLength = checked((ushort)((rightName.Length + 1) * 2));
+            LsaObjectAttributes attributes = new LsaObjectAttributes();
+            attributes.Length = (uint)Marshal.SizeOf(typeof(LsaObjectAttributes));
+            uint status = LsaOpenPolicy(
+                IntPtr.Zero,
+                ref attributes,
+                PolicyCreateAccount | PolicyLookupNames,
+                out policyHandle);
+            ThrowIfFailed(status);
+            LsaUnicodeString[] rights = new LsaUnicodeString[] { right };
+            status = remove
+                ? LsaRemoveAccountRights(policyHandle, sidPointer, false, rights, 1)
+                : LsaAddAccountRights(policyHandle, sidPointer, rights, 1);
+            ThrowIfFailed(status);
+        }
+        finally
+        {
+            if (policyHandle != IntPtr.Zero) { LsaClose(policyHandle); }
+            if (rightPointer != IntPtr.Zero) { Marshal.FreeHGlobal(rightPointer); }
+            Marshal.FreeHGlobal(sidPointer);
+            Array.Clear(sidBytes, 0, sidBytes.Length);
+        }
+    }
+
+    private static void ThrowIfFailed(uint status)
+    {
+        if (status != 0)
+        {
+            throw new Win32Exception((int)LsaNtStatusToWinError(status));
+        }
+    }
+}
+'@ | Out-Null
+}
+
+function Set-BatchLogonRight([Security.Principal.SecurityIdentifier]$Sid, [bool]$Remove) {
+  Initialize-LocalSecurityAuthorityType
+  [MemTextualLocalSecurityAuthority]::SetBatchLogonRight($Sid.Value, $Remove)
 }
 
 function Get-IdentityPasswordPath([string]$IdentityName) {
@@ -216,7 +334,60 @@ function Set-RestrictedAcl(
   if ($null -ne $ServiceSid) {
     $acl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new($ServiceSid, $ServiceRights, $inheritance, $propagation, $allow))
   }
-  Set-Acl -LiteralPath $Path -AclObject $acl
+  Set-FileSystemAccessAcl $Path $acl
+}
+
+function Set-FileSystemAccessAcl(
+  [string]$Path,
+  [Security.AccessControl.FileSystemSecurity]$Acl
+) {
+  $item = Get-Item -LiteralPath $Path -Force
+  if ($item.PSIsContainer) {
+    [IO.Directory]::SetAccessControl($Path, [Security.AccessControl.DirectorySecurity]$Acl)
+    return
+  }
+  [IO.File]::SetAccessControl($Path, [Security.AccessControl.FileSecurity]$Acl)
+}
+
+function Restore-FileSystemAccessAcl(
+  [string]$Path,
+  [string]$Sddl
+) {
+  $acl = Get-Acl -LiteralPath $Path
+  $acl.SetSecurityDescriptorSddlForm(
+    $Sddl,
+    [Security.AccessControl.AccessControlSections]::Access
+  )
+  Set-FileSystemAccessAcl $Path $acl
+}
+
+function Get-RawAclFingerprint([Security.AccessControl.RawAcl]$Acl) {
+  if ($null -eq $Acl) {
+    return ""
+  }
+  $bytes = New-Object byte[] $Acl.BinaryLength
+  $Acl.GetBinaryForm($bytes, 0)
+  return [BitConverter]::ToString($bytes)
+}
+
+function Assert-FileSystemAccessAclRestored(
+  [string]$Path,
+  [string]$ExpectedSddl
+) {
+  $expected = [Security.AccessControl.RawSecurityDescriptor]::new($ExpectedSddl)
+  $actualSddl = (Get-Acl -LiteralPath $Path).Sddl
+  $actual = [Security.AccessControl.RawSecurityDescriptor]::new($actualSddl)
+  $autoInherited = [int][Security.AccessControl.ControlFlags]::DiscretionaryAclAutoInherited
+  $expectedControl = ([int]$expected.ControlFlags) -band (-bnot $autoInherited)
+  $actualControl = ([int]$actual.ControlFlags) -band (-bnot $autoInherited)
+  $matches =
+    [string]$expected.Owner -eq [string]$actual.Owner -and
+    [string]$expected.Group -eq [string]$actual.Group -and
+    $expectedControl -eq $actualControl -and
+    (Get-RawAclFingerprint $expected.DiscretionaryAcl) -eq (Get-RawAclFingerprint $actual.DiscretionaryAcl)
+  if (-not $matches) {
+    throw "Windows protected-path ACL did not restore its owner, group, control state, and access entries: $Path."
+  }
 }
 
 function Set-CurrentUserRestrictedFileAcl([string]$Path) {
@@ -263,7 +434,7 @@ function Grant-ServiceAcl(
     [Security.AccessControl.AccessControlType]::Allow
   )
   $acl.SetAccessRule($rule)
-  Set-Acl -LiteralPath $Path -AclObject $acl
+  Set-FileSystemAccessAcl $Path $acl
 }
 
 function Get-ManagedIdentity([string]$IdentityName) {
@@ -450,7 +621,7 @@ try {
       [Array]::Clear($random, 0, $random.Length)
       [Array]::Clear($roundTrip, 0, $roundTrip.Length)
     }
-    $trigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) -RepetitionInterval (New-TimeSpan -Minutes 5) -RepetitionDuration ([TimeSpan]::MaxValue)
+    $trigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) -RepetitionInterval (New-TimeSpan -Minutes 5)
     if ($null -eq $trigger) {
       throw "Windows scheduled-task trigger self-test failed."
     }
@@ -496,7 +667,8 @@ try {
         $completed =
           $task.State -ne "Running" -and
           $task.State -ne "Queued" -and
-          $info.LastRunTime -gt $before.LastRunTime
+          $info.LastRunTime -gt $before.LastRunTime -and
+          [int]$info.LastTaskResult -ne $taskStillRunningResult
       } while (-not $completed -and (Get-Date) -lt $deadline)
       if (-not $completed) {
         throw "Windows managed schedule validation timed out."
@@ -639,12 +811,17 @@ try {
         $randomGenerator.Dispose()
       }
       $passwordText = [Convert]::ToBase64String($random) + "!Aa1"
+      $batchLogonRightGranted = $false
       [Array]::Clear($random, 0, $random.Length)
       $securePassword = ConvertTo-SecureString $passwordText -AsPlainText -Force
       $description = "$identityMarker - $purpose"
-      if ($description.Length -gt 256) { $description = $description.Substring(0, 256) }
-      New-LocalUser -Name $identityName -Password $securePassword -AccountNeverExpires -PasswordNeverExpires -UserMayNotChangePassword -Description $description | Out-Null
+      if ($description.Length -gt $maximumIdentityDescriptionLength) {
+        $description = $description.Substring(0, $maximumIdentityDescriptionLength)
+      }
+      $createdIdentity = New-LocalUser -Name $identityName -Password $securePassword -AccountNeverExpires -PasswordNeverExpires -UserMayNotChangePassword -Description $description
       try {
+        Set-BatchLogonRight $createdIdentity.SID $false
+        $batchLogonRightGranted = $true
         $passwordBytes = [Text.Encoding]::UTF8.GetBytes($passwordText)
         try {
           [IO.File]::WriteAllBytes((Get-IdentityPasswordPath $identityName), (Protect-Bytes $passwordBytes))
@@ -655,8 +832,32 @@ try {
         Set-RestrictedAcl (Get-IdentityPasswordPath $identityName) $null ([Security.AccessControl.FileSystemRights]::Read)
         Write-Result (Get-ManagedIdentity $identityName)
       } catch {
-        Remove-LocalUser -Name $identityName -ErrorAction SilentlyContinue
-        throw
+        $provisionError = $_.Exception.Message
+        $cleanupFailures = [Collections.Generic.List[string]]::new()
+        if ($batchLogonRightGranted) {
+          try {
+            Set-BatchLogonRight $createdIdentity.SID $true
+          } catch {
+            $cleanupFailures.Add("batch-logon right")
+          }
+        }
+        try {
+          Remove-LocalUser -Name $identityName -ErrorAction Stop
+        } catch {
+          $cleanupFailures.Add("local account")
+        }
+        try {
+          Remove-Item -LiteralPath (Get-IdentityPasswordPath $identityName) -Force -ErrorAction Stop
+        } catch {
+          if (Test-Path -LiteralPath (Get-IdentityPasswordPath $identityName)) {
+            $cleanupFailures.Add("password record")
+          }
+        }
+        $passwordText = $null
+        if ($cleanupFailures.Count -gt 0) {
+          throw "Windows identity provisioning failed and cleanup was incomplete. Provisioning error: $provisionError. Resources requiring review: $($cleanupFailures -join ', ')."
+        }
+        throw $provisionError
       }
     }
     "remove-identity" {
@@ -666,6 +867,8 @@ try {
         throw "Windows identity is not managed by MemTextual."
       }
       if ($current.available) {
+        $identity = Get-LocalUser -Name $identityName
+        Set-BatchLogonRight $identity.SID $true
         Remove-LocalUser -Name $identityName
       }
       Remove-Item -LiteralPath (Get-IdentityPasswordPath $identityName) -Force -ErrorAction SilentlyContinue
@@ -687,6 +890,7 @@ try {
       if ($current.installed) {
         throw "Windows schedule already exists."
       }
+      $accountName = "$env:COMPUTERNAME\$identityName"
       $statePath = Get-DirectStateDirectory $true
       $serviceSid = (Get-LocalUser -Name $identityName).SID
       $secretRecords = [Collections.Generic.List[object]]::new()
@@ -731,15 +935,15 @@ try {
         $manifestHash = (Get-FileHash -LiteralPath $manifestPath -Algorithm SHA256).Hash.ToLowerInvariant()
         $invocation = Get-TaskInvocation $scheduleId $statePath
         $taskAction = New-ScheduledTaskAction -Execute $invocation.executable -Argument $invocation.arguments -WorkingDirectory $statePath
-        $trigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) -RepetitionInterval (New-TimeSpan -Minutes ([int]$definition.intervalMinutes)) -RepetitionDuration ([TimeSpan]::MaxValue)
+        $trigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) -RepetitionInterval (New-TimeSpan -Minutes ([int]$definition.intervalMinutes))
         $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Hours 2)
-        $principal = New-ScheduledTaskPrincipal -UserId ".\$identityName" -LogonType Password -RunLevel Limited
+        $principal = New-ScheduledTaskPrincipal -UserId $accountName -LogonType Password -RunLevel Limited
         $taskDefinition = New-ScheduledTask -Action $taskAction -Trigger $trigger -Settings $settings -Principal $principal -Description "$taskMarker$manifestHash"
         $passwordProtected = [IO.File]::ReadAllBytes((Get-IdentityPasswordPath $identityName))
         $passwordBytes = Unprotect-Bytes $passwordProtected
         try {
           $password = [Text.Encoding]::UTF8.GetString($passwordBytes)
-          Register-ScheduledTask -TaskName $scheduleId -TaskPath $taskPath -InputObject $taskDefinition -User ".\$identityName" -Password $password | Out-Null
+          Register-ScheduledTask -TaskName $scheduleId -TaskPath $taskPath -InputObject $taskDefinition -User $accountName -Password $password | Out-Null
         } finally {
           $password = $null
           [Array]::Clear($passwordBytes, 0, $passwordBytes.Length)
@@ -857,9 +1061,8 @@ try {
         $restoreFailures = [Collections.Generic.List[string]]::new()
         foreach ($saved in $aclEntries) {
           try {
-            $acl = Get-Acl -LiteralPath ([string]$saved.path)
-            $acl.SetSecurityDescriptorSddlForm([string]$saved.sddl)
-            Set-Acl -LiteralPath ([string]$saved.path) -AclObject $acl
+            Restore-FileSystemAccessAcl ([string]$saved.path) ([string]$saved.sddl)
+            Assert-FileSystemAccessAclRestored ([string]$saved.path) ([string]$saved.sddl)
           } catch {
             $restoreFailures.Add([string]$saved.path)
           }
@@ -898,9 +1101,8 @@ try {
         if (-not (Test-Path -LiteralPath $path)) {
           throw "Windows protected path is missing and its ACL cannot be restored: $path."
         }
-        $acl = Get-Acl -LiteralPath $path
-        $acl.SetSecurityDescriptorSddlForm([string]$saved.sddl)
-        Set-Acl -LiteralPath $path -AclObject $acl
+        Restore-FileSystemAccessAcl $path ([string]$saved.sddl)
+        Assert-FileSystemAccessAclRestored $path ([string]$saved.sddl)
       }
       Remove-Item -LiteralPath $manifestPath -Force
       Write-Result ([pscustomobject]@{ restored = $true })

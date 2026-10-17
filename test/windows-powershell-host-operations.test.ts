@@ -150,6 +150,28 @@ describe("Windows PowerShell host operations", () => {
     assert.match(source, /Windows DPAPI self-test did not round-trip/u);
     assert.match(source, /Start-ScheduledTask/u);
     assert.match(source, /protected-path-acls\.json/u);
+    assert.match(source, /AccessControlSections\]::Access/u);
+    assert.match(source, /RawSecurityDescriptor/u);
+    assert.match(source, /DiscretionaryAclAutoInherited/u);
+    assert.match(source, /Assert-FileSystemAccessAclRestored/u);
+    assert.match(source, /Directory\]::SetAccessControl/u);
+    assert.match(source, /File\]::SetAccessControl/u);
+    assert.doesNotMatch(source, /Set-Acl/u);
+    assert.doesNotMatch(source, /RepetitionDuration/u);
+    assert.doesNotMatch(source, /TimeSpan\]::MaxValue/u);
+    assert.match(source, /\$accountName = "\$env:COMPUTERNAME\\\$identityName"/u);
+    assert.doesNotMatch(source, /-UserId "\.\\\$identityName"/u);
+    assert.match(source, /SeBatchLogonRight/u);
+    assert.match(source, /LsaAddAccountRights/u);
+    assert.match(source, /LsaRemoveAccountRights/u);
+    assert.match(source, /identity provisioning failed and cleanup was incomplete/u);
+    assert.match(source, /\$taskStillRunningResult = 0x00041301/u);
+    assert.match(source, /LastTaskResult -ne \$taskStillRunningResult/u);
+    assert.match(source, /\$maximumIdentityDescriptionLength = 48/u);
+    assert.match(
+      source,
+      /Substring\(0, \$maximumIdentityDescriptionLength\)/u,
+    );
     assert.doesNotMatch(source, /Write-(?:Host|Output)/u);
   });
 });

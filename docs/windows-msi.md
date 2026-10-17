@@ -135,17 +135,30 @@ The validated MSI SHA-256 hashes were
 `22e2a1eff01d961f714ce28777d97c9064f1369f91c6fa16afc841d481366cea`
 for `0.8.0` and
 `b35e614ad2840dfde6898830020bbe8ed2fd7896740fb44f1217c294ef3e6951`
-for `0.8.1`. This is synthetic engineering evidence, not production signing,
-an approved public installer, or proof of a successful opted-in account,
-schedule, and ACL provisioning lifecycle through the MSI.
+for `0.8.1`. This is synthetic engineering evidence, not production signing or
+an approved public installer.
 The durable receipt is
 [`validation/windows-msi-lifecycle-2026-10-16.json`](validation/windows-msi-lifecycle-2026-10-16.json).
 
+On October 17, 2026, a separate clean, network-disabled Windows Sandbox run
+proved the successful `MEMTEXTUAL_HOST_ACTIONS=1` lifecycle. MSI
+`d92723554705fe8389910cabc6bf0554989a0a679ab8a819eacb2327c32ee5e8`
+created the owned dedicated account, granted its batch-logon right, applied the
+owned ACL boundary, registered the owned schedule, and produced a verified
+recovery point through a natural unattended trigger. Uninstall removed the
+application, account, task, batch-logon right, and ownership records while
+preserving the synthetic database, deployment configuration, and recovery
+point exactly.
+
+Windows normalizes a rewritten inheriting DACL by setting
+`DACL_AUTO_INHERITED`. The validation therefore requires exact restoration of
+the owner, group, DACL entries and order, and every other control flag, while
+allowing only that documented metadata normalization. The durable receipt is
+[`validation/windows-msi-host-provisioning-2026-10-17.json`](validation/windows-msi-host-provisioning-2026-10-17.json).
+
 ## Remaining installer work
 
-1. Prove the successful opted-in host-provisioning and removal path through the
-   MSI on a disposable Windows target with a valid synthetic deployment.
-2. Add an approved EULA and installation UI after legal ownership and terms are
+1. Add an approved EULA and installation UI after legal ownership and terms are
    resolved.
-3. Build, validate, Authenticode-sign, and test a real release candidate with
+2. Build, validate, Authenticode-sign, and test a real release candidate with
    approved production tooling and credentials.

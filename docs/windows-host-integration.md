@@ -20,6 +20,8 @@ The executor:
 
 - creates a dedicated local account marked as managed by MemTextual;
 - generates that account's random password inside the elevated process;
+- grants the managed account the Windows batch-logon right required by Task
+  Scheduler and revokes that right before removing the account;
 - protects the password with machine-scoped Windows DPAPI and restricts its
   file to Local System and local Administrators;
 - accepts scheduled environment values only through the standard-input JSON
@@ -47,8 +49,12 @@ Install and removal remain explicit preview-and-apply operations. Existing
 local accounts or tasks without verified MemTextual ownership are never
 adopted, overwritten, or removed. A failed installation removes tasks and the
 identity created by that attempt. Original ACLs are retained in a restricted
-ownership manifest and restored during rollback when that attempt created the
-protection boundary. Removal restores those ACLs, unregisters only verified
+  ownership manifest and restored during rollback when that attempt created the
+  protection boundary. Restoration is verified before the manifest is removed:
+  owner, group, access entries and order, and relevant control flags must match.
+  Windows' documented `DACL_AUTO_INHERITED` normalization is the sole allowed
+  descriptor difference after an inheriting DACL has been rewritten. Removal
+  restores those ACLs, unregisters only verified
 managed tasks, and deletes only their DPAPI task-secret copies plus the
 generated account-password record. It preserves the SQLite database, backups,
 Azure certificate, destination configuration, recovery packages, and every
