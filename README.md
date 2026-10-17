@@ -314,8 +314,11 @@ additional cloud destination adapters, resumable imports, streamable HTTP,
 REST API, admin UI, concrete vendor embedding provider, concrete host capture
 integrations, production signing and production-signed release validation,
 additional secure credential-store providers, a combined Developer/Continuity
-launcher, final proprietary legal terms, and public-release validation remain
-open. The combined launcher is considered only after both editions are
+launcher, final proprietary legal terms, third-party dependency license/notice
+inventory and bundle integration, and public-release validation remain open.
+These distribution-only items are deferred while MemTextual remains in private,
+single-user functional evaluation; they must be completed before any public
+distribution. The combined launcher is considered only after both editions are
 independently functional, complete, distributable through their
 edition-appropriate delivery mechanisms, and lifecycle-validated. It may
 offer Developer, Continuity, or both, but must preserve their separate

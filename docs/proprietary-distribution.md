@@ -26,6 +26,13 @@ include those exact terms and identify them consistently in release metadata.
 
 ## Public-release gates
 
+These gates are deliberately deferred while MemTextual remains a private,
+single-user functional evaluation. They do not block continued product
+development or local validation, but every gate remains mandatory before public
+distribution. In particular, the dependency license/notice inventory must be
+generated from the exact production dependency graph and included in release
+bundles rather than maintained as an unverified placeholder.
+
 Do not describe a build as publicly distributable until all of these inputs are
 explicitly resolved:
 

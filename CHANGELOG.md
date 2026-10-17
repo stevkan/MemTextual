@@ -5,6 +5,11 @@ describe only the current design and behavior.
 
 ## Unreleased
 
+- Clarified that third-party dependency license/notice inventory and bundle
+  integration, together with the other legal and production-release gates, are
+  deliberately deferred during private single-user functional evaluation and
+  remain required before public distribution.
+
 - Added a fail-closed Windows installer UI boundary using WiX's minimal wizard.
   MSI preview and apply now require a direct approved-EULA RTF; its path, byte
   count, and SHA-256 hash are confirmation-bound and the staged copy is rehashed
