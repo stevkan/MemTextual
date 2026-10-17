@@ -1,0 +1,32 @@
+{
+  "formatVersion": 1,
+  "operation": "validate-windows-msi-ui-build",
+  "completedAt": "2026-10-17",
+  "environment": {
+    "platform": "windows",
+    "nodeVersion": "24.21.0",
+    "wixVersion": "7.0.0",
+    "wixUiExtension": "WixToolset.UI.wixext",
+    "wixUiExtensionVersion": "7.0.0"
+  },
+  "inputs": {
+    "bundleManifestSha256": "bb30b6e8aaff32e232c74518cc27bc214e5a8ec6bf2f079aca2fc729c4a7a94b",
+    "bundleFileCount": 11809,
+    "eulaPurpose": "synthetic validation only; not approved for distribution",
+    "eulaBytes": 130,
+    "eulaSha256": "097ac4e0ec0bb7fd62b65b071f1d6cbff3ad164c93c135e56ca821142f2b50f2"
+  },
+  "output": {
+    "msiBytes": 52344161,
+    "msiSha256": "7c1a04e067ff1a1c35419526ea2b797e3809db16cfaa4b6728622e59834dd687",
+    "wixUi": "WixUI_Minimal",
+    "validated": true
+  },
+  "limitations": {
+    "approvedProductEulaSupplied": false,
+    "interactiveUiRunCompleted": false,
+    "productionSigned": false,
+    "publicReleaseApproved": false
+  },
+  "passed": true
+}

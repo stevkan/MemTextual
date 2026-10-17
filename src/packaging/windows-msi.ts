@@ -7,17 +7,20 @@ import { verifyWindowsContinuityBundle, type WindowsContinuityBundleVerification
 export const windowsMsiReportFormatVersion = 1 as const;
 export const windowsMsiUpgradeCode = "{9B631561-76E8-4DF0-BE45-ED9CE553829D}" as const;
 export const windowsMsiDeploymentConfigPath = "C:\\ProgramData\\MemTextual Continuity\\deployment.json" as const;
+export const windowsMsiUiExtension = "WixToolset.UI.wixext" as const;
 const bundleMetadataFiles = ["bundle-manifest.json", "bundle-manifest.sig", "bundle-signing-certificate.pem"] as const;
 const hostActionCliPath = "dist/src/cli/windows-msi-host-action.js";
 const nodeRuntimePath = "runtime/node.exe";
 
 export interface WindowsMsiOperations {
-  build(sourcePath: string, outputPath: string): Promise<void>;
+  build(sourcePath: string, outputPath: string, extensions: readonly string[]): Promise<void>;
+  extensionVersion(name: string): Promise<string>;
   validate(outputPath: string): Promise<void>;
   version(): Promise<string>;
 }
 
 export interface WindowsMsiBuildOptions {
+  approvedEulaRtfPath: string;
   bundleDirectory: string;
   manufacturer: string;
   operations: WindowsMsiOperations;
@@ -35,6 +38,9 @@ export type WindowsMsiBundleVerifier = (options: {
 }) => Promise<WindowsContinuityBundleVerification>;
 
 export interface WindowsMsiBuildPreview {
+  approvedEulaRtfBytes: number;
+  approvedEulaRtfPath: string;
+  approvedEulaRtfSha256: string;
   bundleDirectory: string;
   bundleManifestSha256: string;
   confirmation: string;
@@ -47,6 +53,7 @@ export interface WindowsMsiBuildPreview {
   upgradeCode: typeof windowsMsiUpgradeCode;
   wixExecutablePath: string;
   wixExecutableSha256: string;
+  wixUiExtensionVersion: string;
   wixVersion: string;
   workspaceParentDirectory: string;
 }
@@ -101,7 +108,22 @@ function validateWixVersion(value: string): string {
   return match[1];
 }
 
+function validateApprovedEula(path: string): { bytes: number; path: string; sha256: string } {
+  if (!isAbsolute(path)) throw new Error("Approved product EULA RTF path must be absolute.");
+  const approvedPath = resolve(path);
+  if (!approvedPath.toLowerCase().endsWith(".rtf")) throw new Error("Approved product EULA must be an .rtf file.");
+  directFile(approvedPath, "Approved product EULA RTF");
+  const measured = hashFile(approvedPath);
+  if (measured.bytes === 0 || measured.bytes > 1024 * 1024) {
+    throw new Error("Approved product EULA RTF must contain between 1 byte and 1 MiB.");
+  }
+  const header = readFileSync(approvedPath).subarray(0, 5).toString("ascii").toLowerCase();
+  if (header !== "{\\rtf") throw new Error("Approved product EULA file is not recognizable RTF.");
+  return { ...measured, path: approvedPath };
+}
+
 export function renderWindowsMsiSource(options: {
+  approvedEulaRtfPath: string;
   bundleDirectory: string;
   files: readonly string[];
   manufacturer: string;
@@ -159,10 +181,12 @@ export function renderWindowsMsiSource(options: {
     `&quot;[#${hostActionCliId}]&quot; ${action} --config &quot;${xml(windowsMsiDeploymentConfigPath)}&quot;`;
   return [
     '<?xml version="1.0" encoding="utf-8"?>',
-    '<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs" RequiredVersion="7.0.0">',
+    '<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs" xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui" RequiredVersion="7.0.0">',
     `  <Package Name="MemTextual Continuity" Manufacturer="${xml(options.manufacturer)}" Version="${xml(options.packageVersion)}" UpgradeCode="${windowsMsiUpgradeCode}" Scope="perMachine" InstallerVersion="500" Compressed="yes">`,
     '    <MajorUpgrade DowngradeErrorMessage="A newer version of MemTextual Continuity is already installed." />',
     '    <MediaTemplate EmbedCab="yes" />',
+    '    <ui:WixUI Id="WixUI_Minimal" />',
+    `    <WixVariable Id="WixUILicenseRtf" Value="${xml(options.approvedEulaRtfPath)}" />`,
     '    <Property Id="MEMTEXTUAL_HOST_ACTIONS" Secure="yes">',
     '      <RegistrySearch Id="FindHostActionsEnabled" Root="HKLM" Key="Software\\MemTextual\\Continuity" Name="HostActionsEnabled" Type="raw" Bitness="always64" />',
     '    </Property>',
@@ -211,11 +235,19 @@ export async function previewWindowsMsiBuild(options: WindowsMsiBuildOptions): P
   const workspaceParentDirectory = resolve(options.workspaceParentDirectory ?? parent);
   directDirectory(workspaceParentDirectory, "MSI workspace parent directory");
   const manufacturer = validateManufacturer(options.manufacturer);
+  const approvedEula = validateApprovedEula(options.approvedEulaRtfPath);
   const verification = await (options.verifyBundle ?? verifyWindowsContinuityBundle)({ bundleDirectory: options.bundleDirectory, trustedCertificateFingerprint256: options.trustedCertificateFingerprint256 });
   if (!verification.publisherTrusted) throw new Error("Windows bundle publisher is not trusted.");
   const wixVersion = validateWixVersion(await options.operations.version());
+  const wixUiExtensionVersion = validateWixVersion(await options.operations.extensionVersion(windowsMsiUiExtension));
+  if (wixUiExtensionVersion !== wixVersion) {
+    throw new Error("WiX UI extension version must exactly match the WiX executable version.");
+  }
   const tool = hashFile(wixExecutablePath);
   const boundary = {
+    approvedEulaRtfBytes: approvedEula.bytes,
+    approvedEulaRtfPath: approvedEula.path,
+    approvedEulaRtfSha256: approvedEula.sha256,
     bundleDirectory: verification.bundleDirectory,
     bundleManifestSha256: verification.manifestSha256,
     fileCount: verification.fileCount + bundleMetadataFiles.length,
@@ -227,6 +259,7 @@ export async function previewWindowsMsiBuild(options: WindowsMsiBuildOptions): P
     upgradeCode: windowsMsiUpgradeCode,
     wixExecutablePath,
     wixExecutableSha256: tool.sha256,
+    wixUiExtensionVersion,
     wixVersion,
     workspaceParentDirectory,
   };
@@ -238,13 +271,27 @@ export async function applyWindowsMsiBuild(options: WindowsMsiBuildOptions & { c
   if (options.confirmation !== preview.confirmation) throw new Error("MSI build confirmation is missing, incorrect, or stale.");
   const verification = await (options.verifyBundle ?? verifyWindowsContinuityBundle)({ bundleDirectory: preview.bundleDirectory, trustedCertificateFingerprint256: options.trustedCertificateFingerprint256 });
   if (verification.manifestSha256 !== preview.bundleManifestSha256) throw new Error("Windows bundle changed after MSI preview.");
+  const approvedEula = validateApprovedEula(options.approvedEulaRtfPath);
+  if (
+    approvedEula.path !== preview.approvedEulaRtfPath ||
+    approvedEula.bytes !== preview.approvedEulaRtfBytes ||
+    approvedEula.sha256 !== preview.approvedEulaRtfSha256
+  ) {
+    throw new Error("Approved product EULA changed after MSI preview.");
+  }
   const workspace = mkdtempSync(join(preview.workspaceParentDirectory, ".memtextual-msi-"));
   const sourcePath = join(workspace, "Product.wxs");
   const candidatePath = join(workspace, basename(preview.outputPath));
+  const stagedEulaPath = join(workspace, "Approved-EULA.rtf");
   let finalCreated = false;
   try {
-    writeFileSync(sourcePath, renderWindowsMsiSource({ bundleDirectory: preview.bundleDirectory, files: [...verification.manifest.files.map(({ path }) => path), ...bundleMetadataFiles].sort(), manufacturer: preview.manufacturer, packageVersion: preview.packageVersion }), { encoding: "utf8", flag: "wx" });
-    await options.operations.build(sourcePath, candidatePath);
+    copyFileSync(preview.approvedEulaRtfPath, stagedEulaPath, constants.COPYFILE_EXCL);
+    const stagedEula = hashFile(stagedEulaPath);
+    if (stagedEula.bytes !== preview.approvedEulaRtfBytes || stagedEula.sha256 !== preview.approvedEulaRtfSha256) {
+      throw new Error("Staged approved product EULA does not match the confirmed input.");
+    }
+    writeFileSync(sourcePath, renderWindowsMsiSource({ approvedEulaRtfPath: stagedEulaPath, bundleDirectory: preview.bundleDirectory, files: [...verification.manifest.files.map(({ path }) => path), ...bundleMetadataFiles].sort(), manufacturer: preview.manufacturer, packageVersion: preview.packageVersion }), { encoding: "utf8", flag: "wx" });
+    await options.operations.build(sourcePath, candidatePath, [windowsMsiUiExtension]);
     directFile(candidatePath, "Unsigned MSI candidate");
     const header = readFileSync(candidatePath).subarray(0, 8).toString("hex");
     if (header !== "d0cf11e0a1b11ae1") throw new Error("Unsigned MSI output is not a Windows Installer compound file.");
@@ -275,10 +322,20 @@ export async function applyWindowsMsiBuild(options: WindowsMsiBuildOptions & { c
 export class WindowsWixOperations implements WindowsMsiOperations {
   constructor(readonly executablePath: string, readonly timeoutMs = 180_000) {}
   async version(): Promise<string> { return this.run(["--version"]); }
-  async build(sourcePath: string, outputPath: string): Promise<void> {
+  async extensionVersion(name: string): Promise<string> {
+    const output = this.run(["extension", "list", "-g"]);
+    const escaped = name.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+    const match = output.match(new RegExp(`^${escaped}(?:/|\\s+)([^\\s]+)$`, "mu"));
+    if (match?.[1] === undefined) {
+      throw new Error(`Required WiX extension is not installed globally: ${name}.`);
+    }
+    return match[1];
+  }
+  async build(sourcePath: string, outputPath: string, extensions: readonly string[]): Promise<void> {
     const intermediateDirectory = mkdtempSync(join(dirname(outputPath), ".wix-intermediate-"));
     try {
-      this.run(["build", "-arch", "x64", "-intermediatefolder", intermediateDirectory, "-o", outputPath, sourcePath]);
+      const extensionArguments = extensions.flatMap((extension) => ["-ext", extension]);
+      this.run(["build", ...extensionArguments, "-arch", "x64", "-intermediatefolder", intermediateDirectory, "-o", outputPath, sourcePath]);
     } finally {
       rmSync(intermediateDirectory, { force: true, recursive: true });
     }

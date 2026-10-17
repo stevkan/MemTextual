@@ -6,8 +6,8 @@ interval has elapsed. The interval must be greater than zero and no more than
 a trusted local scheduler or host must invoke the command regularly.
 
 ```powershell
-npm run safeguard -- run-if-due --database .\data\memtextual.db --output D:\MemTextualBackups --interval-hours 24
-npm run safeguard -- status --database .\data\memtextual.db --output D:\MemTextualBackups --interval-hours 24
+npm run safeguard -- run-if-due -- --database .\data\memtextual.db --output D:\MemTextualBackups --interval-hours 24
+npm run safeguard -- status -- --database .\data\memtextual.db --output D:\MemTextualBackups --interval-hours 24
 ```
 
 `run-if-due` uses SQLite's online backup API. Every created recovery point has
@@ -46,8 +46,8 @@ are inferred. At least one daily recovery point must be retained, and the newest
 verified recovery point is always kept independently of all buckets.
 
 ```powershell
-npm run safeguard -- retention-preview --database .\data\memtextual.db --output D:\MemTextualBackups --daily 7 --weekly 4 --monthly 12 --time-zone America/Los_Angeles --week-starts-on 0
-npm run safeguard -- retention-apply --database .\data\memtextual.db --output D:\MemTextualBackups --daily 7 --weekly 4 --monthly 12 --time-zone America/Los_Angeles --week-starts-on 0 --confirm "EXACT TOKEN FROM PREVIEW"
+npm run safeguard -- retention-preview -- --database .\data\memtextual.db --output D:\MemTextualBackups --daily 7 --weekly 4 --monthly 12 --time-zone America/Los_Angeles --week-starts-on 0
+npm run safeguard -- retention-apply -- --database .\data\memtextual.db --output D:\MemTextualBackups --daily 7 --weekly 4 --monthly 12 --time-zone America/Los_Angeles --week-starts-on 0 --confirm "EXACT TOKEN FROM PREVIEW"
 ```
 
 The newest snapshot in each retained local-calendar bucket is kept. One
@@ -71,8 +71,8 @@ replacing or opening the live database. The interval is explicit, must be
 greater than zero, and cannot exceed 8760 hours (one year).
 
 ```powershell
-npm run safeguard -- restore-drill --database .\data\memtextual.db --output D:\MemTextualBackups --interval-hours 168
-npm run safeguard -- restore-drill-status --database .\data\memtextual.db --output D:\MemTextualBackups --interval-hours 168
+npm run safeguard -- restore-drill -- --database .\data\memtextual.db --output D:\MemTextualBackups --interval-hours 168
+npm run safeguard -- restore-drill-status -- --database .\data\memtextual.db --output D:\MemTextualBackups --interval-hours 168
 ```
 
 When due, the drill selects the newest verified recovery point, copies it to a
@@ -94,8 +94,8 @@ and any newer available recovery points, then pass the preview's complete
 confirmation string unchanged:
 
 ```powershell
-npm run safeguard -- restore-preview --database .\data\memtextual.db --output D:\MemTextualBackups --snapshot memtextual-2026-10-12T12-00-00-000Z
-npm run safeguard -- restore-apply --database .\data\memtextual.db --output D:\MemTextualBackups --snapshot memtextual-2026-10-12T12-00-00-000Z --confirm "EXACT TOKEN FROM PREVIEW"
+npm run safeguard -- restore-preview -- --database .\data\memtextual.db --output D:\MemTextualBackups --snapshot memtextual-2026-10-12T12-00-00-000Z
+npm run safeguard -- restore-apply -- --database .\data\memtextual.db --output D:\MemTextualBackups --snapshot memtextual-2026-10-12T12-00-00-000Z --confirm "EXACT TOKEN FROM PREVIEW"
 ```
 
 The confirmation is bound to the selected backup hash and the current logical
@@ -132,14 +132,14 @@ included in output, or stored by MemTextual. `--key-id` is a non-secret label
 used to identify which externally retained key is required for recovery.
 
 ```powershell
-npm run safeguard -- offsite-export --database .\data\memtextual.db --source D:\MemTextualBackups --destination E:\MemTextualOffsite --snapshot memtextual-2026-10-12T12-00-00-000Z --key-env MEMTEXTUAL_OFFSITE_KEY --key-id recovery-key-2026
-npm run safeguard -- offsite-run-if-due --database .\data\memtextual.db --source D:\MemTextualBackups --adapter local-directory --destination E:\MemTextualOffsite --interval-hours 24 --key-env MEMTEXTUAL_OFFSITE_KEY --key-id recovery-key-2026
-npm run safeguard -- offsite-status --database .\data\memtextual.db --source D:\MemTextualBackups --adapter local-directory --destination E:\MemTextualOffsite --interval-hours 24
-npm run safeguard -- azure-credential-status --credential-config C:\ProgramData\MemTextual\azure-credential.json
-npm run safeguard -- offsite-run-if-due --database .\data\memtextual.db --source D:\MemTextualBackups --destination-config C:\ProgramData\MemTextual\azure-destination.json --credential-config C:\ProgramData\MemTextual\azure-credential.json --interval-hours 24 --key-env MEMTEXTUAL_OFFSITE_KEY --key-id recovery-key-2026
-npm run safeguard -- offsite-status --database .\data\memtextual.db --source D:\MemTextualBackups --destination-config C:\ProgramData\MemTextual\azure-destination.json --credential-config C:\ProgramData\MemTextual\azure-credential.json --interval-hours 24
-npm run safeguard -- offsite-verify --package E:\MemTextualOffsite\OFFSITE_PACKAGE_DIRECTORY --key-env MEMTEXTUAL_OFFSITE_KEY
-npm run safeguard -- offsite-import --database .\data\memtextual.db --package E:\MemTextualOffsite\OFFSITE_PACKAGE_DIRECTORY --destination D:\MemTextualBackups --key-env MEMTEXTUAL_OFFSITE_KEY
+npm run safeguard -- offsite-export -- --database .\data\memtextual.db --source D:\MemTextualBackups --destination E:\MemTextualOffsite --snapshot memtextual-2026-10-12T12-00-00-000Z --key-env MEMTEXTUAL_OFFSITE_KEY --key-id recovery-key-2026
+npm run safeguard -- offsite-run-if-due -- --database .\data\memtextual.db --source D:\MemTextualBackups --adapter local-directory --destination E:\MemTextualOffsite --interval-hours 24 --key-env MEMTEXTUAL_OFFSITE_KEY --key-id recovery-key-2026
+npm run safeguard -- offsite-status -- --database .\data\memtextual.db --source D:\MemTextualBackups --adapter local-directory --destination E:\MemTextualOffsite --interval-hours 24
+npm run safeguard -- azure-credential-status -- --credential-config C:\ProgramData\MemTextual\azure-credential.json
+npm run safeguard -- offsite-run-if-due -- --database .\data\memtextual.db --source D:\MemTextualBackups --destination-config C:\ProgramData\MemTextual\azure-destination.json --credential-config C:\ProgramData\MemTextual\azure-credential.json --interval-hours 24 --key-env MEMTEXTUAL_OFFSITE_KEY --key-id recovery-key-2026
+npm run safeguard -- offsite-status -- --database .\data\memtextual.db --source D:\MemTextualBackups --destination-config C:\ProgramData\MemTextual\azure-destination.json --credential-config C:\ProgramData\MemTextual\azure-credential.json --interval-hours 24
+npm run safeguard -- offsite-verify -- --package E:\MemTextualOffsite\OFFSITE_PACKAGE_DIRECTORY --key-env MEMTEXTUAL_OFFSITE_KEY
+npm run safeguard -- offsite-import -- --database .\data\memtextual.db --package E:\MemTextualOffsite\OFFSITE_PACKAGE_DIRECTORY --destination D:\MemTextualBackups --key-env MEMTEXTUAL_OFFSITE_KEY
 ```
 
 For scheduler-managed configuration, put the adapter and absolute destination

@@ -22,6 +22,13 @@ replication paths.
 - The package uses one stable upgrade code and blocks downgrades.
 - The release owner or manufacturer is a required build input. MemTextual does
   not invent a legal entity.
+- The interactive installer uses WiX's minimal wizard because the MSI has no
+  selectable features and does not support relocating its fixed deployment
+  path. The build requires an explicitly supplied, approved product EULA in RTF
+  format; MemTextual does not provide placeholder product terms.
+- The approved EULA path, byte count, and SHA-256 hash, plus the WiX UI
+  extension version, are bound into the exact build confirmation. Apply stages
+  and rehashes the EULA before compilation.
 - Account, ACL, and scheduled-task changes run only in deferred,
   non-impersonating actions after application files exist. Custom-action targets
   are hidden from MSI logging even though the fixed configuration path contains
@@ -70,16 +77,29 @@ consumer security-fix period for WiX 5 ended in February 2026:
 
 - <https://docs.firegiant.com/wix/>
 
+The installer UI also requires the official WiX UI extension at the exact same
+version as the selected WiX executable. Install it deliberately after reviewing
+the applicable WiX terms:
+
+```powershell
+wix extension add -g WixToolset.UI.wixext/7.0.0
+```
+
+The built-in `WixUI_Minimal` flow presents the approved RTF and requires
+acceptance during full interactive installation. Quiet Windows Installer runs
+remain available for explicitly automated validation and deployment.
+
 ## Commands
 
 After independently obtaining WiX 7 and reviewing its terms, preview:
 
 ```powershell
-npm run windows-msi -- preview `
+npm run windows-msi -- preview -- `
   --bundle C:\release\memtextual-continuity-windows-x64-0.8.0 `
   --output C:\release\MemTextual-Continuity-0.8.0-unsigned.msi `
   --wix C:\path\to\wix.exe `
   --manufacturer "APPROVED RELEASE OWNER" `
+  --approved-eula C:\secure\APPROVED-MemTextual-EULA.rtf `
   --trusted-fingerprint BUNDLE_CERTIFICATE_SHA256 `
   --workspace C:\short\wix-workspaces `
   --accept-wix-eula
@@ -88,11 +108,12 @@ npm run windows-msi -- preview `
 Apply with the unchanged inputs and exact returned confirmation:
 
 ```powershell
-npm run windows-msi -- apply `
+npm run windows-msi -- apply -- `
   --bundle C:\release\memtextual-continuity-windows-x64-0.8.0 `
   --output C:\release\MemTextual-Continuity-0.8.0-unsigned.msi `
   --wix C:\path\to\wix.exe `
   --manufacturer "APPROVED RELEASE OWNER" `
+  --approved-eula C:\secure\APPROVED-MemTextual-EULA.rtf `
   --trusted-fingerprint BUNDLE_CERTIFICATE_SHA256 `
   --workspace C:\short\wix-workspaces `
   --accept-wix-eula `
@@ -158,7 +179,8 @@ allowing only that documented metadata normalization. The durable receipt is
 
 ## Remaining installer work
 
-1. Add an approved EULA and installation UI after legal ownership and terms are
-   resolved.
+1. Supply the approved proprietary EULA after legal ownership and terms are
+   resolved, then visually and interactively validate that final text through
+   the compiled installer UI on a disposable Windows target.
 2. Build, validate, Authenticode-sign, and test a real release candidate with
    approved production tooling and credentials.

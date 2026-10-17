@@ -39,7 +39,7 @@ output directory:
 
 ```powershell
 npm run build
-npm run windows-bundle -- create `
+npm run windows-bundle -- create -- `
   --source C:\path\to\MemTextual `
   --output C:\path\to\release `
   --runtime C:\path\to\node.exe `
@@ -74,7 +74,7 @@ fingerprint proves internal signature and file integrity but reports
 untrusted certificate.
 
 ```powershell
-npm run windows-bundle -- verify `
+npm run windows-bundle -- verify -- `
   --bundle C:\path\to\release\memtextual-continuity-windows-x64-0.8.0 `
   --trusted-fingerprint 64_HEXADECIMAL_CHARACTERS
 ```
@@ -90,7 +90,7 @@ read-only and binds the source manifest, publisher fingerprint, complete file
 inventory, and currently absent target to an exact confirmation:
 
 ```powershell
-npm run windows-bundle -- stage-preview `
+npm run windows-bundle -- stage-preview -- `
   --bundle C:\path\to\release\memtextual-continuity-windows-x64-0.8.0 `
   --target "C:\Program Files\MemTextual Continuity" `
   --trusted-fingerprint 64_HEXADECIMAL_CHARACTERS
@@ -100,7 +100,7 @@ Apply the unchanged token in an elevated terminal when the target requires
 administrator access:
 
 ```powershell
-npm run windows-bundle -- stage-apply `
+npm run windows-bundle -- stage-apply -- `
   --bundle C:\path\to\release\memtextual-continuity-windows-x64-0.8.0 `
   --target "C:\Program Files\MemTextual Continuity" `
   --trusted-fingerprint 64_HEXADECIMAL_CHARACTERS `

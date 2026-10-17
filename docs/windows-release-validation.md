@@ -24,7 +24,7 @@ deleted automatically so a failed or successful run can be audited.
 From a development checkout:
 
 ```powershell
-npm run continuity-release -- validate `
+npm run continuity-release -- validate -- `
   --bundle "D:\release\memtextual-continuity-0.9.0" `
   --trusted-fingerprint 64_HEXADECIMAL_CHARACTERS `
   --baseline-migrations "D:\release\memtextual-continuity-0.8.0\migrations" `
@@ -83,7 +83,7 @@ backup-only deployment file with:
 Run the read-only preview from a normal terminal:
 
 ```powershell
-npm run windows-host-validation -- preview `
+npm run windows-host-validation -- preview -- `
   --config "D:\release-validation\host-validation-deployment.json" `
   --workspace "D:\release-validation\continuity-0.9.0-run-001"
 ```
@@ -93,7 +93,7 @@ and combined lifecycle confirmation. Then run apply from an elevated terminal
 with that unchanged token:
 
 ```powershell
-npm run windows-host-validation -- apply `
+npm run windows-host-validation -- apply -- `
   --config "D:\release-validation\host-validation-deployment.json" `
   --workspace "D:\release-validation\continuity-0.9.0-run-001" `
   --confirm VALIDATE-WINDOWS-HOST-EXACT_TOKEN `

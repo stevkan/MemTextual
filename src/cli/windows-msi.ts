@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { WindowsWixOperations, applyWindowsMsiBuild, previewWindowsMsiBuild } from "../packaging/windows-msi.js";
 
 interface Arguments {
+  approvedEulaRtfPath: string;
   bundleDirectory: string;
   command: "apply" | "preview";
   confirmation?: string;
@@ -19,8 +20,8 @@ interface Arguments {
 function usage(): string {
   return [
     "Usage:",
-    "  memtextual-windows-msi preview --bundle BUNDLE --output UNSIGNED.msi --wix WIX.exe --manufacturer RELEASE_OWNER --trusted-fingerprint SHA256 --accept-wix-eula [--workspace DIRECTORY]",
-    "  memtextual-windows-msi apply --bundle BUNDLE --output UNSIGNED.msi --wix WIX.exe --manufacturer RELEASE_OWNER --trusted-fingerprint SHA256 --accept-wix-eula --confirm TOKEN [--workspace DIRECTORY]",
+    "  memtextual-windows-msi preview --bundle BUNDLE --output UNSIGNED.msi --wix WIX.exe --manufacturer RELEASE_OWNER --approved-eula APPROVED.rtf --trusted-fingerprint SHA256 --accept-wix-eula [--workspace DIRECTORY]",
+    "  memtextual-windows-msi apply --bundle BUNDLE --output UNSIGNED.msi --wix WIX.exe --manufacturer RELEASE_OWNER --approved-eula APPROVED.rtf --trusted-fingerprint SHA256 --accept-wix-eula --confirm TOKEN [--workspace DIRECTORY]",
     "",
     "WiX 7 is user-supplied. --accept-wix-eula records explicit acceptance for this invocation; MemTextual does not download or license WiX.",
   ].join("\n");
@@ -31,7 +32,7 @@ export function parseWindowsMsiArguments(argv: readonly string[]): Arguments {
   if (command !== "preview" && command !== "apply") throw new Error(`Unknown or missing command.\n\n${usage()}`);
   const flags = new Set<string>();
   const values = new Map<string, string>();
-  const valueOptions = new Set(["--bundle", "--confirm", "--manufacturer", "--output", "--trusted-fingerprint", "--wix", "--workspace"]);
+  const valueOptions = new Set(["--approved-eula", "--bundle", "--confirm", "--manufacturer", "--output", "--trusted-fingerprint", "--wix", "--workspace"]);
   for (let index = 1; index < argv.length; index += 1) {
     const option = argv[index]!;
     if (option === "--accept-wix-eula") {
@@ -46,7 +47,7 @@ export function parseWindowsMsiArguments(argv: readonly string[]): Arguments {
     values.set(option, value);
     index += 1;
   }
-  for (const option of ["--bundle", "--manufacturer", "--output", "--trusted-fingerprint", "--wix"]) {
+  for (const option of ["--approved-eula", "--bundle", "--manufacturer", "--output", "--trusted-fingerprint", "--wix"]) {
     if (!values.get(option)?.trim()) throw new Error(`${option} is required.`);
   }
   if (!flags.has("--accept-wix-eula")) throw new Error("Explicit --accept-wix-eula is required.");
@@ -54,7 +55,7 @@ export function parseWindowsMsiArguments(argv: readonly string[]): Arguments {
   if (command === "apply" && !confirmation) throw new Error("apply requires --confirm.");
   if (command === "preview" && confirmation !== undefined) throw new Error("preview does not accept --confirm.");
   return {
-    bundleDirectory: values.get("--bundle")!, command, manufacturer: values.get("--manufacturer")!,
+    approvedEulaRtfPath: values.get("--approved-eula")!, bundleDirectory: values.get("--bundle")!, command, manufacturer: values.get("--manufacturer")!,
     outputPath: values.get("--output")!, trustedFingerprint: values.get("--trusted-fingerprint")!,
     wixEulaAccepted: true, wixExecutablePath: values.get("--wix")!,
     ...(values.get("--workspace") === undefined ? {} : { workspaceParentDirectory: values.get("--workspace")! }),
@@ -67,7 +68,7 @@ export async function runWindowsMsiCli(argv: readonly string[]): Promise<unknown
   const input = parseWindowsMsiArguments(argv);
   const operations = new WindowsWixOperations(input.wixExecutablePath);
   const common = {
-    bundleDirectory: input.bundleDirectory, manufacturer: input.manufacturer, operations,
+    approvedEulaRtfPath: input.approvedEulaRtfPath, bundleDirectory: input.bundleDirectory, manufacturer: input.manufacturer, operations,
     outputPath: input.outputPath, trustedCertificateFingerprint256: input.trustedFingerprint,
     wixEulaAccepted: true as const, wixExecutablePath: input.wixExecutablePath,
     ...(input.workspaceParentDirectory === undefined ? {} : { workspaceParentDirectory: input.workspaceParentDirectory }),

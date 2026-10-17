@@ -78,14 +78,14 @@ The MCP transport does not expose deletion or purge because it acts as the
 system, not as an explicitly confirming user. Use the trusted local CLI:
 
 ```powershell
-npm run privacy -- preview --id MEMORY_ID --database .\data\memtextual.db --migrations .\migrations
-npm run privacy -- delete --id MEMORY_ID --reason "User requested forgetting" --confirm MEMORY_ID --database .\data\memtextual.db --migrations .\migrations
-npm run privacy -- restore --id MEMORY_ID --confirm MEMORY_ID --database .\data\memtextual.db --migrations .\migrations
-npm run privacy -- purge --id MEMORY_ID --reason "User requested permanent removal" --confirm MEMORY_ID --database .\data\memtextual.db --migrations .\migrations
-npm run privacy -- source-preview --kind file --external-id SOURCE_ID --database .\data\memtextual.db --migrations .\migrations
-npm run privacy -- source-delete --kind file --external-id SOURCE_ID --reason "User requested source deletion" --confirm SOURCE_ID --database .\data\memtextual.db --migrations .\migrations
-npm run privacy -- source-restore --kind file --external-id SOURCE_ID --confirm SOURCE_ID --database .\data\memtextual.db --migrations .\migrations
-npm run privacy -- source-purge --kind file --external-id SOURCE_ID --reason "User requested permanent source removal" --confirm SOURCE_ID --database .\data\memtextual.db --migrations .\migrations
+npm run privacy -- preview -- --id MEMORY_ID --database .\data\memtextual.db --migrations .\migrations
+npm run privacy -- delete -- --id MEMORY_ID --reason "User requested forgetting" --confirm MEMORY_ID --database .\data\memtextual.db --migrations .\migrations
+npm run privacy -- restore -- --id MEMORY_ID --confirm MEMORY_ID --database .\data\memtextual.db --migrations .\migrations
+npm run privacy -- purge -- --id MEMORY_ID --reason "User requested permanent removal" --confirm MEMORY_ID --database .\data\memtextual.db --migrations .\migrations
+npm run privacy -- source-preview -- --kind file --external-id SOURCE_ID --database .\data\memtextual.db --migrations .\migrations
+npm run privacy -- source-delete -- --kind file --external-id SOURCE_ID --reason "User requested source deletion" --confirm SOURCE_ID --database .\data\memtextual.db --migrations .\migrations
+npm run privacy -- source-restore -- --kind file --external-id SOURCE_ID --confirm SOURCE_ID --database .\data\memtextual.db --migrations .\migrations
+npm run privacy -- source-purge -- --kind file --external-id SOURCE_ID --reason "User requested permanent source removal" --confirm SOURCE_ID --database .\data\memtextual.db --migrations .\migrations
 ```
 
 Use a short operational reason; do not repeat sensitive memory content in the

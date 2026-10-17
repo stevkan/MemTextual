@@ -27,7 +27,7 @@ or redistribution rights.
 | --- | --- | --- | --- |
 | Core TypeScript, SQLite, migrations, and tests | CI gate configured | CI gate configured | CI gate configured |
 | Developer source workflows | Initial target | Compatibility tracked | Compatibility tracked |
-| Continuity desktop packaging | MSI adopted; WiX 7 compilation, ICE validation, and synthetic Sandbox install, repair, upgrade, opted-in host provisioning, and removal evidence passed; production signing remains pending | Deferred | Deferred |
+| Continuity desktop packaging | MSI adopted; WiX 7 compilation, ICE validation, synthetic EULA-bound minimal UI, and Sandbox install, repair, upgrade, opted-in host provisioning, and removal evidence passed; approved final terms, interactive UI validation, and production signing remain pending | Deferred | Deferred |
 | Upgrade, rollback, and removal | Synthetic Sandbox failure rollback, major upgrade, and data-preserving uninstall passed; production-signed release evidence remains pending | Deferred | Deferred |
 | Unattended scheduler integration | Adapter, confirmed orchestration, privileged executor, and preview-first installer CLI available; application bundle staged separately | Deferred adapter | Deferred adapter |
 | Certificate credential provider | Core provider and confirmed certificate-path ACL protection available | Core provider available; packaging deferred | Core provider available; packaging deferred |
@@ -77,9 +77,12 @@ validation with a synthetic test-certificate bundle. A deliberately failed
   Windows Sandbox. A separate successful opt-in run proved owned account,
   batch-logon-right, schedule, and ACL provisioning, a naturally triggered
   unattended backup, verified removal, and exact preservation of external
-  synthetic data and recovery material. Installation UI, production signing,
-  and public-distribution validation remain required before describing a public
-  end-user installer as supported.
+  synthetic data and recovery material. The minimal installer UI now compiles
+  only with an explicitly supplied, confirmation-bound approved-EULA RTF and an
+  exactly version-matched WiX UI extension; a synthetic UI build passed WiX 7
+  validation. Approved final terms, interactive UI validation, production
+  signing, and public-distribution validation remain required before describing
+  a public end-user installer as supported.
 
 ## Release gates
 

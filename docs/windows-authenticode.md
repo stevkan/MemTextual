@@ -44,7 +44,7 @@ expiration:
 Preview is read-only:
 
 ```powershell
-npm run windows-authenticode -- preview `
+npm run windows-authenticode -- preview -- `
   --unsigned C:\release\MemTextual-unsigned.msi `
   --signed C:\release\MemTextual.msi `
   --signtool C:\path\to\signtool.exe `
@@ -57,7 +57,7 @@ After inspecting the returned paths, hashes, certificate selection, and URL,
 apply with the exact preview token:
 
 ```powershell
-npm run windows-authenticode -- apply `
+npm run windows-authenticode -- apply -- `
   --unsigned C:\release\MemTextual-unsigned.msi `
   --signed C:\release\MemTextual.msi `
   --signtool C:\path\to\signtool.exe `

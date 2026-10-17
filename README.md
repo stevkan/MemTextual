@@ -155,22 +155,22 @@ npm run typecheck
 npm run build
 npm run mcp -- --database .\data\memtextual.db --migrations .\migrations
 npm run review -- --database .\data\memtextual.db --migrations .\migrations
-npm run policy -- list --database .\data\memtextual.db --migrations .\migrations
+npm run policy -- list -- --database .\data\memtextual.db --migrations .\migrations
 npm run migrate -- --file .\legacy-memories.json --scope PROJECT_SCOPE_ID --database .\data\memtextual.db --migrations .\migrations
 npm run safeguard -- snapshot -- --database .\data\memtextual.db --output .\backups
-npm run safeguard -- run-if-due --database .\data\memtextual.db --output D:\MemTextualBackups --interval-hours 24
-npm run safeguard -- status --database .\data\memtextual.db --output D:\MemTextualBackups --interval-hours 24
-npm run safeguard -- retention-preview --database .\data\memtextual.db --output D:\MemTextualBackups --daily 7 --weekly 4 --monthly 12 --time-zone America/Los_Angeles --week-starts-on 0
-npm run safeguard -- restore-drill --database .\data\memtextual.db --output D:\MemTextualBackups --interval-hours 168
-npm run safeguard -- restore-drill-status --database .\data\memtextual.db --output D:\MemTextualBackups --interval-hours 168
-npm run safeguard -- restore-preview --database .\data\memtextual.db --output D:\MemTextualBackups --snapshot SNAPSHOT_DIRECTORY
-npm run safeguard -- restore-apply --database .\data\memtextual.db --output D:\MemTextualBackups --snapshot SNAPSHOT_DIRECTORY --confirm "EXACT TOKEN FROM PREVIEW"
-npm run safeguard -- offsite-export --database .\data\memtextual.db --source D:\MemTextualBackups --destination E:\MemTextualOffsite --snapshot SNAPSHOT_DIRECTORY --key-env MEMTEXTUAL_OFFSITE_KEY --key-id KEY_ID
-npm run safeguard -- offsite-run-if-due --database .\data\memtextual.db --source D:\MemTextualBackups --adapter local-directory --destination E:\MemTextualOffsite --interval-hours 24 --key-env MEMTEXTUAL_OFFSITE_KEY --key-id KEY_ID
-npm run safeguard -- offsite-status --database .\data\memtextual.db --source D:\MemTextualBackups --adapter local-directory --destination E:\MemTextualOffsite --interval-hours 24
-npm run safeguard -- offsite-verify --package E:\MemTextualOffsite\PACKAGE_DIRECTORY --key-env MEMTEXTUAL_OFFSITE_KEY
-npm run safeguard -- offsite-import --database .\data\memtextual.db --package E:\MemTextualOffsite\PACKAGE_DIRECTORY --destination D:\MemTextualBackups --key-env MEMTEXTUAL_OFFSITE_KEY
-npm run privacy -- preview --id MEMORY_ID --database .\data\memtextual.db --migrations .\migrations
+npm run safeguard -- run-if-due -- --database .\data\memtextual.db --output D:\MemTextualBackups --interval-hours 24
+npm run safeguard -- status -- --database .\data\memtextual.db --output D:\MemTextualBackups --interval-hours 24
+npm run safeguard -- retention-preview -- --database .\data\memtextual.db --output D:\MemTextualBackups --daily 7 --weekly 4 --monthly 12 --time-zone America/Los_Angeles --week-starts-on 0
+npm run safeguard -- restore-drill -- --database .\data\memtextual.db --output D:\MemTextualBackups --interval-hours 168
+npm run safeguard -- restore-drill-status -- --database .\data\memtextual.db --output D:\MemTextualBackups --interval-hours 168
+npm run safeguard -- restore-preview -- --database .\data\memtextual.db --output D:\MemTextualBackups --snapshot SNAPSHOT_DIRECTORY
+npm run safeguard -- restore-apply -- --database .\data\memtextual.db --output D:\MemTextualBackups --snapshot SNAPSHOT_DIRECTORY --confirm "EXACT TOKEN FROM PREVIEW"
+npm run safeguard -- offsite-export -- --database .\data\memtextual.db --source D:\MemTextualBackups --destination E:\MemTextualOffsite --snapshot SNAPSHOT_DIRECTORY --key-env MEMTEXTUAL_OFFSITE_KEY --key-id KEY_ID
+npm run safeguard -- offsite-run-if-due -- --database .\data\memtextual.db --source D:\MemTextualBackups --adapter local-directory --destination E:\MemTextualOffsite --interval-hours 24 --key-env MEMTEXTUAL_OFFSITE_KEY --key-id KEY_ID
+npm run safeguard -- offsite-status -- --database .\data\memtextual.db --source D:\MemTextualBackups --adapter local-directory --destination E:\MemTextualOffsite --interval-hours 24
+npm run safeguard -- offsite-verify -- --package E:\MemTextualOffsite\PACKAGE_DIRECTORY --key-env MEMTEXTUAL_OFFSITE_KEY
+npm run safeguard -- offsite-import -- --database .\data\memtextual.db --package E:\MemTextualOffsite\PACKAGE_DIRECTORY --destination D:\MemTextualBackups --key-env MEMTEXTUAL_OFFSITE_KEY
+npm run privacy -- preview -- --id MEMORY_ID --database .\data\memtextual.db --migrations .\migrations
 npm run continuity-setup -- status -- --database .\data\memtextual.db --migrations .\migrations
 npm run continuity-setup -- setup -- --user-name "Steve" --persona-name "Skylar" --backup-directory D:\MemTextualBackups --database .\data\memtextual.db --migrations .\migrations
 npm run continuity -- --persona PERSONA_ID --database .\data\memtextual.db --migrations .\migrations

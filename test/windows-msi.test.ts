@@ -25,16 +25,21 @@ function setup(invalidOutput = false) {
   for (const name of ["bundle-manifest.json", "bundle-manifest.sig", "bundle-signing-certificate.pem"]) writeFileSync(join(bundleDirectory, name), `${name}\n`);
   const wixExecutablePath = join(root, "wix.exe");
   const outputPath = join(root, "MemTextual-unsigned.msi");
+  const approvedEulaRtfPath = join(root, "approved-eula.rtf");
   const workspaceParentDirectory = join(root, "wix-workspaces");
   mkdirSync(workspaceParentDirectory);
   writeFileSync(wixExecutablePath, "synthetic wix\n");
+  writeFileSync(approvedEulaRtfPath, "{\\rtf1\\ansi Synthetic approved EULA for testing only.}");
   let validations = 0;
   const operations: WindowsMsiOperations = {
-    async build(sourcePath, targetPath) {
+    async build(sourcePath, targetPath, extensions) {
       assert.match(readFileSync(sourcePath, "utf8"), /Scope="perMachine"/u);
       assert.match(readFileSync(sourcePath, "utf8"), /bundle-manifest\.json/u);
+      assert.match(readFileSync(sourcePath, "utf8"), /WixUI_Minimal/u);
+      assert.deepEqual(extensions, ["WixToolset.UI.wixext"]);
       writeFileSync(targetPath, invalidOutput ? Buffer.from("invalid") : Buffer.from("d0cf11e0a1b11ae17061796c6f6164", "hex"));
     },
+    async extensionVersion(name) { assert.equal(name, "WixToolset.UI.wixext"); return "7.0.0"; },
     async validate(targetPath) {
       assert.equal(targetPath.endsWith("MemTextual-unsigned.msi"), true);
       assert.notEqual(targetPath, outputPath);
@@ -58,7 +63,7 @@ function setup(invalidOutput = false) {
     signingCertificateFingerprint256: "b".repeat(64), totalBytes: 4, verified: true,
   });
   const options = {
-    bundleDirectory, manufacturer: "Release Owner", operations, outputPath,
+    approvedEulaRtfPath, bundleDirectory, manufacturer: "Release Owner", operations, outputPath,
     trustedCertificateFingerprint256: "b".repeat(64), verifyBundle,
     wixEulaAccepted: true as const, wixExecutablePath, workspaceParentDirectory,
   };
@@ -68,12 +73,17 @@ function setup(invalidOutput = false) {
 describe("Windows MSI build boundary", () => {
   it("renders a per-machine, x64 component inventory with stable product identity", () => {
     const source = renderWindowsMsiSource({
+      approvedEulaRtfPath: "C:\\approved & final.rtf",
       bundleDirectory: "C:\\bundle", files: [
         "dist/app&one.js", "dist/src/cli/windows-msi-host-action.js", "README.md", "runtime/node.exe",
       ],
       manufacturer: "Owner & Publisher", packageVersion: "0.8.0",
     });
     assert.match(source, /Scope="perMachine"/u);
+    assert.match(source, /xmlns:ui="http:\/\/wixtoolset\.org\/schemas\/v4\/wxs\/ui"/u);
+    assert.match(source, /<ui:WixUI Id="WixUI_Minimal" \/>/u);
+    assert.match(source, /WixUILicenseRtf/u);
+    assert.match(source, /approved &amp; final\.rtf/u);
     assert.match(source, new RegExp(windowsMsiUpgradeCode.replaceAll("{", "\\{").replaceAll("}", "\\}"), "u"));
     assert.match(source, /Bitness="always64"/u);
     assert.match(source, /Owner &amp; Publisher/u);
@@ -92,10 +102,41 @@ describe("Windows MSI build boundary", () => {
       assert.match(preview.confirmation, /^BUILD-WINDOWS-MSI-[A-F0-9]{20}$/u);
       assert.equal(preview.scope, "perMachine");
       assert.equal(preview.workspaceParentDirectory, fixture.options.workspaceParentDirectory);
+      assert.equal(preview.approvedEulaRtfPath, fixture.options.approvedEulaRtfPath);
+      assert.equal(preview.wixUiExtensionVersion, "7.0.0");
       const report = await applyWindowsMsiBuild({ ...fixture.options, confirmation: preview.confirmation });
       assert.equal(report.validated, true);
       assert.equal(fixture.validations(), 1);
       assert.equal(existsSync(fixture.outputPath), true);
+    } finally { rmSync(fixture.root, { force: true, recursive: true }); }
+  });
+
+  it("requires a direct approved RTF and binds its exact bytes", async () => {
+    const fixture = setup();
+    try {
+      const preview = await previewWindowsMsiBuild(fixture.options);
+      writeFileSync(fixture.options.approvedEulaRtfPath, "{\\rtf1\\ansi Changed after preview.}");
+      const changedPreview = await previewWindowsMsiBuild(fixture.options);
+      assert.notEqual(changedPreview.confirmation, preview.confirmation);
+      await assert.rejects(
+        applyWindowsMsiBuild({ ...fixture.options, confirmation: preview.confirmation }),
+        /confirmation is missing, incorrect, or stale/u,
+      );
+      writeFileSync(fixture.options.approvedEulaRtfPath, "plain text");
+      await assert.rejects(previewWindowsMsiBuild(fixture.options), /not recognizable RTF/u);
+    } finally { rmSync(fixture.root, { force: true, recursive: true }); }
+  });
+
+  it("requires the WiX UI extension to exactly match the WiX executable", async () => {
+    const fixture = setup();
+    try {
+      await assert.rejects(
+        previewWindowsMsiBuild({
+          ...fixture.options,
+          operations: { ...fixture.options.operations, async extensionVersion() { return "7.0.1"; } },
+        }),
+        /extension version must exactly match/u,
+      );
     } finally { rmSync(fixture.root, { force: true, recursive: true }); }
   });
 
@@ -128,7 +169,11 @@ describe("Windows MSI build boundary", () => {
   });
 
   it("requires explicit WiX EULA acceptance and apply confirmation", () => {
-    const base = ["--bundle", "C:\\bundle", "--output", "C:\\release\\app.msi", "--wix", "C:\\wix.exe", "--manufacturer", "Owner", "--trusted-fingerprint", "a".repeat(64)];
+    const base = ["--bundle", "C:\\bundle", "--output", "C:\\release\\app.msi", "--wix", "C:\\wix.exe", "--manufacturer", "Owner", "--approved-eula", "C:\\approved.rtf", "--trusted-fingerprint", "a".repeat(64)];
+    assert.throws(
+      () => parseWindowsMsiArguments(["preview", ...base.filter((value, index) => index < 8 || index > 9), "--accept-wix-eula"]),
+      /--approved-eula is required/u,
+    );
     assert.throws(() => parseWindowsMsiArguments(["preview", ...base]), /accept-wix-eula/u);
     assert.throws(() => parseWindowsMsiArguments(["apply", ...base, "--accept-wix-eula"]), /requires --confirm/u);
     assert.equal(parseWindowsMsiArguments(["preview", ...base, "--accept-wix-eula"]).command, "preview");

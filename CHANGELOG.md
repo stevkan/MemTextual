@@ -5,6 +5,15 @@ describe only the current design and behavior.
 
 ## Unreleased
 
+- Added a fail-closed Windows installer UI boundary using WiX's minimal wizard.
+  MSI preview and apply now require a direct approved-EULA RTF; its path, byte
+  count, and SHA-256 hash are confirmation-bound and the staged copy is rehashed
+  before compilation. The official WiX UI extension must be installed and its
+  version must exactly match the WiX executable. A full synthetic bundle and
+  synthetic non-production RTF compiled into a 52,344,161-byte MSI and passed
+  WiX 7 validation. No product EULA, legal owner, or distribution terms were
+  invented or approved by this work.
+
 - Proved the successful opt-in MSI host lifecycle in a clean,
   network-disabled Windows Sandbox using synthetic data. Installation created
   the owned dedicated account, batch-logon right, ACL grants, and scheduled

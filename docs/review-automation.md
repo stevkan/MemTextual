@@ -106,14 +106,14 @@ All commands accept the same `--database` and `--migrations` options as the MCP
 and review entry points.
 
 ```powershell
-npm run policy -- set --file .\policy.json --database .\data\memtextual.db --migrations .\migrations
-npm run policy -- list --database .\data\memtextual.db --migrations .\migrations
-npm run policy -- list --all --database .\data\memtextual.db --migrations .\migrations
-npm run policy -- preview --candidate CANDIDATE_ID --database .\data\memtextual.db --migrations .\migrations
-npm run policy -- process --candidate CANDIDATE_ID --database .\data\memtextual.db --migrations .\migrations
-npm run policy -- process --pending --limit 100 --database .\data\memtextual.db --migrations .\migrations
-npm run policy -- bulk-accept --ids ID_1,ID_2 --database .\data\memtextual.db --migrations .\migrations
-npm run policy -- bulk-reject --ids ID_1,ID_2 --database .\data\memtextual.db --migrations .\migrations
+npm run policy -- set -- --file .\policy.json --database .\data\memtextual.db --migrations .\migrations
+npm run policy -- list -- --database .\data\memtextual.db --migrations .\migrations
+npm run policy -- list -- --all --database .\data\memtextual.db --migrations .\migrations
+npm run policy -- preview -- --candidate CANDIDATE_ID --database .\data\memtextual.db --migrations .\migrations
+npm run policy -- process -- --candidate CANDIDATE_ID --database .\data\memtextual.db --migrations .\migrations
+npm run policy -- process -- --pending --limit 100 --database .\data\memtextual.db --migrations .\migrations
+npm run policy -- bulk-accept -- --ids ID_1,ID_2 --database .\data\memtextual.db --migrations .\migrations
+npm run policy -- bulk-reject -- --ids ID_1,ID_2 --database .\data\memtextual.db --migrations .\migrations
 ```
 
 `preview` never changes candidate state. `process` accepts only candidates whose
