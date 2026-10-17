@@ -5,6 +5,12 @@ describe only the current design and behavior.
 
 ## Unreleased
 
+- Reworked the root README as a concise product overview with current-version,
+  private-evaluation, runtime, platform, and proprietary-license badges. The
+  original architecture, command catalog, implementation notes, safeguards, and
+  deferred-work detail now live in `docs/technical-reference.md`. The README
+  also explains why the Continuity client owns completed-turn capture.
+
 - Clarified that third-party dependency license/notice inventory and bundle
   integration, together with the other legal and production-release gates, are
   deliberately deferred during private single-user functional evaluation and
