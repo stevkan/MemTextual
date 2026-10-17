@@ -5,20 +5,29 @@ describe only the current design and behavior.
 
 ## Unreleased
 
+- Exercised synthetic unsigned `0.8.0` and `0.8.1` MSIs in a fresh,
+  network-disabled Windows Sandbox. The run passed deliberately failed
+  host-action install rollback, normal install, exact-file repair, major
+  upgrade with a single current product registration, and data-preserving
+  uninstall. It preserved external synthetic data and deployment configuration
+  byte-for-byte. Successful opted-in host provisioning, production signing,
+  approved legal terms, and public-release validation remain separate gates.
+
 - Added an optional, preview-bound MSI build workspace so WiX native cabinet
   creation can use a short unprotected path independently of the final output
   directory. WiX now receives its own isolated intermediate directory. A full
   test-certificate bundle with 11,812 packaged files compiled and passed WiX 7
-  MSI validation through the MemTextual wrapper; this is build evidence, not a
-  production-signed release or installed-target lifecycle result.
+  MSI validation through the MemTextual wrapper; this is test-certificate build
+  evidence, not a production-signed release.
 
 - Added opt-in MSI host integration using the existing ownership-checked Windows
   host service. `MEMTEXTUAL_HOST_ACTIONS=1` enables deferred, non-impersonating,
   hidden-target account, ACL, and schedule actions against the fixed secret-free
   deployment file. Install and uninstall have paired rollback actions; ordinary
   uninstall preserves all user data and recovery material, and major upgrades
-  leave stable owned host resources in place. Real WiX compilation and
-  disposable-target execution remain explicit validation gates.
+  leave stable owned host resources in place. Real WiX compilation and failed
+  host-action rollback have now been exercised; successful opted-in host
+  provisioning remains an explicit validation gate.
 
 - Adopted MSI as the Windows Continuity installer container and added a
   preview-first unsigned MSI build boundary. It accepts only an exactly verified
@@ -37,7 +46,7 @@ describe only the current design and behavior.
   timestamp, requires Authenticode policy verification, rechecks the untouched
   source, and removes incomplete output on failure. No private-key material or
   PFX password is accepted through the command interface; production-certificate
-  execution and completed MSI host integration remain release gates.
+  execution and successful opted-in MSI host provisioning remain release gates.
 
 - Added a separately confirmed elevated Windows host lifecycle validator. It
   binds a release-validated synthetic workspace to the exact signed candidate,

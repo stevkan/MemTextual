@@ -312,11 +312,12 @@ Additional vendor extractor and host-event clients, vendor-specific legacy-expor
 adapters, graphical source-series privacy workflows, standalone-source deletion,
 additional cloud destination adapters, resumable imports, streamable HTTP,
 REST API, admin UI, concrete vendor embedding provider, concrete host capture
-integrations, disposable MSI lifecycle testing and production signing,
+integrations, production signing and production-signed release validation,
 additional secure credential-store providers, a combined Developer/Continuity
 launcher, final proprietary legal terms, and public-release validation remain
 open. The combined launcher is considered only after both editions are
-independently functional, complete, packaged, and lifecycle-validated. It may
+independently functional, complete, distributable through their
+edition-appropriate delivery mechanisms, and lifecycle-validated. It may
 offer Developer, Continuity, or both, but must preserve their separate
 components, privileges, configuration, privacy expectations, and update paths.
 

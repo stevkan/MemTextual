@@ -143,8 +143,9 @@ policy and release gates are recorded in `docs/proprietary-distribution.md`.
 
 A combined launcher or bootstrapper may eventually let a user choose
 MemTextual Developer, MemTextual Continuity, or both. This is explicitly
-deferred until both editions are independently functional, complete, packaged,
-and validated through installation, upgrade, rollback, and removal. The
+deferred until both editions are independently functional, complete,
+distributable through their edition-appropriate delivery mechanisms, and
+validated through installation, upgrade, rollback, and removal. The
 launcher would be a convenience layer over separate edition components; it must
 not merge their privilege requirements, configuration, privacy expectations,
 or update and removal boundaries. It is not a prerequisite for either edition's
@@ -372,9 +373,11 @@ set, signs the exact byte-and-hash inventory, pins publisher trust by certificat
 fingerprint, and verifies both disposable staging and the final copy. File
 staging is separately previewed and confirmed and never overwrites an existing
 target. MSI is now the selected Windows container, with confirmed unsigned-build
-and Authenticode boundaries. Rollback-capable MSI host actions and public release
-UX remain separate work; no host change occurs merely by importing or
-configuring these layers.
+and Authenticode boundaries. Synthetic Windows Sandbox validation has proved
+failed-install rollback, normal install, repair, major upgrade, and
+data-preserving uninstall. Successful opted-in host provisioning through the
+MSI and public release UX remain separate work; no host change occurs merely by
+importing or configuring these layers.
 
 ## Non-destructive migration contract
 

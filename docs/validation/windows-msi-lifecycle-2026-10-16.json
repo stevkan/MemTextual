@@ -1,0 +1,74 @@
+{
+  "formatVersion": 1,
+  "operation": "validate-windows-msi-lifecycle",
+  "environment": {
+    "type": "Windows Sandbox",
+    "networking": "disabled",
+    "data": "synthetic-only"
+  },
+  "passed": true,
+  "startedAt": "2026-10-17T04:35:33.4886532Z",
+  "completedAt": "2026-10-17T04:57:33.8745789Z",
+  "tooling": {
+    "wixVersion": "7.0.0",
+    "wixExecutableSha256": "06fdc03f44e8bc38c1bde1c8adc0cc6ee530eb1889af098141496bf35a2bb3ea",
+    "manufacturer": "MemTextual Validation Only"
+  },
+  "packages": [
+    {
+      "version": "0.8.0",
+      "bundleManifestSha256": "a61630659008cfeb9f2e42438294183d4b5a3ba315f6d18d392634274912dea1",
+      "msiBytes": 52232492,
+      "msiSha256": "22e2a1eff01d961f714ce28777d97c9064f1369f91c6fa16afc841d481366cea"
+    },
+    {
+      "version": "0.8.1",
+      "bundleManifestSha256": "87ccf01052e5020cfd37d959189c22ef7cd143de19c4fd7c61631b2418e206a3",
+      "msiBytes": 52232492,
+      "msiSha256": "b35e614ad2840dfde6898830020bbe8ed2fd7896740fb44f1217c294ef3e6951"
+    }
+  ],
+  "phases": [
+    {
+      "name": "target-preflight",
+      "passed": true,
+      "summary": "Confirmed a clean Windows Sandbox target and copied two verified synthetic MSI inputs onto the Sandbox-local disk."
+    },
+    {
+      "name": "failed-install-rollback",
+      "passed": true,
+      "summary": "Forced the deferred host action to fail without a deployment configuration and verified installer rollback removed files and registration."
+    },
+    {
+      "name": "install",
+      "passed": true,
+      "summary": "Installed synthetic MemTextual Continuity 0.8.0 and verified files plus per-machine product registration."
+    },
+    {
+      "name": "external-data",
+      "passed": true,
+      "summary": "Created synthetic external data and deployment markers outside the application directory."
+    },
+    {
+      "name": "repair",
+      "passed": true,
+      "summary": "Deleted an installed file, ran full-file repair, and verified exact restoration."
+    },
+    {
+      "name": "major-upgrade",
+      "passed": true,
+      "summary": "Upgraded 0.8.0 to 0.8.1, removed the old product registration, and preserved external synthetic data."
+    },
+    {
+      "name": "data-preserving-uninstall",
+      "passed": true,
+      "summary": "Uninstalled 0.8.1, removed application files and registration, and preserved exact external data plus deployment configuration."
+    }
+  ],
+  "notProven": [
+    "Successful opted-in account, schedule, and ACL provisioning through the MSI",
+    "Production Authenticode signing",
+    "Approved public installer legal terms and UI",
+    "Production-signed release-candidate validation"
+  ]
+}

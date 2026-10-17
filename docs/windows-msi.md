@@ -112,10 +112,39 @@ msiexec.exe /i MemTextual-Continuity.msi MEMTEXTUAL_HOST_ACTIONS=1
 Omitting the property installs application files only. It does not infer consent
 to create an account, modify ACLs, or register schedules.
 
+## Disposable lifecycle evidence
+
+On October 16, 2026, synthetic unsigned `0.8.0` and `0.8.1` MSIs built from
+pinned test-certificate bundles were exercised in a fresh Windows Sandbox with
+networking disabled. The completed run proved:
+
+1. a deliberately failed `MEMTEXTUAL_HOST_ACTIONS=1` install reached the
+   deferred host action, returned Windows Installer's fatal-action marker, and
+   rolled back application files, product registration, and the host-action
+   registry marker;
+2. normal per-machine installation registered `0.8.0` and installed its exact
+   package contents;
+3. full-file repair restored a deliberately removed file with its original
+   SHA-256 hash;
+4. major upgrade replaced `0.8.0` with `0.8.1`, left exactly one current
+   product registration, and preserved external synthetic data; and
+5. uninstall removed application files and product registration while
+   preserving exact external synthetic data and deployment configuration.
+
+The validated MSI SHA-256 hashes were
+`22e2a1eff01d961f714ce28777d97c9064f1369f91c6fa16afc841d481366cea`
+for `0.8.0` and
+`b35e614ad2840dfde6898830020bbe8ed2fd7896740fb44f1217c294ef3e6951`
+for `0.8.1`. This is synthetic engineering evidence, not production signing,
+an approved public installer, or proof of a successful opted-in account,
+schedule, and ACL provisioning lifecycle through the MSI.
+The durable receipt is
+[`validation/windows-msi-lifecycle-2026-10-16.json`](validation/windows-msi-lifecycle-2026-10-16.json).
+
 ## Remaining installer work
 
-1. Prove install, repair, major upgrade, rollback, and data-preserving uninstall
-   on a disposable Windows target.
+1. Prove the successful opted-in host-provisioning and removal path through the
+   MSI on a disposable Windows target with a valid synthetic deployment.
 2. Add an approved EULA and installation UI after legal ownership and terms are
    resolved.
 3. Build, validate, Authenticode-sign, and test a real release candidate with

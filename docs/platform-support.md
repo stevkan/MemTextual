@@ -27,8 +27,8 @@ or redistribution rights.
 | --- | --- | --- | --- |
 | Core TypeScript, SQLite, migrations, and tests | CI gate configured | CI gate configured | CI gate configured |
 | Developer source workflows | Initial target | Compatibility tracked | Compatibility tracked |
-| Continuity desktop packaging | MSI adopted; real WiX 7 compilation and ICE validation passed with a synthetic signed bundle; release-target and production-signing evidence pending | Deferred | Deferred |
-| Upgrade, rollback, and removal | Synthetic non-privileged and separately confirmed elevated host lifecycle harnesses available; real release-target evidence pending | Deferred | Deferred |
+| Continuity desktop packaging | MSI adopted; WiX 7 compilation, ICE validation, and synthetic Sandbox install/repair evidence passed; production signing and successful opted-in host provisioning remain pending | Deferred | Deferred |
+| Upgrade, rollback, and removal | Synthetic Sandbox failure rollback, major upgrade, and data-preserving uninstall passed; production-signed release evidence remains pending | Deferred | Deferred |
 | Unattended scheduler integration | Adapter, confirmed orchestration, privileged executor, and preview-first installer CLI available; application bundle staged separately | Deferred adapter | Deferred adapter |
 | Certificate credential provider | Core provider and confirmed certificate-path ACL protection available | Core provider available; packaging deferred | Core provider available; packaging deferred |
 | Dedicated service identity | Planned where appropriate | Platform-specific decision deferred | Platform-specific decision deferred |
@@ -72,9 +72,12 @@ is previewed, exactly confirmed, timestamped, and verified without overwriting
 its unsigned input. MSI is the selected container, with a previewed and
 confirmed per-machine x64 build boundary over the exact verified bundle.
 Rollback-paired host-action authoring has compiled and passed WiX 7 MSI
-validation with a synthetic test-certificate bundle. It has not been executed
-on a disposable target. Installation UI and public-distribution validation are
-still required before describing a public end-user installer as supported.
+validation with a synthetic test-certificate bundle. A deliberately failed
+opt-in host-action install then proved application and registration rollback in
+Windows Sandbox. Successful opted-in account, schedule, and ACL provisioning
+through the MSI, installation UI, production signing, and public-distribution
+validation remain required before describing a public end-user installer as
+supported.
 
 ## Release gates
 
