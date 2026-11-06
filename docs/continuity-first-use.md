@@ -1,9 +1,11 @@
 # Continuity first-use installation and acceptance
 
 This is the supported Windows first-use sequence for the current signed
-directory bundle. It keeps application files, the active database, host state,
-and backups separate. The separately implemented MSI build boundary does not
-yet replace this workflow or make the current build ready for public distribution.
+directory bundle or MSI. It keeps application files, the active database, host
+state, and backups separate. The MSI installs guided setup and client Start-menu
+entries, but it does not replace the explicit host preview, elevated approval,
+acceptance, or recovery verification in this workflow. The current build is not
+ready for public distribution.
 
 The release provider supplies the signed bundle and its SHA-256 publisher
 certificate fingerprint through separate channels. The user chooses every data,
@@ -28,11 +30,39 @@ $backupIntervalHours = 24
 $publisherFingerprint = "64_HEXADECIMAL_CHARACTERS"
 ```
 
-Create the selected database parent, backup, host-state parent, and conversation
-working directories before continuing. Let the setup command create the
-database file. Do not place the backup directory under the active database
-directory. If `D:` is the same physical device as the database, it protects
-against database damage but not loss of that device.
+After an MSI installation, launch `Set up MemTextual Continuity` from the
+Start menu and answer its local prompts. That entry runs the same unified setup
+shown below. It does not place the answers in MSI properties or logs. Once
+setup succeeds, continue with the host preview in step 4.
+
+The preferred route is the unified setup command:
+
+```powershell
+& "$application\runtime\node.exe" `
+  "$application\dist\src\cli\memtextual.js" models
+$extractionModel = Read-Host "Enter one model value shown above"
+& "$application\runtime\node.exe" `
+  "$application\dist\src\cli\memtextual.js" setup `
+  --user-name "YOUR_NAME" `
+  --persona-name "PERSONA_NAME" `
+  --extraction-model "$extractionModel" `
+  --backup-directory $backups
+```
+
+The `models` command reads the current Codex App Server catalog. Its results are
+choices, not an access guarantee; successful inference verifies access. The MSI
+guided setup presents the same catalog as a numbered selector and never chooses
+a model automatically.
+
+It creates the directories, database, onboarding snapshot, `deployment.json`,
+`conversation.json`, and reusable `installation.json`. When it succeeds,
+skip manual steps 2, 3, and 5; continue with the host preview in step 4 and the
+acceptance gate in step 6.
+
+The manual steps remain available for advanced layouts. Do not place the backup
+directory under the active database directory. If `D:` is the same physical
+device as the database, it protects against database damage but not loss of
+that device.
 
 ## 2. Write the deployment configuration
 

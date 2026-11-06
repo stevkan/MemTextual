@@ -10,6 +10,7 @@ import {
   type CodexAppServerConversationHostOptions,
 } from "../hosts/codex-app-server-conversation-host.js";
 import { ContinuityConversationTurnAdapter } from "../hosts/continuity-conversation-turn-adapter.js";
+import { resolveCodexCommand } from "../integrations/codex-command-discovery.js";
 import { WindowsDpapiConversationGrantStore } from "../platform/windows-dpapi-conversation-grant-store.js";
 import type { WindowsPowerShellBridge } from "../platform/windows-powershell-host-operations.js";
 import {
@@ -180,8 +181,12 @@ export function createContinuityConversationRuntime(
 export function createWindowsCodexContinuityConversationRuntime(
   options: WindowsCodexContinuityConversationRuntimeOptions,
 ): ContinuityConversationRuntime {
+  const hostOptions = options.hostOptions ?? {};
   const host = new CodexAppServerConversationHost({
-    ...options.hostOptions,
+    ...(hostOptions.command === undefined && hostOptions.processFactory === undefined
+      ? { command: resolveCodexCommand() }
+      : {}),
+    ...hostOptions,
     workingDirectory: options.workingDirectory,
   });
   return createContinuityConversationRuntime({

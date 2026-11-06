@@ -106,6 +106,8 @@ const requiredBundleFiles = new Set([
   "CHANGELOG.md",
   "LICENSE.txt",
   "README.md",
+  "dist/src/cli/memtextual.js",
+  "dist/src/cli/memtextual-developer.js",
   "dist/src/cli/safeguard.js",
   "dist/src/cli/continuity-acceptance.js",
   "dist/src/cli/continuity-console.js",

@@ -1,3 +1,9 @@
+export * from "./configuration/continuity-interactive-setup.js";
+export * from "./configuration/developer-installation-profile.js";
+export * from "./integrations/codex-mcp-registration.js";
+export * from "./integrations/codex-command-discovery.js";
+export * from "./configuration/continuity-installation-profile.js";
+
 export {
   applyMigrations,
   openMemTextualDatabase,
@@ -92,6 +98,7 @@ export {
   CodexAppServerConversationHost,
   CodexAppServerError,
   type CodexAppServerConversationHostOptions,
+  type CodexAppServerModel,
   type CodexAppServerProcess,
   type CodexAppServerProcessFactory,
   type CodexAppServerStructuredTaskInput,

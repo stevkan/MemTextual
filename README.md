@@ -120,8 +120,9 @@ See [Privacy and deletion](docs/privacy.md) and
 
 - Windows is the initial supported desktop target for Continuity.
 - Core compatibility is tracked for Windows, macOS, and Linux.
-- Continuity's Windows installer and lifecycle safeguards are undergoing final
-  functional validation.
+- Continuity's Windows installer, guided first-run workflow, and lifecycle
+  safeguards have passed synthetic validation in network-disabled Windows
+  Sandbox environments.
 - Production signing, final legal terms, public-release validation, and
   distribution-compliance work are deferred.
 - Ordinary ChatGPT does not guarantee passive capture; the included Continuity
@@ -135,7 +136,7 @@ MemTextual should not yet be described as a publicly supported release.
 For the supported setup and first-use workflows, see:
 
 - [Continuity first use](docs/continuity-first-use.md)
-- [Developer MCP integration](docs/mcp.md)
+- [Developer setup and Codex connection](docs/developer-setup.md)
 - [Continuity setup](docs/continuity-setup.md)
 - [Technical reference](docs/technical-reference.md)
 - [Platform support](docs/platform-support.md)

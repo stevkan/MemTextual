@@ -12,6 +12,22 @@ The implementation uses the official MCP TypeScript SDK v2 packages:
 - `@modelcontextprotocol/client` for integration tests; and
 - Zod 4 for tool input schemas.
 
+## Recommended Developer setup
+
+On Windows, the supported path is the automated Developer workflow:
+
+~~~powershell
+npm run build
+npm run memtextual -- developer setup
+npm run memtextual -- developer connect-preview
+~~~
+
+The setup stores stable per-user paths and the connection preview requires an
+exact fresh token before Codex configuration is changed. See
+[developer-setup.md](developer-setup.md) for the complete workflow and safety
+behavior. The manual commands below remain available for development and other
+MCP hosts.
+
 ## Run from source
 
 ```powershell
@@ -139,7 +155,7 @@ write an audit event.
 
 - MCP resources and prompts;
 - Streamable HTTP transport and authentication;
-- host-specific installers and configuration writers;
+- automated registration for MCP hosts other than Codex;
 - explicit-user confirmation for protected-memory mutation;
 - scope hierarchy expansion during retrieval; and
 - semantic or hybrid vector search.

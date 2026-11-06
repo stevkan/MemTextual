@@ -1,0 +1,63 @@
+{
+  "formatVersion": 1,
+  "operation": "validate-developer-setup-and-codex-mcp-registration",
+  "environment": {
+    "target": "Windows development host",
+    "data": "synthetic-only",
+    "isolation": "workspace-scoped disposable Developer data root and CODEX_HOME",
+    "nodeVersion": "24.21.0",
+    "codexCliVersion": "0.163.0-alpha.10.2"
+  },
+  "startedAt": "2026-10-18T03:48:11.9734154Z",
+  "completedAt": "2026-10-18T03:53:34.8358444Z",
+  "artifacts": {
+    "installationProfileSha256": "b2d0af687ccb7f050ef49fc6b6fe349d4825dc4ef3f1e2af95eda83849122d44",
+    "activeDatabaseSha256": "c13107af42e283e8525ea23d3b12f703feaa6307db9ca96491ed4e1d2505a081",
+    "isolatedCodexConfigSha256": "6abaef35c1be8ba288f2e5ef1d065123049e5c09cf19cd811c17dea6749c8a5",
+    "snapshotDatabaseSha256": "9db380c9df5ea05884bcd8e9312aa6d73fe09b15da2b965624fc6be57df469cb",
+    "snapshotManifestSha256": "bfadd0d64361c913fc1dcb300e12fc562fa069e0c4ae3e1e65bee2f909990629",
+    "snapshotDurableExportSha256": "ec9ea6643d98d09ff4aed42c1358ef28ed61301d669d8f34d9b20aa7fce0a9f0"
+  },
+  "checks": {
+    "initialSetupCreatedProfile": true,
+    "initialSetupCreatedDatabase": true,
+    "initialSetupCreatedSnapshot": true,
+    "statusLoadedRememberedProfile": true,
+    "setupRerunWasNoOp": true,
+    "registrationPreviewRequiredExactConfirmation": true,
+    "registrationAppliedToIsolatedCodexHome": true,
+    "codexListReportedExactRegistration": true,
+    "codexGetReportedExactRegistration": true,
+    "registrationRerunReportedAlreadyConnected": true,
+    "mcpHandshakePassed": true,
+    "mcpToolCount": 20,
+    "serverInfoVersion": "0.8.0",
+    "databaseIntegrityCheck": "ok",
+    "foreignKeyViolationCount": 0,
+    "appliedMigrationCount": 21,
+    "snapshotManifestVerificationPassed": true,
+    "snapshotProtectedTableCount": 40,
+    "realCodexConfigUnchanged": true,
+    "typecheckPassed": true,
+    "buildPassed": true,
+    "tests": 311,
+    "testsPassed": 310,
+    "testsFailed": 0,
+    "testsSkipped": 1
+  },
+  "realCodexConfigEvidence": {
+    "beforeSha256": "fd486b9b66fe9c8301b684138e779a0d15ed47e31f2691359b627460c6e9ea76",
+    "afterSha256": "fd486b9b66fe9c8301b684138e779a0d15ed47e31f2691359b627460c6e9ea76",
+    "beforeBytes": 4797,
+    "afterBytes": 4797,
+    "beforeLastWriteTimeUtc": "2026-10-17T09:50:15.6121889Z",
+    "afterLastWriteTimeUtc": "2026-10-17T09:50:15.6121889Z"
+  },
+  "passed": true,
+  "notProven": [
+    "Mutation of the user's real Codex configuration, which was intentionally excluded",
+    "First use from a separate fresh Windows user profile",
+    "A Developer-edition installer, which is not part of the current distribution design",
+    "macOS or Linux setup"
+  ]
+}

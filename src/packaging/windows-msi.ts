@@ -10,6 +10,7 @@ export const windowsMsiDeploymentConfigPath = "C:\\ProgramData\\MemTextual Conti
 export const windowsMsiUiExtension = "WixToolset.UI.wixext" as const;
 const bundleMetadataFiles = ["bundle-manifest.json", "bundle-manifest.sig", "bundle-signing-certificate.pem"] as const;
 const hostActionCliPath = "dist/src/cli/windows-msi-host-action.js";
+const mainCliPath = "dist/src/cli/memtextual.js";
 const nodeRuntimePath = "runtime/node.exe";
 
 export interface WindowsMsiOperations {
@@ -129,8 +130,8 @@ export function renderWindowsMsiSource(options: {
   manufacturer: string;
   packageVersion: string;
 }): string {
-  for (const required of [hostActionCliPath, nodeRuntimePath]) {
-    if (!options.files.includes(required)) throw new Error(`MSI bundle inventory is missing required host-action file: ${required}.`);
+  for (const required of [hostActionCliPath, mainCliPath, nodeRuntimePath]) {
+    if (!options.files.includes(required)) throw new Error(`MSI bundle inventory is missing required runtime file: ${required}.`);
   }
   const directories = new Map<string, string>();
   for (const path of options.files) {
@@ -161,7 +162,15 @@ export function renderWindowsMsiSource(options: {
       const componentId = id("Cmp", file);
       componentIds.push(componentId);
       lines.push(`${indent}<Component Id="${componentId}" Guid="*" Bitness="always64">`);
-      lines.push(`${indent}  <File Id="${id("File", file)}" Source="${xml(join(options.bundleDirectory, ...file.split("/")))}" KeyPath="yes" />`);
+      if (file === nodeRuntimePath) {
+        lines.push(`${indent}  <File Id="${id("File", file)}" Source="${xml(join(options.bundleDirectory, ...file.split("/")))}" KeyPath="yes">`);
+        lines.push(`${indent}    <Shortcut Id="MtxContinuitySetupShortcut" Directory="MemTextualProgramMenuFolder" Name="Set up MemTextual Continuity" Description="Create or verify the local user, persona, database, and saved configuration." Arguments="&quot;[INSTALLFOLDER]dist\\src\\cli\\memtextual.js&quot; setup --interactive --application-directory &quot;[INSTALLFOLDER].&quot;" WorkingDirectory="INSTALLFOLDER" Advertise="yes" />`);
+        lines.push(`${indent}    <Shortcut Id="MtxContinuityLaunchShortcut" Directory="MemTextualProgramMenuFolder" Name="MemTextual Continuity" Description="Start the configured local Continuity client." Arguments="&quot;[INSTALLFOLDER]dist\\src\\cli\\memtextual.js&quot; start" WorkingDirectory="INSTALLFOLDER" Advertise="yes" />`);
+        lines.push(`${indent}  </File>`);
+        lines.push(`${indent}  <RemoveFolder Id="MtxRemoveProgramMenuFolder" Directory="MemTextualProgramMenuFolder" On="uninstall" />`);
+      } else {
+        lines.push(`${indent}  <File Id="${id("File", file)}" Source="${xml(join(options.bundleDirectory, ...file.split("/")))}" KeyPath="yes" />`);
+      }
       lines.push(`${indent}</Component>`);
     }
     for (const child of (children.get(path) ?? []).sort()) {
@@ -203,6 +212,9 @@ export function renderWindowsMsiSource(options: {
     '          </Component>',
     '        </Directory>',
     '      </Directory>',
+    '    </StandardDirectory>',
+    '    <StandardDirectory Id="ProgramMenuFolder">',
+    '      <Directory Id="MemTextualProgramMenuFolder" Name="MemTextual" />',
     '    </StandardDirectory>',
     '    <Feature Id="MainFeature" Title="MemTextual Continuity">',
     ...componentIds.sort().map((componentId) => `      <ComponentRef Id="${componentId}" />`),

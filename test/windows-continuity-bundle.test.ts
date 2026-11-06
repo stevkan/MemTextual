@@ -65,6 +65,14 @@ function createMinimalSource(source: string): void {
   write(join(source, "CHANGELOG.md"), "# Changelog\n");
   write(join(source, "LICENSE.txt"), "Test license only.\n");
   write(
+    join(source, "dist", "src", "cli", "memtextual.js"),
+    "export const memtextual = true;\n",
+  );
+  write(
+    join(source, "dist", "src", "cli", "memtextual-developer.js"),
+    "export const developer = true;\n",
+  );
+  write(
     join(source, "dist", "src", "cli", "safeguard.js"),
     "export const safeguard = true;\n",
   );

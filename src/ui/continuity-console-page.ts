@@ -551,6 +551,7 @@ export const continuityConsoleJavaScript = `
           const text = message.value.trim();
           if (!text) throw new Error("Enter a message before sending.");
           try {
+            setNotice("Generating a response and checking the completed turn for memories…");
             await api("/api/conversations/" + encodeURIComponent(id) + "/turns", {
               method: "POST",
               body: JSON.stringify({ text }),

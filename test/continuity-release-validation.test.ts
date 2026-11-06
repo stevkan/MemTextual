@@ -69,6 +69,8 @@ function createCandidateSource(source: string): void {
     "continuity-release-validation",
     "continuity-setup",
     "continuity-upgrade",
+    "memtextual",
+    "memtextual-developer",
     "safeguard",
     "windows-host",
     "windows-elevated-host-validation",

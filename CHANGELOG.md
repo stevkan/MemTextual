@@ -5,6 +5,68 @@ describe only the current design and behavior.
 
 ## Unreleased
 
+- Added Codex App Server `model/list` discovery for Continuity. Guided setup now
+  requires an explicit numbered model selection, automated setup can inspect the
+  catalog with `memtextual models`, and literal model-placeholder values are
+  rejected before configuration is written.
+- Fixed Continuity conversation startup so it uses the same deterministic Codex
+  executable discovery as setup instead of depending on a bare `codex` command
+  being available in the client process environment.
+- Fixed the first Continuity message after `thread/start` by treating that
+  thread as already active in the current App Server process. The adapter now
+  sends `thread/resume` only after a process restart or when opening a persisted
+  conversation, avoiding Codex's `no rollout found` response for an empty new
+  thread.
+- Migrated Continuity turns from the retired `readOnly.access` sandbox payload
+  to Codex permission profiles. The App Server now defines and selects a
+  MemTextual-specific profile that denies filesystem-root access, permits only
+  minimal runtime reads, disables command network access, and negotiates the
+  required experimental API capability.
+- Forced Codex MXC for the restricted Continuity conversation host on native
+  Windows. The legacy `elevated` sandbox requires filesystem-root read access,
+  so Continuity now fails closed on Windows hosts without MXC instead of
+  silently widening its filesystem boundary.
+- Isolated new, resumed, and ephemeral Continuity threads from inherited Codex
+  MCP servers, apps, plugins, and hosted web search. This prevents temporary
+  extraction and classification threads from launching unrelated Developer MCP
+  subprocesses. The client now displays an explicit response-and-capture
+  progress message while the synchronous turn pipeline is active.
+
+- Added deterministic Codex desktop CLI discovery for Developer connection
+  setup and documented npm 11's additional argument separator for explicit
+  `--codex-command` forwarding.
+- Deferred trusted host-project-to-MemTextual-project-scope mapping until an
+  authorized host supplies a stable project identity.
+
+- Added a post-install Continuity first-run experience. The MSI now creates
+  separate Start-menu entries for guided setup and launching the configured
+  client. Guided setup collects user, persona, model, optional persona details,
+  and backup location directly in a local console rather than MSI properties or
+  logs, reuses the unified managed installation profile, and refuses to
+  reconfigure an existing installation.
+
+- Fixed the advertised setup shortcut's quoted installation-directory argument
+  and added a regression assertion for it. A clean, network-disabled Windows
+  Sandbox run then proved MSI installation, the actual setup shortcut, all seven
+  guided prompts, required first-run files, the actual client shortcut and
+  loopback listener, product removal, and exact preservation of all generated
+  configuration, database, journal, and backup files.
+
+- Added automated MemTextual Developer setup and Codex MCP registration. The
+  per-user LocalAppData profile remembers the database, backup, migrations,
+  compiled server, Node executable, and server name; new or existing databases
+  are snapshot-protected and integrity-checked. Codex connection now uses a
+  read-only preview and exact fresh confirmation token, verifies the applied
+  registration, is idempotent for an exact match, and refuses to overwrite or
+  remove a different same-name registration.
+
+- Added a unified `memtextual` CLI for automated Continuity setup. It selects
+  stable ProgramData paths, creates the database and standard directories,
+  generates strict deployment and conversation configuration, records the
+  selected user and persona in a reusable installation profile, and lets
+  status, host-preview, and client-start commands reuse those settings while
+  preserving explicit elevation and confirmation for host mutations.
+
 - Reworked the root README as a concise product overview with current-version,
   private-evaluation, runtime, platform, and proprietary-license badges. The
   original architecture, command catalog, implementation notes, safeguards, and

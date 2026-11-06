@@ -1,0 +1,97 @@
+{
+  "formatVersion": 1,
+  "operation": "validate-windows-msi-first-run-and-data-preserving-uninstall",
+  "environment": {
+    "target": "fresh Windows Sandbox",
+    "networkDisabled": true,
+    "data": "synthetic-only"
+  },
+  "startedAt": "2026-10-18T02:11:07.3418687Z",
+  "completedAt": "2026-10-18T02:17:26.4415828Z",
+  "artifacts": {
+    "msiSha256": "20a13c358675c64cd852e94831f436d956ec0cb7cf87fa8edfb7a9836aa3594c",
+    "msiBytes": 52365990,
+    "sourceReceiptSha256": "e7d46e6464d38919d9743af6e72fce787cc12ce76f225b291e99da459f395917"
+  },
+  "checks": {
+    "installExitCode": 0,
+    "installedProductVersion": "0.8.0",
+    "setupShortcutLaunched": true,
+    "interactiveSetupExitCode": 0,
+    "interactivePromptsAnswered": 7,
+    "requiredFirstRunFilesCreated": true,
+    "continuityLaunchProcessCount": 2,
+    "loopbackListenerAddress": "127.0.0.1",
+    "loopbackListenerPort": 49674,
+    "uninstallExitCode": 0,
+    "applicationRemoved": true,
+    "productRegistrationRemoved": true,
+    "retainedFileCount": 11,
+    "dataPreservedExactly": true
+  },
+  "retainedFiles": [
+    {
+      "relativePath": "backups\\memtextual-2026-10-18T02-14-57-131Z\\durable-data-export.json",
+      "bytes": 1403,
+      "sha256": "009895c5445fd9302b5928f0ba39eb1451faac074ce8b0f28be053734d7b0cf7"
+    },
+    {
+      "relativePath": "backups\\memtextual-2026-10-18T02-14-57-131Z\\manifest.json",
+      "bytes": 41154,
+      "sha256": "1cc45c68d8b812ca8b9901be9092f4e166687a0075c4bd224f16cffad0d6cfe4"
+    },
+    {
+      "relativePath": "backups\\memtextual-2026-10-18T02-14-57-131Z\\memtextual.db",
+      "bytes": 745472,
+      "sha256": "51930bef452b0d53b0e37ce2577c4871d6aa3209362ce1248bdbe9efe0c6b3c2"
+    },
+    {
+      "relativePath": "backups\\memtextual-2026-10-18T02-14-57-131Z\\memtextual.db-shm",
+      "bytes": 32768,
+      "sha256": "fd4c9fda9cd3f9ae7c962b0ddf37232294d55580e1aa165aa06129b8549389eb"
+    },
+    {
+      "relativePath": "backups\\memtextual-2026-10-18T02-14-57-131Z\\memtextual.db-wal",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "relativePath": "conversation.json",
+      "bytes": 286,
+      "sha256": "cbd9987bccb2b8fd1667348456fbf373e68d20fcebccd18c5b14cd2635a6898d"
+    },
+    {
+      "relativePath": "data\\memtextual.db",
+      "bytes": 745472,
+      "sha256": "3e3ee1e06f3742dbc072d24146efc21e188c088b32833dab11b163e2f2fb0457"
+    },
+    {
+      "relativePath": "data\\memtextual.db-shm",
+      "bytes": 32768,
+      "sha256": "fd4c9fda9cd3f9ae7c962b0ddf37232294d55580e1aa165aa06129b8549389eb"
+    },
+    {
+      "relativePath": "data\\memtextual.db-wal",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "relativePath": "deployment.json",
+      "bytes": 422,
+      "sha256": "517b7bff637bc99c6fcbe00de938035a8f98576d787ff147f9fa442caf66ae11"
+    },
+    {
+      "relativePath": "installation.json",
+      "bytes": 925,
+      "sha256": "4c0adecd5fbb209d8e2b9573a17b9909112f37cb7aedd0cabcb0d0049528b0a6"
+    }
+  ],
+  "passed": true,
+  "notProven": [
+    "Approved proprietary EULA and interactive installer UI",
+    "Production Authenticode signing",
+    "Production release-candidate installation",
+    "Behavior with non-synthetic user data",
+    "Opted-in host provisioning, which has a separate durable validation receipt"
+  ]
+}

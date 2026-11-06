@@ -74,6 +74,7 @@ The system provides:
 
 ```text
 CHANGELOG.md               Version history
+docs/developer-setup.md    Remembered Developer paths and safe Codex registration
 docs/schema.md             Domain model and behavioral rules
 docs/service.md            Service contract and lifecycle behavior
 docs/mcp.md                MCP tools, configuration, and host example
@@ -313,21 +314,28 @@ cloud provider.
 
 ## Deliberately deferred
 
-Additional vendor extractor and host-event clients, vendor-specific legacy-export
-adapters, graphical source-series privacy workflows, standalone-source deletion,
+Trusted host-project-to-MemTextual-project-scope mapping, additional vendor
+extractor and host-event clients, vendor-specific legacy-export adapters,
+graphical source-series privacy workflows, standalone-source deletion,
 additional cloud destination adapters, resumable imports, streamable HTTP,
 REST API, admin UI, concrete vendor embedding provider, concrete host capture
 integrations, production signing and production-signed release validation,
 additional secure credential-store providers, a combined Developer/Continuity
 launcher, final proprietary legal terms, third-party dependency license/notice
 inventory and bundle integration, and public-release validation remain open.
-These distribution-only items are deferred while MemTextual remains in private,
-single-user functional evaluation; they must be completed before any public
+All remain deferred while MemTextual is in private, single-user functional
+evaluation. The distribution-specific items must be completed before any public
 distribution. The combined launcher is considered only after both editions are
 independently functional, complete, distributable through their
 edition-appropriate delivery mechanisms, and lifecycle-validated. It may
 offer Developer, Continuity, or both, but must preserve their separate
 components, privileges, configuration, privacy expectations, and update paths.
+
+Project-to-scope mapping must use a stable project identity supplied by an
+authorized host, not a project display name inferred from conversation text.
+Until a host supplies that identity and MemTextual implements an explicit
+mapping workflow, ChatGPT Project instructions may name a scope ID as a
+convenience but are not guaranteed automatic scope selection.
 
 Ordinary ChatGPT passive capture is not on this deferred roadmap. OpenAI's
 official ChatGPT clients currently provide no supported outbound completed-turn

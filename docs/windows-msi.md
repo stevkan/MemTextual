@@ -4,12 +4,22 @@ MSI is the adopted Windows installer container for MemTextual Continuity. The
 package is per-machine and x64 because the supported Windows deployment uses a
 dedicated local account, protected machine paths, and Task Scheduler resources.
 
-The MSI can optionally connect the existing host integration. Host mutation is
-off by default and is enabled only when installation explicitly supplies
-`MEMTEXTUAL_HOST_ACTIONS=1`. The deployment file must already exist at
+Normal installation copies the application and creates two Start-menu entries:
+`Set up MemTextual Continuity` and `MemTextual Continuity`. The setup entry
+opens a local console after installation and explicitly asks for the user's
+display name, persona, extraction model, optional persona details, and backup
+directory. Those values are never passed through MSI properties or written to
+Windows Installer logs. Setup creates or verifies the managed ProgramData
+configuration and refuses to overwrite a conflicting existing installation.
+
+The MSI can also connect a previously configured host integration during
+installation. This advanced path is off by default and is enabled only when
+installation explicitly supplies `MEMTEXTUAL_HOST_ACTIONS=1`. Its deployment
+file must already exist at
 `C:\ProgramData\MemTextual Continuity\deployment.json`; it remains secret-free
 and retains the user's previously selected data, backup, credential, and
-replication paths.
+replication paths. A normal first-time user installs the files, runs the setup
+entry, and separately previews and approves host protection afterward.
 
 ## Build safeguards
 
@@ -88,6 +98,21 @@ wix extension add -g WixToolset.UI.wixext/7.0.0
 The built-in `WixUI_Minimal` flow presents the approved RTF and requires
 acceptance during full interactive installation. Quiet Windows Installer runs
 remain available for explicitly automated validation and deployment.
+
+## Installed first-run entries
+
+- **Set up MemTextual Continuity** runs the bundled Node runtime and unified
+  launcher with `setup --interactive`. It creates the standard ProgramData
+  directories, database, protected onboarding snapshot, deployment and
+  conversation configurations, and installation profile.
+- **MemTextual Continuity** starts the persona selected by the saved installation
+  profile. It fails closed with a direct error until first-run setup succeeds.
+
+The installer does not automatically choose a model or persona, configure
+credentials, enable host mutation, schedule protection, or start the client.
+Host installation remains a separately previewed, exact-confirmation, elevated
+operation. Existing data and configuration are reused only when they match the
+requested managed paths and identity; uninstall remains data-preserving.
 
 ## Commands
 
@@ -176,6 +201,15 @@ Windows normalizes a rewritten inheriting DACL by setting
 the owner, group, DACL entries and order, and every other control flag, while
 allowing only that documented metadata normalization. The durable receipt is
 [`validation/windows-msi-host-provisioning-2026-10-17.json`](validation/windows-msi-host-provisioning-2026-10-17.json).
+
+On October 17, 2026, a clean, network-disabled Windows Sandbox run validated
+the corrected post-install first-run path with MSI
+`20a13c358675c64cd852e94831f436d956ec0cb7cf87fa8edfb7a9836aa3594c`.
+The actual setup shortcut completed all seven prompts, created the managed
+profile, configuration, database, and backup, and the actual launch shortcut
+opened a loopback listener. Uninstall removed application files and product
+registration while preserving all 11 generated files exactly. The durable
+receipt is [`validation/windows-msi-first-run-lifecycle-2026-10-17.json`](validation/windows-msi-first-run-lifecycle-2026-10-17.json).
 
 ## Remaining installer work
 

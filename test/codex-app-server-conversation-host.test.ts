@@ -10,9 +10,23 @@ import {
   type CodexAppServerProcess,
   type ConversationHostEvent,
 } from "../src/index.js";
+import { codexAppServerArguments } from
+  "../src/hosts/codex-app-server-conversation-host.js";
 
 type Message = Record<string, unknown>;
 type MessageHandler = (message: Message, server: FakeAppServerProcess) => void;
+
+test("forces MXC for the restricted Windows conversation host", () => {
+  assert.deepEqual(codexAppServerArguments("win32").slice(0, 3), [
+    "app-server",
+    "-c",
+    'windows.sandbox="mxc"',
+  ]);
+  assert.equal(
+    codexAppServerArguments("linux").includes('windows.sandbox="mxc"'),
+    false,
+  );
+});
 
 class FakeAppServerProcess extends EventEmitter implements CodexAppServerProcess {
   readonly stdout = new PassThrough();
@@ -22,7 +36,10 @@ class FakeAppServerProcess extends EventEmitter implements CodexAppServerProcess
   #input = "";
   #exited = false;
 
-  constructor(readonly handleMessage: MessageHandler) {
+  constructor(
+    readonly handleMessage: MessageHandler,
+    readonly configuredMcpServerNames: string[] = [],
+  ) {
     super();
     this.stdin = new Writable({
       write: (chunk, _encoding, callback) => {
@@ -34,7 +51,20 @@ class FakeAppServerProcess extends EventEmitter implements CodexAppServerProcess
             if (line.length === 0) continue;
             const message = JSON.parse(line) as Message;
             this.received.push(message);
-            this.handleMessage(message, this);
+            if (message.method === "config/read") {
+              this.send({
+                id: message.id,
+                result: {
+                  config: {
+                    mcp_servers: Object.fromEntries(
+                      this.configuredMcpServerNames.map((name) => [name, {}]),
+                    ),
+                  },
+                },
+              });
+            } else {
+              this.handleMessage(message, this);
+            }
           }
           callback();
         } catch (error) {
@@ -58,6 +88,12 @@ class FakeAppServerProcess extends EventEmitter implements CodexAppServerProcess
     this.emit("exit", code, null);
   }
 
+  fail(error: Error): void {
+    if (this.#exited) return;
+    this.#exited = true;
+    this.emit("error", error);
+  }
+
   kill(): boolean {
     this.crash(0);
     return true;
@@ -76,8 +112,11 @@ function standardHandler(message: Message, server: FakeAppServerProcess): void {
   }
 }
 
-test("starts and resumes Codex App Server conversations after the required handshake", async () => {
-  const server = new FakeAppServerProcess(standardHandler);
+test("isolates a new Codex conversation from inherited tool providers", async () => {
+  const server = new FakeAppServerProcess(standardHandler, [
+    "memtextual",
+    "node_repl",
+  ]);
   const host = new CodexAppServerConversationHost({ processFactory: () => server });
 
   assert.deepEqual(
@@ -102,9 +141,26 @@ test("starts and resumes Codex App Server conversations after the required hands
   });
   assert.deepEqual(
     server.received.map((message) => message.method),
-    ["initialize", "initialized", "thread/start", "thread/resume"],
+    ["initialize", "initialized", "config/read", "thread/start"],
   );
-  const startParams = server.received[2]?.params as Record<string, unknown>;
+  assert.deepEqual(server.received[0]?.params, {
+    capabilities: { experimentalApi: true },
+    clientInfo: {
+      name: "memtextual-continuity",
+      title: "MemTextual Continuity",
+      version: "0.8.0",
+    },
+  });
+  const startParams = server.received[3]?.params as Record<string, unknown>;
+  assert.deepEqual(startParams.config, {
+    features: { apps: false, plugins: false },
+    mcp_servers: {
+      memtextual: { enabled: false },
+      node_repl: { enabled: false },
+    },
+    web_search: "disabled",
+  });
+  assert.equal(startParams.permissions, "memtextual-continuity");
   assert.equal(startParams.model, "gpt-test");
   assert.equal(typeof startParams.developerInstructions, "string");
   const [notice, serializedBehavior] = (
@@ -121,10 +177,85 @@ test("starts and resumes Codex App Server conversations after the required hands
     profileRevision: 1,
     instructions: "Be warm.\nKeep answers concise.",
   });
-  assert.deepEqual(server.received[3]?.params, {
-    threadId: "thread-1",
-    excludeTurns: true,
+  await host.close();
+});
+
+test("isolates a resumed Codex conversation from inherited tool providers", async () => {
+  const server = new FakeAppServerProcess(standardHandler, ["memtextual"]);
+  const host = new CodexAppServerConversationHost({
+    processFactory: () => server,
+    workingDirectory: "C:\\memtextual-continuity",
   });
+
+  assert.deepEqual(await host.resumeConversation("thread-existing"), {
+    id: "thread-existing",
+  });
+  assert.deepEqual(
+    server.received.map((message) => message.method),
+    ["initialize", "initialized", "config/read", "thread/resume"],
+  );
+  assert.deepEqual(server.received[3]?.params, {
+    threadId: "thread-existing",
+    excludeTurns: true,
+    config: {
+      features: { apps: false, plugins: false },
+      mcp_servers: { memtextual: { enabled: false } },
+      web_search: "disabled",
+    },
+    permissions: "memtextual-continuity",
+    cwd: "C:\\memtextual-continuity",
+  });
+  await host.close();
+});
+
+test("lists the visible Codex model catalog across pages", async () => {
+  const server = new FakeAppServerProcess((message, fake) => {
+    if (message.method === "initialize") {
+      fake.send({ id: message.id, result: {} });
+    } else if (message.method === "model/list") {
+      const params = message.params as Record<string, unknown>;
+      const secondPage = params.cursor === "models-page-2";
+      fake.send({
+        id: message.id,
+        result: {
+          data: [{
+            description: secondPage ? "Efficient model" : "Balanced model",
+            displayName: secondPage ? "Luna" : "Sol",
+            hidden: false,
+            id: secondPage ? "catalog-luna" : "catalog-sol",
+            isDefault: !secondPage,
+            model: secondPage ? "gpt-luna" : "gpt-sol",
+          }],
+          ...(secondPage ? {} : { nextCursor: "models-page-2" }),
+        },
+      });
+    }
+  });
+  const host = new CodexAppServerConversationHost({ processFactory: () => server });
+
+  assert.deepEqual(await host.listModels(), [
+    {
+      description: "Balanced model",
+      displayName: "Sol",
+      id: "catalog-sol",
+      isDefault: true,
+      model: "gpt-sol",
+    },
+    {
+      description: "Efficient model",
+      displayName: "Luna",
+      id: "catalog-luna",
+      isDefault: false,
+      model: "gpt-luna",
+    },
+  ]);
+  assert.deepEqual(
+    server.received.filter(({ method }) => method === "model/list").map(({ params }) => params),
+    [
+      { includeHidden: false, limit: 100 },
+      { cursor: "models-page-2", includeHidden: false, limit: 100 },
+    ],
+  );
   await host.close();
 });
 
@@ -209,23 +340,22 @@ test("runs an ephemeral structured task with a restricted turn", async () => {
     }),
     '{"proposals":[]}',
   );
-  assert.deepEqual(server.received[2]?.params, {
+  assert.deepEqual(server.received[3]?.params, {
+    config: {
+      features: { apps: false, plugins: false },
+      mcp_servers: {},
+      web_search: "disabled",
+    },
     developerInstructions: "Return extracted memories.",
     ephemeral: true,
     model: "gpt-test",
+    permissions: "memtextual-continuity",
   });
-  assert.deepEqual(server.received[3]?.params, {
+  assert.deepEqual(server.received[4]?.params, {
     threadId: "thread-1",
     input: [{ type: "text", text: '{"records":[]}' }],
     approvalPolicy: "never",
-    sandboxPolicy: {
-      type: "readOnly",
-      access: {
-        type: "restricted",
-        includePlatformDefaults: false,
-        readableRoots: [],
-      },
-    },
+    permissions: "memtextual-continuity",
     outputSchema: schema,
   });
   await host.close();
@@ -313,14 +443,7 @@ test("streams a turn and resolves only from the authoritative completed assistan
     threadId: "thread-1",
     input: [{ type: "text", text: "Say hello." }],
     approvalPolicy: "never",
-    sandboxPolicy: {
-      type: "readOnly",
-      access: {
-        type: "restricted",
-        includePlatformDefaults: false,
-        readableRoots: [],
-      },
-    },
+    permissions: "memtextual-continuity",
   });
   await host.close();
 });
@@ -441,6 +564,29 @@ test("rejects an interrupted turn and permits a clean process restart", async ()
   );
   assert.deepEqual(await host.resumeConversation("thread-1"), { id: "thread-1" });
   assert.equal(second.received[0]?.method, "initialize");
+  await host.close();
+});
+
+test("reports a safe operating-system code when the App Server process cannot start", async () => {
+  const server = new FakeAppServerProcess((message, fake) => {
+    if (message.method === "initialize") {
+      const error = Object.assign(new Error("sensitive executable path"), {
+        code: "ENOENT",
+      });
+      queueMicrotask(() => fake.fail(error));
+    }
+  });
+  const host = new CodexAppServerConversationHost({ processFactory: () => server });
+
+  await assert.rejects(
+    host.startConversation(),
+    (error: unknown) => {
+      assert.ok(error instanceof CodexAppServerError);
+      assert.equal(error.message, "Codex App Server process failed (ENOENT).");
+      assert.equal(error.message.includes("sensitive executable path"), false);
+      return true;
+    },
+  );
   await host.close();
 });
 

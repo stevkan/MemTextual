@@ -21,6 +21,7 @@ function setup(invalidOutput = false) {
   mkdirSync(join(bundleDirectory, "dist", "src", "cli"), { recursive: true });
   mkdirSync(join(bundleDirectory, "runtime"), { recursive: true });
   writeFileSync(join(bundleDirectory, "dist", "src", "cli", "windows-msi-host-action.js"), "host\n");
+  writeFileSync(join(bundleDirectory, "dist", "src", "cli", "memtextual.js"), "main\n");
   writeFileSync(join(bundleDirectory, "runtime", "node.exe"), "node\n");
   for (const name of ["bundle-manifest.json", "bundle-manifest.sig", "bundle-signing-certificate.pem"]) writeFileSync(join(bundleDirectory, name), `${name}\n`);
   const wixExecutablePath = join(root, "wix.exe");
@@ -54,6 +55,7 @@ function setup(invalidOutput = false) {
       files: [
         { bytes: 4, path: "dist/app.js", sha256: "a".repeat(64) },
         { bytes: 5, path: "dist/src/cli/windows-msi-host-action.js", sha256: "d".repeat(64) },
+        { bytes: 5, path: "dist/src/cli/memtextual.js", sha256: "f".repeat(64) },
         { bytes: 5, path: "runtime/node.exe", sha256: "e".repeat(64) },
       ],
       formatVersion: 1, nodeVersion: "24.21.0", packageName: "memtextual-continuity",
@@ -75,12 +77,14 @@ describe("Windows MSI build boundary", () => {
     const source = renderWindowsMsiSource({
       approvedEulaRtfPath: "C:\\approved & final.rtf",
       bundleDirectory: "C:\\bundle", files: [
-        "dist/app&one.js", "dist/src/cli/windows-msi-host-action.js", "README.md", "runtime/node.exe",
+        "dist/app&one.js", "dist/src/cli/memtextual.js", "dist/src/cli/windows-msi-host-action.js", "README.md", "runtime/node.exe",
       ],
       manufacturer: "Owner & Publisher", packageVersion: "0.8.0",
     });
     assert.match(source, /Scope="perMachine"/u);
     assert.match(source, /xmlns:ui="http:\/\/wixtoolset\.org\/schemas\/v4\/wxs\/ui"/u);
+    assert.match(source, /StandardDirectory Id="ProgramMenuFolder"/u);
+    assert.equal(source.match(/Advertise="yes"/gu)?.length, 2);
     assert.match(source, /<ui:WixUI Id="WixUI_Minimal" \/>/u);
     assert.match(source, /WixUILicenseRtf/u);
     assert.match(source, /approved &amp; final\.rtf/u);
@@ -93,6 +97,12 @@ describe("Windows MSI build boundary", () => {
     assert.match(source, /NOT UPGRADINGPRODUCTCODE/u);
     assert.equal(source.match(/HideTarget="yes"/gu)?.length, 4);
     assert.match(source, /C:\\ProgramData\\MemTextual Continuity\\deployment\.json/u);
+    assert.match(source, /Name="Set up MemTextual Continuity"/u);
+    assert.match(source, /setup --interactive --application-directory/u);
+    assert.match(source, /--application-directory &quot;\[INSTALLFOLDER\]\.&quot;/u);
+    assert.match(source, /Name="MemTextual Continuity"/u);
+    assert.match(source, /dist\\src\\cli\\memtextual\.js&quot; start/u);
+    assert.doesNotMatch(source, /MEMTEXTUAL_(?:USER|PERSONA|MODEL)/u);
   });
 
   it("previews, exactly confirms, builds, and validates an unsigned MSI", async () => {

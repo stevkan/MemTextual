@@ -5,6 +5,8 @@
   "license": "UNLICENSED",
   "main": "dist/src/index.js",
   "bin": {
+    "memtextual": "dist/src/cli/memtextual.js",
+    "memtextual-developer": "dist/src/cli/memtextual-developer.js",
     "memtextual-mcp": "dist/src/mcp/stdio.js",
     "memtextual-migrate": "dist/src/cli/migrate.js",
     "memtextual-safeguard": "dist/src/cli/safeguard.js",
@@ -26,6 +28,8 @@
     "test": "node --import tsx --test test/**/*.test.ts",
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
+    "memtextual": "tsx src/cli/memtextual.ts",
+    "memtextual-developer": "tsx src/cli/memtextual-developer.ts",
     "mcp": "tsx src/mcp/stdio.ts",
     "migrate": "tsx src/cli/migrate.ts",
     "review": "tsx src/cli/review.ts",

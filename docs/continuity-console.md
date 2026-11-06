@@ -30,7 +30,7 @@ recovery controls by supplying one secret-free configuration file:
   "formatVersion": 1,
   "adapterId": "codex-app-server-windows",
   "deploymentConfigurationPath": "C:\\ProgramData\\MemTextual Continuity\\deployment.json",
-  "extractionModel": "EXPLICIT_CODEX_MODEL_ID",
+  "extractionModel": "gpt-6-luna",
   "workingDirectory": "C:\\Users\\YOUR_NAME\\Documents\\MemTextual Conversations"
 }
 ```
@@ -42,6 +42,13 @@ and the separate sensitivity-classification task; a conversation start may
 separately choose a conversation model or use the Codex host default. The
 working directory is the dedicated directory assigned to the Codex
 conversation host.
+
+The `gpt-6-luna` value above is illustrative, not an assumed default. Use a
+`model` identifier returned by `memtextual models` or the numbered selector in
+guided setup. Codex App Server describes that response as a catalog rather than
+an entitlement guarantee; successful inference verifies access.
+[OpenAI's Codex App Server documentation](https://developers.openai.com/siwc/token-sharing-open-source/codex-app-server)
+defines this behavior.
 
 Do not put an API key, password, token, connection string, certificate, or other
 secret in this file. Unknown properties are rejected. Both configuration files,

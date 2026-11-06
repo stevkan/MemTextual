@@ -23,8 +23,16 @@ and relationship names, source identity, and up to 100 source records. Persona,
 relationship, source, and record metadata are not forwarded. Input over 256
 KiB fails visibly rather than being silently truncated.
 
-The task uses the same no-approval, read-only sandbox with no readable roots as
-the conversation adapter. App Server output still passes through the strict
+The task and conversation adapter use the same no-approval
+`memtextual-continuity` permission profile. It denies filesystem-root access,
+permits only Codex's minimal runtime paths, and disables command network access.
+Each Continuity thread also disables inherited MCP servers, apps, plugins, and
+hosted web search so the conversation and extraction models cannot invoke the
+user's unrelated Codex integrations.
+On native Windows, Continuity forces Codex's MXC sandbox because the legacy
+`elevated` sandbox requires filesystem-root read access; startup fails closed
+when MXC is unavailable rather than widening the profile.
+App Server output still passes through the strict
 provider validator and the ordinary evidence, persona, sensitivity, and review
 boundaries. Evidence excerpts, when present, must occur verbatim in the cited
 source record; a generated or paraphrased excerpt fails before candidate
