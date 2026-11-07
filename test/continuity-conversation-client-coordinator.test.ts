@@ -6,9 +6,9 @@ import {
   type ContinuityConversation,
   type ContinuityConversationCaptureRetryResult,
   type ContinuityConversationClientOperations,
+  type ContinuityConversationJournaledTurnResult,
   type ContinuityConversationReconciliationResult,
   type ContinuityConversationTurnCapture,
-  type ContinuityConversationTurnResult,
   type ReconcileContinuityConversationInput,
   type ResumeContinuityConversationInput,
   type SendContinuityConversationTurnInput,
@@ -35,16 +35,20 @@ const reconciliation: ContinuityConversationReconciliationResult = {
   recovered: [],
 };
 
-const turnResult = Object.freeze({}) as ContinuityConversationTurnResult;
+const turnResult = Object.freeze({
+  captureRecord: { id: "capture-1" },
+}) as ContinuityConversationJournaledTurnResult;
 const retryResult = Object.freeze({}) as ContinuityConversationCaptureRetryResult;
 
 class FakeConversationOperations implements ContinuityConversationClientOperations {
   readonly calls: string[] = [];
   recoverableCaptures: ContinuityConversationTurnCapture[] = [];
   reconcileFailure: Error | null = null;
-  sendTurnImplementation: (
+  journalTurnImplementation: (
     input: SendContinuityConversationTurnInput,
-  ) => Promise<ContinuityConversationTurnResult> = async () => turnResult;
+  ) => Promise<ContinuityConversationJournaledTurnResult> = async () => turnResult;
+  retryCaptureImplementation: () => Promise<ContinuityConversationCaptureRetryResult> =
+    async () => retryResult;
 
   async startConversation(
     _input: StartContinuityConversationInput,
@@ -75,16 +79,16 @@ class FakeConversationOperations implements ContinuityConversationClientOperatio
     return this.recoverableCaptures;
   }
 
-  async sendTurn(
+  async journalTurn(
     input: SendContinuityConversationTurnInput,
-  ): Promise<ContinuityConversationTurnResult> {
-    this.calls.push("send");
-    return this.sendTurnImplementation(input);
+  ): Promise<ContinuityConversationJournaledTurnResult> {
+    this.calls.push("journal");
+    return this.journalTurnImplementation(input);
   }
 
   async retryCapture(): Promise<ContinuityConversationCaptureRetryResult> {
     this.calls.push("retry");
-    return retryResult;
+    return this.retryCaptureImplementation();
   }
 }
 
@@ -126,6 +130,14 @@ test("open reconciles authoritative history before resuming and enables turns", 
   ]);
 
   assert.equal(await coordinator.sendTurn(sendInput), turnResult);
+  await coordinator.drain();
+  assert.deepEqual(operations.calls, [
+    "reconcile",
+    "recoverable:persona-1",
+    "resume",
+    "journal",
+    "retry",
+  ]);
 });
 
 test("open surfaces unresolved recovery for only the selected conversation", async () => {
@@ -210,14 +222,15 @@ test("a newly started conversation is immediately ready", async () => {
     conversation,
   );
   assert.equal(await coordinator.sendTurn(sendInput), turnResult);
-  assert.deepEqual(operations.calls, ["start", "send"]);
+  await coordinator.drain();
+  assert.deepEqual(operations.calls, ["start", "journal", "retry"]);
 });
 
 test("a failed send closes the conversation until it is reopened", async () => {
   const operations = new FakeConversationOperations();
   const coordinator = new ContinuityConversationClientCoordinator(operations);
   await coordinator.openConversation(openInput);
-  operations.sendTurnImplementation = async () => {
+  operations.journalTurnImplementation = async () => {
     throw new Error("capture failed");
   };
 
@@ -228,27 +241,45 @@ test("a failed send closes the conversation until it is reopened", async () => {
   );
 });
 
-test("only one turn can be active and leaving removes local readiness", async () => {
+test("a journaled response returns before capture and blocks another turn", async () => {
   const operations = new FakeConversationOperations();
   const coordinator = new ContinuityConversationClientCoordinator(operations);
   await coordinator.openConversation(openInput);
-  let completeTurn: ((result: ContinuityConversationTurnResult) => void) | undefined;
-  operations.sendTurnImplementation = () =>
+  let completeCapture:
+    | ((result: ContinuityConversationCaptureRetryResult) => void)
+    | undefined;
+  operations.retryCaptureImplementation = () =>
     new Promise((resolve) => {
-      completeTurn = resolve;
+      completeCapture = resolve;
     });
 
-  const activeTurn = coordinator.sendTurn(sendInput);
+  assert.equal(await coordinator.sendTurn(sendInput), turnResult);
   await assert.rejects(coordinator.sendTurn(sendInput), /already has an active turn/);
   assert.throws(
     () => coordinator.leaveConversation(conversation.id, conversation.personaId),
     /has an active operation/,
   );
-  assert.ok(completeTurn !== undefined);
-  completeTurn(turnResult);
-  assert.equal(await activeTurn, turnResult);
+  assert.ok(completeCapture !== undefined);
+  completeCapture(retryResult);
+  await coordinator.drain();
 
   coordinator.leaveConversation(conversation.id, conversation.personaId);
+  await assert.rejects(
+    coordinator.sendTurn(sendInput),
+    /must be opened and reconciled/,
+  );
+});
+
+test("a background capture failure closes the conversation for recovery", async () => {
+  const operations = new FakeConversationOperations();
+  const coordinator = new ContinuityConversationClientCoordinator(operations);
+  await coordinator.openConversation(openInput);
+  operations.retryCaptureImplementation = async () => {
+    throw new Error("ambient capture failed");
+  };
+
+  assert.equal(await coordinator.sendTurn(sendInput), turnResult);
+  await coordinator.drain();
   await assert.rejects(
     coordinator.sendTurn(sendInput),
     /must be opened and reconciled/,

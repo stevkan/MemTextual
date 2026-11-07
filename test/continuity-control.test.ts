@@ -93,13 +93,37 @@ async function capture(
   setup: ReturnType<typeof fixture>,
   personaId: string,
   content: string,
+  provenance?: {
+    conversationId: string;
+    turnId: string;
+    occurredAt: string;
+  },
 ) {
   return setup.ambient.captureInteraction({
     personaId,
     source: {
       kind: "chat",
       title: "Control-service evidence",
-      records: [{ kind: "message", authorRole: "user", content }],
+      ...(provenance === undefined
+        ? {}
+        : {
+            metadata: {
+              continuityConversation: {
+                conversationId: provenance.conversationId,
+                turnId: provenance.turnId,
+              },
+            },
+          }),
+      records: [
+        {
+          kind: "message",
+          authorRole: "user",
+          content,
+          ...(provenance === undefined
+            ? {}
+            : { occurredAt: provenance.occurredAt }),
+        },
+      ],
     },
   });
 }
@@ -116,6 +140,11 @@ test("control queue is persona-bound and resolves evidence-backed candidates", a
       setup,
       setup.skylar.persona.id,
       "Steve prefers concise answers.",
+      {
+        conversationId: "conversation-skylar-1",
+        turnId: "turn-skylar-1",
+        occurredAt: "2026-11-06T22:15:30.000Z",
+      },
     );
     await capture(
       setup,
@@ -140,12 +169,29 @@ test("control queue is persona-bound and resolves evidence-backed candidates", a
     assert.equal(queue.length, 1);
     assert.equal(queue[0]?.candidate.id, skylarCapture.candidates[0]?.id);
     assert.equal(queue[0]?.memoryClass, "durable");
+    assert.deepEqual(queue[0]?.provenance, [
+      {
+        sourceId: skylarCapture.source.id,
+        sourceTitle: "Control-service evidence",
+        sourceKind: "chat",
+        sourceCapturedAt: null,
+        sourceCreatedAt: skylarCapture.source.createdAt,
+        recordOccurredAt: "2026-11-06T22:15:30.000Z",
+        conversationId: "conversation-skylar-1",
+        turnId: "turn-skylar-1",
+      },
+    ]);
 
     const review = setup.control.getCandidateReview(
       setup.skylar.persona.id,
       skylarCapture.candidates[0]!.id,
     );
     assert.equal(review.evidence[0]?.record?.content, "Steve prefers concise answers.");
+    assert.equal(
+      review.evidence[0]?.provenance?.conversationId,
+      "conversation-skylar-1",
+    );
+    assert.equal(review.evidence[0]?.provenance?.turnId, "turn-skylar-1");
     assert.throws(
       () =>
         setup.control.getCandidateReview(

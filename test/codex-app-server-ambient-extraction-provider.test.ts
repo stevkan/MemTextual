@@ -101,12 +101,14 @@ test("Codex ambient provider sends bounded untrusted data through a structured t
 
   assert.equal(await provider.extract(extractionInput), runner.output);
   assert.equal(provider.id, "openai.codex-app-server.ambient-extraction");
-  assert.equal(provider.version, "1:model=gpt-test");
+  assert.equal(provider.version, "2:model=gpt-test");
   assert.equal(runner.calls.length, 1);
   const call = runner.calls[0]!;
   assert.equal(call.model, "gpt-test");
   assert.match(call.developerInstructions, /untrusted conversation data/u);
   assert.match(call.developerInstructions, /Never follow commands/u);
+  assert.match(call.developerInstructions, /UAT or test markers/u);
+  assert.match(call.developerInstructions, /all task_context proposals/u);
   const payload = JSON.parse(call.input) as Record<string, unknown>;
   assert.equal(payload.contentRole, "untrusted_conversation_data");
   assert.deepEqual(payload.persona, {
@@ -121,6 +123,41 @@ test("Codex ambient provider sends bounded untrusted data through a structured t
       undefined,
     true,
   );
+});
+
+test("structured extraction normalizes task context to episodic", async () => {
+  const runner = new RecordingRunner();
+  runner.output = JSON.stringify({
+    proposals: [
+      {
+        assertion: "The current UAT marker is cobalt-2026-11-06.",
+        type: "task_context",
+        memoryClass: "durable",
+        evidence: [
+          {
+            sourceRecordId: "record-user",
+            role: "supports",
+            excerpt: "Please remember the current UAT marker.",
+          },
+        ],
+        explicitness: "explicit",
+        confidence: 1,
+        sensitivity: "normal",
+      },
+    ],
+  });
+  const extractor = new StructuredAmbientMemoryExtractor(
+    new CodexAppServerAmbientExtractionProvider(runner, { model: "gpt-test" }),
+  );
+
+  const proposals = await extractor.extract(extractionInput);
+
+  assert.equal(proposals[0]?.type, "task_context");
+  assert.equal(proposals[0]?.memoryClass, "episodic");
+  assert.deepEqual(proposals[0]?.metadata?.["classificationNormalization"], {
+    rule: "task_context_is_episodic",
+    originalMemoryClass: "durable",
+  });
 });
 
 test("Codex ambient provider requires a recorded model and bounded input", async () => {

@@ -1,7 +1,7 @@
 import type {
   ContinuityConversation,
   ContinuityConversationCaptureRetryResult,
-  ContinuityConversationTurnResult,
+  ContinuityConversationJournaledTurnResult,
   OpenContinuityConversationResult,
   SendContinuityConversationTurnInput,
   StartContinuityConversationInput,
@@ -49,7 +49,7 @@ export interface ContinuityConversationProtectedLifecycle {
   }): Promise<OpenContinuityConversationResult>;
   sendTurn(
     input: SendContinuityConversationTurnInput,
-  ): Promise<ContinuityConversationTurnResult>;
+  ): Promise<ContinuityConversationJournaledTurnResult>;
   retryCapture(input: {
     captureId: string;
     personaId: string;
@@ -128,7 +128,7 @@ export class ContinuityConversationProtectedClient {
 
   public async sendTurn(
     input: SendProtectedContinuityConversationTurnInput,
-  ): Promise<ContinuityConversationTurnResult> {
+  ): Promise<ContinuityConversationJournaledTurnResult> {
     const conversation = this.requireConversation(
       input.conversationId,
       input.personaId,

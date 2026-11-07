@@ -1,6 +1,7 @@
 import type {
   ContinuityCandidateQueueItem,
   ContinuityCandidateQueueQuery,
+  ContinuityCandidateProvenance,
   ContinuityCandidateResolutionRequest,
   ContinuityCandidateReview,
   ContinuityControlMutationContext,
@@ -19,6 +20,7 @@ import type {
 import type {
   CandidateResolutionResult,
   MemoryCandidate,
+  SourceRecord,
 } from "../domain/ingestion.js";
 import type {
   Memory,
@@ -30,6 +32,24 @@ import type { PersonaRepository } from "../repositories/persona-repository.js";
 import type { ContinuityMemoryService } from "./continuity-memory-service.js";
 import type { IngestionService } from "./ingestion-service.js";
 import type { MemoryService } from "./memory-service.js";
+
+function recordObject(value: unknown): Record<string, unknown> | null {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
+}
+
+function optionalRecordText(
+  value: Record<string, unknown> | null,
+  key: string,
+): string | null {
+  const candidate = value?.[key];
+  if (typeof candidate !== "string") {
+    return null;
+  }
+  const normalized = candidate.trim();
+  return normalized.length > 0 && normalized.length <= 512 ? normalized : null;
+}
 
 export class ExplicitContinuityControlActionRequiredError extends Error {
   public constructor() {
@@ -53,10 +73,14 @@ export class ContinuityControlService {
     this.requirePersona(query.personaId);
     return this.repository
       .listCandidateBindings(query.personaId, query.status, query.limit)
-      .map((binding) => ({
-        candidate: this.requireCandidate(binding.candidateId),
-        memoryClass: binding.memoryClass,
-      }));
+      .map((binding) => {
+        const candidate = this.requireCandidate(binding.candidateId);
+        return {
+          candidate,
+          memoryClass: binding.memoryClass,
+          provenance: this.candidateProvenance(candidate),
+        };
+      });
   }
 
   public getCandidateReview(
@@ -74,11 +98,52 @@ export class ContinuityControlService {
     return {
       candidate,
       memoryClass: binding.memoryClass,
-      evidence: candidate.evidence.map((evidence) => ({
-        evidence,
-        record: this.ingestion.getSourceRecord(evidence.sourceRecordId),
-      })),
+      evidence: candidate.evidence.map((evidence) => {
+        const record = this.ingestion.getSourceRecord(evidence.sourceRecordId);
+        return {
+          evidence,
+          record,
+          provenance: record === null ? null : this.recordProvenance(record),
+        };
+      }),
       matches,
+    };
+  }
+
+  private candidateProvenance(
+    candidate: MemoryCandidate,
+  ): ContinuityCandidateProvenance[] {
+    const unique = new Map<string, ContinuityCandidateProvenance>();
+    for (const evidence of candidate.evidence) {
+      const record = this.ingestion.getSourceRecord(evidence.sourceRecordId);
+      if (record === null || unique.has(record.sourceId)) {
+        continue;
+      }
+      const provenance = this.recordProvenance(record);
+      if (provenance !== null) {
+        unique.set(record.sourceId, provenance);
+      }
+    }
+    return [...unique.values()];
+  }
+
+  private recordProvenance(
+    record: SourceRecord,
+  ): ContinuityCandidateProvenance | null {
+    const source = this.ingestion.getSource(record.sourceId);
+    if (source === null) {
+      return null;
+    }
+    const continuity = recordObject(source.metadata["continuityConversation"]);
+    return {
+      sourceId: source.id,
+      sourceTitle: source.title,
+      sourceKind: source.kind,
+      sourceCapturedAt: source.capturedAt,
+      sourceCreatedAt: source.createdAt,
+      recordOccurredAt: record.occurredAt,
+      conversationId: optionalRecordText(continuity, "conversationId"),
+      turnId: optionalRecordText(continuity, "turnId"),
     };
   }
 

@@ -65,7 +65,8 @@ The deployment database and bundled migrations directory are selected
 automatically. If `--database` or `--migrations` is also provided, it must
 resolve to that same deployment path or startup fails. Omitting
 `--conversation-config` preserves the read-only runtime behavior. On shutdown,
-the listener stops first, followed by the Codex host and then SQLite.
+the listener stops first, in-progress background capture is allowed to finish,
+and then the Codex host and SQLite are closed.
 
 ## Current controls
 
@@ -77,10 +78,15 @@ the listener stops first, followed by the Codex host and then SQLite.
   policy, and optional pinned or protected state. Direct entries have no source
   evidence attached and are recorded as explicit user-created memories.
 - Inspect the selected persona's pending candidates and their retained evidence.
+  Queue cards show the local capture time. Conversation-derived evidence also
+  identifies the originating conversation and completed-turn time and links to
+  that conversation's local journal.
 - Inspect exact or semantic match suggestions for a candidate.
 - Accept, reject, or ignore a candidate, with an optional review note.
 - Reconcile a candidate with a selected active persona memory by revising,
   reaffirming, contradicting, or superseding it.
+- Review-action buttons show concise explanations on pointer hover and keyboard
+  focus, including when an active memory must be selected first.
 - Inspect persona memories and immutable revision history.
 - List the selected persona's persisted conversations and inspect the exact
   user and assistant text held in MemTextual's durable local capture journal.
@@ -113,15 +119,17 @@ can contain additional completed turns until opening performs history
 reconciliation. A new browser or console process treats stored conversations as
 closed until the user explicitly opens and reconciles them.
 
-The loopback server now has an optional conversation API boundary for explicit
+The loopback server has an optional conversation API boundary for explicit
 authorization creation, authorization listing and revocation, conversation
 start, reopen, leave, completed-turn submission, and failed-capture retry. It
 fixes the user, persona, relationship, host, and allowed event kind on the
 server. Strict browser inputs cannot supply those values or a raw host grant.
-If capture fails after a model response completes, the API returns the exact
-completed turn and a generic recoverable capture record without returning the
-internal exception or grant. Retrying reuses that journaled turn and does not
-generate another model response.
+The turn API returns the exact completed response after it is durably journaled,
+with capture still pending. The page renders that response immediately, then
+polls the durable record while extraction, sensitivity classification,
+candidate creation, and review automation continue in the background. Retrying
+a failed capture reuses the journaled turn and does not generate another model
+response.
 
 The packaged console command enables this optional runtime only when the
 explicit configuration above is supplied. Without it, the dashboard reports
@@ -130,10 +138,12 @@ response. With it, the page exposes explicit authorization and conversation
 controls. Raw grants remain absent from the database, browser requests, browser
 state, responses, configuration, and command-line arguments.
 
-If a model response completes but ambient capture fails, the page refreshes the
-durable journal so the completed response remains visible, marks the
-conversation closed locally, and requires an explicit capture retry followed by
-another open-and-reconcile action. Retry does not submit another model turn.
+If a model response completes but ambient capture fails, the polling page
+refreshes the durable journal so the completed response remains visible, marks
+the conversation closed locally, and requires an explicit capture retry
+followed by another open-and-reconcile action. Retry does not submit another
+model turn. If the process stops unexpectedly while capture is pending, the
+journal remains the recovery source on the next open.
 
 ## External host-thread deletion
 

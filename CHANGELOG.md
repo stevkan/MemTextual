@@ -29,8 +29,28 @@ describe only the current design and behavior.
 - Isolated new, resumed, and ephemeral Continuity threads from inherited Codex
   MCP servers, apps, plugins, and hosted web search. This prevents temporary
   extraction and classification threads from launching unrelated Developer MCP
-  subprocesses. The client now displays an explicit response-and-capture
-  progress message while the synchronous turn pipeline is active.
+  subprocesses.
+- Added a default Continuity integration notice to every new Codex conversation
+  thread. It explains that MemTextual evaluates completed turns after the model
+  responds and prevents the model from claiming a storage outcome it cannot
+  observe, including false read-only or saved-memory claims.
+- Changed the live Continuity client so it durably journals and renders a
+  completed model response before extraction, sensitivity classification,
+  candidate creation, and review automation finish. Capture continues as a
+  tracked background task with visible progress and durable polling; another
+  turn remains blocked until capture succeeds or fails, and shutdown drains
+  in-progress capture before closing the host.
+- Clarified and versioned Codex ambient-extraction categories so temporary
+  working values and UAT or test markers are task context rather than durable
+  facts. Task context is normalized to episodic with an audit marker, and exact
+  duplicate matching now crosses type boundaries. Exact cross-type duplicates
+  can be reaffirmed without changing the existing memory's type.
+- Added candidate provenance to the Continuity review interface. Pending cards
+  show capture time, and conversation-derived evidence shows its originating
+  conversation and completed-turn time with a direct local-journal link. The
+  display uses existing source metadata and requires no database migration.
+- Added accessible pointer-hover and keyboard-focus explanations to every
+  candidate-review action, including active-memory selection requirements.
 
 - Added deterministic Codex desktop CLI discovery for Developer connection
   setup and documented npm 11's additional argument separator for explicit

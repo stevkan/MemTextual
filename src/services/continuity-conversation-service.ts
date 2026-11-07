@@ -15,6 +15,7 @@ import {
   continuityConversationTurnEventKind,
   type ContinuityConversation,
   type ContinuityConversationCaptureRetryResult,
+  type ContinuityConversationJournaledTurnResult,
   type ContinuityConversationReconciliationResult,
   type ContinuityConversationTurnCapture,
   type ContinuityConversationTurnPayload,
@@ -165,6 +166,35 @@ export class ContinuityConversationService {
   public async sendTurn(
     input: SendContinuityConversationTurnInput,
   ): Promise<ContinuityConversationTurnResult> {
+    const journaled = await this.journalTurn(input);
+    try {
+      const captured = await this.captureTurn(
+        journaled.conversation,
+        journaled.captureRecord,
+        input.grant,
+      );
+      const stored = this.repository.markTurnCaptureCaptured(
+        journaled.captureRecord.id,
+        this.#now().toISOString(),
+        captured.receipt.id,
+      );
+      return { ...journaled, capture: captured, captureRecord: stored };
+    } catch (error) {
+      const failed = this.markCaptureFailed(journaled.captureRecord);
+      throw new ContinuityConversationCaptureError(
+        "The host turn completed, but ambient capture failed.",
+        journaled.conversation,
+        journaled.turn,
+        journaled.context,
+        failed,
+        { cause: error },
+      );
+    }
+  }
+
+  public async journalTurn(
+    input: SendContinuityConversationTurnInput,
+  ): Promise<ContinuityConversationJournaledTurnResult> {
     const text = requiredText(input.text, "text");
     const conversation = this.requireConversation(input.conversationId, input.personaId);
     this.assertConversationAuthorized(conversation, input.grant);
@@ -197,26 +227,7 @@ export class ContinuityConversationService {
       contextFormatVersion: context.payload.formatVersion,
       memoryRevisionIds: context.payload.items.map(({ revisionId }) => revisionId),
     });
-
-    try {
-      const captured = await this.captureTurn(conversation, captureRecord, input.grant);
-      const stored = this.repository.markTurnCaptureCaptured(
-        captureRecord.id,
-        this.#now().toISOString(),
-        captured.receipt.id,
-      );
-      return { conversation, turn, context, capture: captured, captureRecord: stored };
-    } catch (error) {
-      const failed = this.markCaptureFailed(captureRecord);
-      throw new ContinuityConversationCaptureError(
-        "The host turn completed, but ambient capture failed.",
-        conversation,
-        turn,
-        context,
-        failed,
-        { cause: error },
-      );
-    }
+    return { conversation, turn, context, captureRecord };
   }
 
   public listRecoverableCaptures(

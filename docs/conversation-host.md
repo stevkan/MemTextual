@@ -44,10 +44,18 @@ required `initialize`/`initialized` handshake, then maps:
 - authoritative assistant text and completion to `item/completed` and
   `turn/completed`.
 
-At thread creation, the adapter maps optional persona behavior to Codex App
-Server's stable `developerInstructions` field. It prefixes the serialized
-contract with its authority limits and preserves the user-authored instruction
-text exactly. No persona behavior is sent when none was supplied.
+At thread creation, the adapter always uses Codex App Server's stable
+`developerInstructions` field to explain the Continuity integration boundary:
+MemTextual evaluates a completed turn after the model responds, and the model
+cannot observe or control the resulting storage decision. The model is told not
+to claim that a memory was saved, rejected, unavailable, or read-only; the
+Continuity client reports capture and review state instead.
+
+When optional persona behavior is enabled, the adapter appends its versioned
+contract after that integration notice. It prefixes the serialized contract
+with its authority limits and preserves the user-authored instruction text
+exactly. A neutral conversation receives the integration notice without a
+persona-behavior contract.
 
 Production construction requires an explicit absolute working directory. The
 adapter also supplies that directory to `thread/start` so a Continuity

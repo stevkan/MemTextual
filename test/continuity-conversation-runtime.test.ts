@@ -248,7 +248,12 @@ test("production runtime composes protected conversation and ambient capture bou
       text: "I prefer tea.",
     });
 
-    assert.equal(result.capture.createdCandidateCount, 1);
+    assert.equal(result.captureRecord.status, "pending");
+    await runtime.close();
+    const storedCapture = database.prepare(
+      `SELECT status FROM continuity_conversation_turn_captures WHERE id = ?`,
+    ).get(result.captureRecord.id) as { status: string };
+    assert.equal(storedCapture.status, "captured");
     assert.equal(host.structuredTasks.length, 2);
     assert.equal(host.structuredTasks[0]?.model, "gpt-runtime-test");
     assert.equal(host.structuredTasks[1]?.model, "gpt-runtime-test");
@@ -276,7 +281,6 @@ test("production runtime composes protected conversation and ambient capture bou
         "openai.codex-app-server.sensitivity-classification",
     });
 
-    await runtime.close();
     await runtime.close();
     assert.equal(host.closeCalls, 1);
     assert.doesNotThrow(() => database.prepare("SELECT 1").get());
@@ -355,6 +359,33 @@ test("console conversation API keeps identity and grants behind the loopback bou
         },
         origin,
       );
+    const waitForCaptureStatus = async (
+      conversationId: string,
+      captureId: string,
+      status: "captured" | "failed",
+    ) => {
+      for (let attempt = 0; attempt < 100; attempt += 1) {
+        const detailResponse = await request(
+          `/api/conversations/${encodeURIComponent(conversationId)}`,
+          undefined,
+          "GET",
+        );
+        assert.equal(detailResponse.status, 200);
+        const detail = JSON.parse(detailResponse.body) as {
+          turns: Array<{
+            id: string;
+            status: string;
+            failureCode: string | null;
+          }>;
+        };
+        const capture = detail.turns.find(({ id }) => id === captureId);
+        if (capture?.status === status) {
+          return capture;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 1));
+      }
+      throw new Error(`Capture ${captureId} did not reach ${status}.`);
+    };
 
     const dashboard = await request("/api/dashboard", undefined, "GET");
     assert.equal(dashboard.status, 200);
@@ -416,6 +447,15 @@ test("console conversation API keeps identity and grants behind the loopback bou
     );
     assert.equal(turnResponse.status, 200);
     assert.equal(turnResponse.body.includes("mthg_"), false);
+    const journaledTurn = JSON.parse(turnResponse.body) as {
+      captureRecord: { id: string; status: string };
+    };
+    assert.equal(journaledTurn.captureRecord.status, "pending");
+    await waitForCaptureStatus(
+      conversation.id,
+      journaledTurn.captureRecord.id,
+      "captured",
+    );
     assert.equal(hostAdapter.structuredTasks.length, 2);
     assert.equal(ingestion.listCandidates().length, 1);
     assert.equal(ingestion.listCandidates()[0]?.status, "pending");
@@ -436,19 +476,20 @@ test("console conversation API keeps identity and grants behind the loopback bou
       `/api/conversations/${encodeURIComponent(conversation.id)}/turns`,
       { text: "I also prefer coffee." },
     );
-    assert.equal(failedCaptureResponse.status, 409);
+    assert.equal(failedCaptureResponse.status, 200);
     assert.equal(failedCaptureResponse.body.includes("mthg_"), false);
     const failedCapture = JSON.parse(failedCaptureResponse.body) as {
-      status: string;
       turn: { assistantText: string };
       captureRecord: { id: string; status: string; failureCode: string };
-      cause?: unknown;
     };
-    assert.equal(failedCapture.status, "capture_failed");
     assert.equal(failedCapture.turn.assistantText, "I will remember that.");
-    assert.equal(failedCapture.captureRecord.status, "failed");
-    assert.equal(failedCapture.captureRecord.failureCode, "ambient_capture_failed");
-    assert.equal(failedCapture.cause, undefined);
+    assert.equal(failedCapture.captureRecord.status, "pending");
+    const storedFailure = await waitForCaptureStatus(
+      conversation.id,
+      failedCapture.captureRecord.id,
+      "failed",
+    );
+    assert.equal(storedFailure.failureCode, "ambient_capture_failed");
 
     const recoveryResponse = await request(
       `/api/conversations/${encodeURIComponent(conversation.id)}/open`,

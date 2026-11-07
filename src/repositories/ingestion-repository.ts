@@ -23,6 +23,7 @@ import type { Memory } from "../domain/memory.js";
 export interface IngestionRepository {
   importSource(input: ImportSourceInput): SourceImportResult;
   listSources(limit?: number): Source[];
+  getSource(id: string): Source | null;
   getSourceHistory(kind: Source["kind"], externalId: string): Source[];
   getSourceRecord(id: string): SourceRecord | null;
   getSourceRecords(sourceId: string): SourceRecord[];

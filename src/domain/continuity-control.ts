@@ -5,6 +5,7 @@ import type {
   CandidateResolutionInput,
   CandidateStatus,
   MemoryCandidate,
+  Source,
   SourceRecord,
 } from "./ingestion.js";
 import type {
@@ -27,11 +28,24 @@ export interface ContinuityControlMutationContext {
 export interface ContinuityCandidateQueueItem {
   candidate: MemoryCandidate;
   memoryClass: PersonaMemoryClass;
+  provenance: ContinuityCandidateProvenance[];
+}
+
+export interface ContinuityCandidateProvenance {
+  sourceId: string;
+  sourceTitle: string;
+  sourceKind: Source["kind"];
+  sourceCapturedAt: string | null;
+  sourceCreatedAt: string;
+  recordOccurredAt: string | null;
+  conversationId: string | null;
+  turnId: string | null;
 }
 
 export interface ContinuityCandidateEvidenceView {
   evidence: CandidateEvidence;
   record: SourceRecord | null;
+  provenance: ContinuityCandidateProvenance | null;
 }
 
 export interface ContinuityCandidateReview {

@@ -29,7 +29,10 @@ import {
   type ContinuityConsoleApplication,
   type ContinuityConsoleRequest,
 } from "../src/index.js";
-import { continuityConsoleJavaScript } from "../src/ui/continuity-console-page.js";
+import {
+  continuityConsoleCss,
+  continuityConsoleJavaScript,
+} from "../src/ui/continuity-console-page.js";
 
 const origin = "http://127.0.0.1:47321";
 const host = "127.0.0.1:47321";
@@ -43,14 +46,54 @@ test("Continuity console browser exposes grantless conversation, recovery, and p
   assert.match(continuityConsoleJavaScript, /Create authorization/u);
   assert.match(continuityConsoleJavaScript, /Open and reconcile/u);
   assert.match(continuityConsoleJavaScript, /Send message/u);
+  assert.match(continuityConsoleJavaScript, /checking memories/u);
   assert.match(continuityConsoleJavaScript, /Retry capture/u);
+  assert.match(continuityConsoleJavaScript, /Turn completed/u);
+  assert.match(continuityConsoleJavaScript, /View conversation/u);
   assert.match(continuityConsoleJavaScript, /Permanent local journal purge/u);
   assert.match(continuityConsoleJavaScript, /journal-purge-preview/u);
   assert.match(continuityConsoleJavaScript, /acknowledgeExternalCopiesMayRemain/u);
   assert.match(continuityConsoleJavaScript, /capture_failed/u);
   assert.match(continuityConsoleJavaScript, /reconciliation_capture_failed/u);
+  assert.match(continuityConsoleJavaScript, /Response completed\. Checking the turn/u);
+  assert.match(continuityConsoleJavaScript, /waitForCapture/u);
   assert.equal(continuityConsoleJavaScript.includes("innerHTML"), false);
   assert.equal(continuityConsoleJavaScript.includes("grant:"), false);
+});
+
+test("Continuity candidate review actions expose accessible explanations", () => {
+  assert.match(continuityConsoleCss, /\.action-tooltip:hover \.action-tooltip-text/u);
+  assert.match(continuityConsoleCss, /\.action-tooltip:focus-within \.action-tooltip-text/u);
+  assert.match(continuityConsoleJavaScript, /role", "tooltip/u);
+  assert.match(continuityConsoleJavaScript, /aria-describedby/u);
+  assert.match(
+    continuityConsoleJavaScript,
+    /Creates a separate active memory from this candidate\./u,
+  );
+  assert.match(
+    continuityConsoleJavaScript,
+    /Updates the selected memory with this candidate and preserves its revision history\./u,
+  );
+  assert.match(
+    continuityConsoleJavaScript,
+    /Keeps the selected memory unchanged and records this candidate as supporting evidence\./u,
+  );
+  assert.match(
+    continuityConsoleJavaScript,
+    /marks it as contradicting the selected memory/u,
+  );
+  assert.match(
+    continuityConsoleJavaScript,
+    /marks the selected memory as replaced/u,
+  );
+  assert.match(
+    continuityConsoleJavaScript,
+    /Dismisses this candidate without treating its assertion as incorrect\./u,
+  );
+  assert.match(
+    continuityConsoleJavaScript,
+    /Rejects this candidate so it does not become a memory\./u,
+  );
 });
 
 function fixture() {
@@ -277,7 +320,10 @@ test("Continuity console requires its session token and persona boundary", async
     assert.equal(dashboardResponse.status, 200);
     const dashboard = JSON.parse(dashboardResponse.body) as {
       persona: { id: string; name: string };
-      candidates: Array<{ candidate: { id: string } }>;
+      candidates: Array<{
+        candidate: { id: string };
+        provenance: Array<{ sourceTitle: string; conversationId: string | null }>;
+      }>;
       memories: unknown[];
       conversationRuntime: { enabled: boolean };
     };
@@ -289,6 +335,8 @@ test("Continuity console requires its session token and persona boundary", async
       dashboard.candidates.map(({ candidate }) => candidate.id),
       [skylarCapture.candidates[0]!.id],
     );
+    assert.equal(dashboard.candidates[0]?.provenance[0]?.sourceTitle, "Console test");
+    assert.equal(dashboard.candidates[0]?.provenance[0]?.conversationId, null);
     assert.equal(dashboard.memories.length, 0);
     assert.deepEqual(dashboard.conversationRuntime, { enabled: false });
 
@@ -305,9 +353,13 @@ test("Continuity console requires its session token and persona boundary", async
       url: `/api/candidates/${skylarCapture.candidates[0]!.id}`,
     });
     const review = JSON.parse(reviewResponse.body) as {
-      evidence: Array<{ record: { content: string } | null }>;
+      evidence: Array<{
+        record: { content: string } | null;
+        provenance: { sourceTitle: string; conversationId: string | null } | null;
+      }>;
     };
     assert.equal(review.evidence[0]?.record?.content, "Steve prefers concise answers.");
+    assert.equal(review.evidence[0]?.provenance?.sourceTitle, "Console test");
 
     const crossPersona = await request(application, token, {
       method: "GET",

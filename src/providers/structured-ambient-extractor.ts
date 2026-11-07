@@ -35,7 +35,23 @@ const proposalSchema = z
     isProtected: z.boolean().optional(),
     metadata: z.record(z.string(), z.unknown()).optional(),
   })
-  .strict();
+  .strict()
+  .transform((proposal) => {
+    if (proposal.type !== "task_context" || proposal.memoryClass === "episodic") {
+      return proposal;
+    }
+    return {
+      ...proposal,
+      memoryClass: "episodic" as const,
+      metadata: {
+        ...(proposal.metadata ?? {}),
+        classificationNormalization: {
+          rule: "task_context_is_episodic",
+          originalMemoryClass: proposal.memoryClass,
+        },
+      },
+    };
+  });
 
 function requiredIdentity(value: string, label: string): string {
   const normalized = value.trim();

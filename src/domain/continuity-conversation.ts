@@ -202,12 +202,16 @@ export interface ContinuityConversationTurnPayload {
   };
 }
 
-export interface ContinuityConversationTurnResult {
+export interface ContinuityConversationJournaledTurnResult {
   conversation: ContinuityConversation;
   turn: CompletedConversationTurn;
   context: ContinuityContextComposition;
-  capture: HostEventCaptureResult;
   captureRecord: ContinuityConversationTurnCapture;
+}
+
+export interface ContinuityConversationTurnResult
+  extends ContinuityConversationJournaledTurnResult {
+  capture: HostEventCaptureResult;
 }
 
 export interface ContinuityConversationCaptureRetryResult {

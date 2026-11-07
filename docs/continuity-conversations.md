@@ -34,11 +34,15 @@ from persona descriptions, memories, retrieved context, or conversation text.
 The immutable conversation binding records the applied profile ID and revision;
 later edits apply only to new conversations.
 
-The Codex App Server adapter supplies the contract through
-`developerInstructions` only when starting the thread. Its framing limits the
-configuration to conversational identity, style, and interaction preferences;
-it does not authorize tools, data access, system changes, or memory-policy
-changes. Memory data and the current user message remain separate turn inputs.
+The Codex App Server adapter always supplies a Continuity integration notice
+through `developerInstructions` when starting the thread. The notice explains
+that MemTextual evaluates completed turns after the model responds and that the
+model must not claim a memory storage outcome it cannot observe. When persona
+behavior is enabled, the adapter appends that contract after the notice. Its
+framing limits persona configuration to conversational identity, style, and
+interaction preferences; it does not authorize tools, data access, system
+changes, or memory-policy changes. Memory data and the current user message
+remain separate turn inputs.
 
 The local Continuity control console exposes profile creation, revision,
 enablement, disablement, and history for its bound persona. Existing host
@@ -73,6 +77,17 @@ memory assertions are not copied into the source or made extraction evidence.
 Candidate extraction, sensitivity classification, temporal handling, and review
 automation then follow the existing ambient-memory rules. A successfully
 completed turn does not imply that every proposal is automatically accepted.
+The Codex extractor defines stable facts separately from temporary task context:
+working codes, setup details, and UAT or test markers are `task_context` and are
+episodic. The structured boundary normalizes any provider-returned durable task
+context to episodic and records that adjustment in candidate metadata.
+
+Exact candidate matching searches eligible active persona memories across
+memory types. This prevents a provider type variation from hiding an otherwise
+identical assertion. A cross-type candidate can reaffirm an existing memory
+only when their normalized assertions are exact; the existing memory keeps its
+established type. Semantic matching and other cross-type resolutions remain
+type-bound.
 
 If host generation fails or is interrupted, no completed-turn capture runs.
 Migration 018 adds `continuity_conversation_turn_captures`, an immutable-payload
@@ -84,6 +99,9 @@ text. Failed attempts retain only the generic `ambient_capture_failed` code.
 If the host succeeds but capture fails, the service throws
 `ContinuityConversationCaptureError`, which retains the completed response,
 context, and durable journal entry without reporting capture success.
+The interactive client uses the same service in two stages instead: it returns
+the journaled response while capture is pending, then tracks capture in the
+background and exposes its durable terminal state.
 `listRecoverableCaptures` exposes pending and failed entries only within the
 selected persona. `retryCapture` rechecks the original authorization and reuses
 the original event identity and dialogue; it does not submit another model
@@ -163,8 +181,8 @@ throws `ContinuityConversationReconciliationCaptureError`, and ordinary
 
 ## Client lifecycle gate
 
-`ContinuityConversationClientCoordinator` provides the lifecycle a future
-client must use. A newly started conversation becomes ready immediately. A
+`ContinuityConversationClientCoordinator` provides the lifecycle the local
+client uses. A newly started conversation becomes ready immediately. A
 persisted conversation remains closed until the coordinator has reconciled its
 authoritative host history, checked for pending or failed capture records for
 that exact conversation, and resumed the host session in that order.
@@ -173,9 +191,14 @@ Unresolved records produce
 `ContinuityConversationOpenRecoveryRequiredError`, including the exact
 persona-authorized records the client must present for recovery. Reconciliation
 or resume failure leaves the conversation closed. Only one turn can be active
-per conversation, and any turn failure closes local readiness so the next turn
-requires an explicit reopen and reconciliation. Leaving a conversation also
-removes readiness. This state is process-local and stores no bearer grant.
+per conversation. After authoritative host completion, the coordinator returns
+the durably journaled response to the page and enters a `capturing` state while
+it tracks background capture. Another turn and leave remain blocked until
+capture reaches a durable terminal state. Capture success restores readiness;
+capture failure closes local readiness so the next turn requires an explicit
+retry, reopen, and reconciliation. Leaving a ready conversation also removes
+readiness. Runtime shutdown drains tracked capture tasks before closing the
+host. This state is process-local and stores no bearer grant.
 
 `ContinuityConversationProtectedClient` is the outer runtime boundary for
 start, reopen, send, and leave. It accepts persona and conversation identifiers,
@@ -215,17 +238,20 @@ still fail closed to sensitive, pending candidates.
 The local console server exposes optional, same-origin, token-protected
 authorization and conversation operations without accepting or returning host
 bearer grants. It fixes persona and host authority server-side and preserves a
-completed model response in a structured recovery response if ambient capture
-fails. A grantless retry operation can recapture that exact journaled turn
-without another model response. The packaged Windows CLI constructs this
-runtime only when given an explicit, secret-free conversation configuration
-that references the existing deployment configuration. It verifies that the
-deployment database is the database opened by the console and closes the
-listener, host, and database in dependency order. The graphical page exposes
+completed model response in the durable journal before ambient capture runs in
+the background. The page polls that record to report capture completion or a
+generic recoverable failure. A grantless retry operation can recapture that
+exact journaled turn without another model response. The packaged Windows CLI
+constructs this runtime only when given an explicit, secret-free conversation
+configuration that references the existing deployment configuration. It
+verifies that the deployment database is the database opened by the console
+and closes the listener, host, and database in dependency order. The graphical
+page exposes
 explicit grantless authorization, start, open-and-reconcile, send, leave, and
 capture-retry controls while continuing to render the exact durable journal.
-Completed output remains visible when capture fails, and the page requires
-recovery before reopening rather than silently retrying or regenerating a turn.
+Completed output remains visible while capture runs and when capture fails. The
+page requires recovery before reopening rather than silently retrying or
+regenerating a turn.
 The same page exposes preview-bound external host-thread deletion and the
 separate preview-bound local journal purge, each with explicit retained-copy
 acknowledgements and durable status.

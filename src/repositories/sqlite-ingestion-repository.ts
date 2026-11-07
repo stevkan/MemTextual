@@ -341,6 +341,13 @@ export class SqliteIngestionRepository implements IngestionRepository {
     return rows.map(mapSource);
   }
 
+  public getSource(id: string): Source | null {
+    const row = this.database
+      .prepare(`${this.sourceSelect()} WHERE s.id = ? AND s.deleted_at IS NULL`)
+      .get(id) as SourceRow | undefined;
+    return row === undefined ? null : mapSource(row);
+  }
+
   public getSourceHistory(kind: SourceKind, externalId: string): Source[] {
     const normalized = validateText(externalId, "A source external ID");
     const rows = this.database
@@ -950,7 +957,6 @@ export class SqliteIngestionRepository implements IngestionRepository {
          FROM memory_items m
          JOIN memory_revisions r ON r.id = m.current_revision_id
          WHERE m.status = 'active'
-           AND m.memory_type = ?
            AND EXISTS (
              SELECT 1 FROM memory_scopes ms
              WHERE ms.memory_id = m.id AND ms.scope_id = ?
@@ -958,7 +964,7 @@ export class SqliteIngestionRepository implements IngestionRepository {
          ORDER BY m.updated_at DESC, m.id
          LIMIT 100`,
       )
-      .all(candidate.type, candidate.scopeId) as Array<{ id: string }>;
+      .all(candidate.scopeId) as Array<{ id: string }>;
 
     const matches: CandidateMatch[] = [];
     for (const row of rows) {
@@ -972,9 +978,12 @@ export class SqliteIngestionRepository implements IngestionRepository {
           memory,
           matchKind: "exact_normalized",
           score: 1,
-          reason: "The candidate and active memory have the same normalized assertion.",
+          reason:
+            candidate.type === memory.type
+              ? "The candidate and active memory have the same normalized assertion."
+              : `The candidate and active memory have the same normalized assertion despite different types (${candidate.type} and ${memory.type}).`,
           matcherId: "memtextual.exact-normalized",
-          matcherVersion: "1",
+          matcherVersion: "2",
         });
       }
       if (matches.length >= safeLimit) {
@@ -1051,7 +1060,11 @@ export class SqliteIngestionRepository implements IngestionRepository {
     let resultMemoryId = "";
     const resolveTransaction = this.database.transaction(() => {
       const candidate = this.requirePendingCandidate(id);
-      const target = this.requireResolutionTarget(candidate, targetMemoryId);
+      const target = this.requireResolutionTarget(
+        candidate,
+        targetMemoryId,
+        resolution.outcome,
+      );
       let result;
 
       if (resolution.outcome === "revise") {
@@ -1513,7 +1526,11 @@ export class SqliteIngestionRepository implements IngestionRepository {
   private requireResolutionTarget(
     candidate: MemoryCandidate,
     targetMemoryId: string,
+    outcome: CandidateResolutionKind,
   ) {
+    if (outcome === "create" || outcome === "ignore") {
+      throw new Error(`${outcome} does not use a target memory.`);
+    }
     const target = this.memoryRepository.getById(targetMemoryId);
     if (target === null) {
       throw new Error(`Target memory not found: ${targetMemoryId}`);
@@ -1524,7 +1541,17 @@ export class SqliteIngestionRepository implements IngestionRepository {
       );
     }
     if (target.type !== candidate.type) {
-      throw new Error("Candidate and target memory types must match.");
+      const exactCrossTypeReaffirm =
+        outcome === "reaffirm" &&
+        normalizeForExactMatch(target.normalizedAssertion ?? target.assertion) ===
+          normalizeForExactMatch(
+            candidate.normalizedAssertion ?? candidate.assertion,
+          );
+      if (!exactCrossTypeReaffirm) {
+        throw new Error(
+          "Candidate and target memory types must match unless an exact duplicate is reaffirmed.",
+        );
+      }
     }
     if (!target.scopes.some(({ id }) => id === candidate.scopeId)) {
       throw new Error("Candidate and target memory must share the candidate scope.");

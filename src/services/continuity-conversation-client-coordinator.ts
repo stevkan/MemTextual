@@ -1,9 +1,9 @@
 import type {
   ContinuityConversation,
   ContinuityConversationCaptureRetryResult,
+  ContinuityConversationJournaledTurnResult,
   ContinuityConversationReconciliationResult,
   ContinuityConversationTurnCapture,
-  ContinuityConversationTurnResult,
   OpenContinuityConversationResult,
   ReconcileContinuityConversationInput,
   RetryContinuityConversationCaptureInput,
@@ -23,9 +23,9 @@ export interface ContinuityConversationClientOperations {
     input: ReconcileContinuityConversationInput,
   ): Promise<ContinuityConversationReconciliationResult>;
   listRecoverableCaptures(personaId: string): ContinuityConversationTurnCapture[];
-  sendTurn(
+  journalTurn(
     input: SendContinuityConversationTurnInput,
-  ): Promise<ContinuityConversationTurnResult>;
+  ): Promise<ContinuityConversationJournaledTurnResult>;
   retryCapture(
     input: RetryContinuityConversationCaptureInput,
   ): Promise<ContinuityConversationCaptureRetryResult>;
@@ -33,7 +33,7 @@ export interface ContinuityConversationClientOperations {
 
 interface OpenConversationState {
   personaId: string;
-  status: "opening" | "ready" | "sending";
+  status: "opening" | "ready" | "sending" | "capturing";
 }
 
 export class ContinuityConversationOpenRecoveryRequiredError extends Error {
@@ -55,6 +55,7 @@ export class ContinuityConversationOpenRecoveryRequiredError extends Error {
  */
 export class ContinuityConversationClientCoordinator {
   readonly #open = new Map<string, OpenConversationState>();
+  readonly #captureTasks = new Set<Promise<void>>();
 
   public constructor(
     private readonly conversations: ContinuityConversationClientOperations,
@@ -77,7 +78,7 @@ export class ContinuityConversationClientCoordinator {
     const conversationId = requiredText(input.conversationId, "conversationId");
     const personaId = requiredText(input.personaId, "personaId");
     const current = this.#open.get(conversationId);
-    if (current?.status === "opening" || current?.status === "sending") {
+    if (current !== undefined && current.status !== "ready") {
       throw new Error("The Continuity conversation has an active operation.");
     }
     const opening: OpenConversationState = { personaId, status: "opening" };
@@ -119,7 +120,7 @@ export class ContinuityConversationClientCoordinator {
 
   public async sendTurn(
     input: SendContinuityConversationTurnInput,
-  ): Promise<ContinuityConversationTurnResult> {
+  ): Promise<ContinuityConversationJournaledTurnResult> {
     const conversationId = requiredText(input.conversationId, "conversationId");
     const personaId = requiredText(input.personaId, "personaId");
     const current = this.#open.get(conversationId);
@@ -132,18 +133,37 @@ export class ContinuityConversationClientCoordinator {
         "The Continuity conversation must be opened and reconciled before sending.",
       );
     }
-    if (current.status === "sending") {
+    if (current.status !== "ready") {
       throw new Error("The Continuity conversation already has an active turn.");
     }
     current.status = "sending";
     try {
-      const result = await this.conversations.sendTurn(input);
-      current.status = "ready";
+      const result = await this.conversations.journalTurn(input);
+      current.status = "capturing";
+      const captureTask = this.conversations.retryCapture({
+        captureId: result.captureRecord.id,
+        personaId,
+        grant: input.grant,
+      }).then(() => {
+        if (this.#open.get(conversationId) === current) {
+          current.status = "ready";
+        }
+      }).catch(() => {
+        if (this.#open.get(conversationId) === current) {
+          this.#open.delete(conversationId);
+        }
+      }).then(() => undefined);
+      this.#captureTasks.add(captureTask);
+      void captureTask.finally(() => this.#captureTasks.delete(captureTask));
       return result;
     } catch (error) {
       this.#open.delete(conversationId);
       throw error;
     }
+  }
+
+  public async drain(): Promise<void> {
+    await Promise.all([...this.#captureTasks]);
   }
 
   public async retryCapture(

@@ -163,11 +163,13 @@ test("isolates a new Codex conversation from inherited tool providers", async ()
   assert.equal(startParams.permissions, "memtextual-continuity");
   assert.equal(startParams.model, "gpt-test");
   assert.equal(typeof startParams.developerInstructions, "string");
-  const [notice, serializedBehavior] = (
+  const [memoryNotice, behaviorNotice, serializedBehavior] = (
     startParams.developerInstructions as string
-  ).split("\n", 2);
-  assert.match(notice ?? "", /persona behavior configuration/);
-  assert.match(notice ?? "", /does not authorize tool use/);
+  ).split("\n", 3);
+  assert.match(memoryNotice ?? "", /MemTextual evaluates completed turns after/u);
+  assert.match(memoryNotice ?? "", /do not claim that it was saved/u);
+  assert.match(behaviorNotice ?? "", /persona behavior configuration/);
+  assert.match(behaviorNotice ?? "", /does not authorize tool use/);
   assert.deepEqual(JSON.parse(serializedBehavior ?? ""), {
     format: "memtextual.persona_behavior",
     formatVersion: 1,
@@ -205,6 +207,24 @@ test("isolates a resumed Codex conversation from inherited tool providers", asyn
     permissions: "memtextual-continuity",
     cwd: "C:\\memtextual-continuity",
   });
+  await host.close();
+});
+
+test("explains out-of-band memory capture for a neutral conversation", async () => {
+  const server = new FakeAppServerProcess(standardHandler);
+  const host = new CodexAppServerConversationHost({ processFactory: () => server });
+
+  await host.startConversation();
+  const params = server.received[3]?.params as Record<string, unknown>;
+  assert.equal(typeof params.developerInstructions, "string");
+  assert.match(
+    params.developerInstructions as string,
+    /cannot directly observe or control that separate storage process/u,
+  );
+  assert.match(
+    params.developerInstructions as string,
+    /do not claim that it was saved, not saved, unavailable, or read-only/u,
+  );
   await host.close();
 });
 

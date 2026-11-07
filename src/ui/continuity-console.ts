@@ -10,7 +10,7 @@ import { z } from "zod";
 import { conversationGrantBindingFromAuthorization } from "../domain/conversation-grant-store.js";
 import {
   continuityConversationTurnEventKind,
-  type ContinuityConversationTurnResult,
+  type ContinuityConversationJournaledTurnResult,
 } from "../domain/continuity-conversation.js";
 import type { ConversationHostIdentity } from "../domain/conversation-host.js";
 import type { PersonaContext } from "../domain/persona.js";
@@ -21,10 +21,8 @@ import type { ContinuityConversationHostDeletionService } from "../services/cont
 import type { ContinuityConversationJournalPrivacyService } from "../services/continuity-conversation-journal-privacy-service.js";
 import { ContinuityConversationOpenRecoveryRequiredError } from "../services/continuity-conversation-client-coordinator.js";
 import type { ContinuityConversationProtectedClient } from "../services/continuity-conversation-protected-client.js";
-import {
-  ContinuityConversationCaptureError,
-  ContinuityConversationReconciliationCaptureError,
-} from "../services/continuity-conversation-service.js";
+import { ContinuityConversationReconciliationCaptureError } from
+  "../services/continuity-conversation-service.js";
 import type { ContinuityPersonaBehaviorService } from "../services/continuity-persona-behavior-service.js";
 import {
   continuityConsoleCss,
@@ -459,7 +457,7 @@ function listPersonaHostAuthorizations(
     .filter(({ hostId }) => hostId === runtime.hostIdentity.adapterId);
 }
 
-function conversationTurnResponse(result: ContinuityConversationTurnResult) {
+function conversationTurnResponse(result: ContinuityConversationJournaledTurnResult) {
   return {
     conversation: result.conversation,
     turn: result.turn,
@@ -468,7 +466,6 @@ function conversationTurnResponse(result: ContinuityConversationTurnResult) {
       itemCount: result.context.payload.items.length,
       omittedCount: result.context.omittedCount,
     },
-    capture: result.capture,
     captureRecord: result.captureRecord,
   };
 }
@@ -745,33 +742,16 @@ export function createContinuityConsoleApplication(
         if (conversationTurnId !== null) {
           const input = parseBody(conversationTurnSchema, body);
           const runtime = requireConversationRuntime(options.conversationRuntime);
-          try {
-            return jsonResponse(
-              200,
-              conversationTurnResponse(
-                await runtime.client.sendTurn({
-                  conversationId: conversationTurnId,
-                  personaId,
-                  text: input.text,
-                }),
-              ),
-            );
-          } catch (error) {
-            if (error instanceof ContinuityConversationCaptureError) {
-              return jsonResponse(409, {
-                status: "capture_failed",
-                conversation: error.conversation,
-                turn: error.turn,
-                context: {
-                  formatVersion: error.context.payload.formatVersion,
-                  itemCount: error.context.payload.items.length,
-                  omittedCount: error.context.omittedCount,
-                },
-                captureRecord: error.captureRecord,
-              });
-            }
-            throw error;
-          }
+          return jsonResponse(
+            200,
+            conversationTurnResponse(
+              await runtime.client.sendTurn({
+                conversationId: conversationTurnId,
+                personaId,
+                text: input.text,
+              }),
+            ),
+          );
         }
         const captureRetry = conversationCaptureRoute(url.pathname);
         if (captureRetry !== null) {

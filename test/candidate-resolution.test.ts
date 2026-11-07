@@ -42,20 +42,20 @@ function explicitUser(note?: string) {
   };
 }
 
-test("exact normalized matches are suggested and can reaffirm an existing memory", () => {
+test("exact normalized matches cross type boundaries and can reaffirm an existing memory", () => {
   const setup = fixture();
   try {
     const existing = setup.memoryRepository.create({
       assertion: "MemTextual is local-first.",
       normalizedAssertion: "deployment local first",
-      type: "decision",
+      type: "fact",
       scopeId: setup.scope.id,
       isProtected: true,
     });
     const candidate = setup.service.proposeCandidate({
       assertion: "MemTextual remains local first!",
       normalizedAssertion: "Deployment: local-first",
-      type: "decision",
+      type: "task_context",
       scopeId: setup.scope.id,
       evidence: [{ sourceRecordId: setup.imported.records[0]!.id }],
     });
@@ -64,6 +64,8 @@ test("exact normalized matches are suggested and can reaffirm an existing memory
     assert.equal(matches.length, 1);
     assert.equal(matches[0]?.memory.id, existing.id);
     assert.equal(matches[0]?.matchKind, "exact_normalized");
+    assert.match(matches[0]?.reason ?? "", /different types \(task_context and fact\)/u);
+    assert.equal(matches[0]?.matcherVersion, "2");
 
     assert.throws(
       () =>
@@ -181,6 +183,11 @@ for (const outcome of ["contradict", "supersede"] as const) {
 test("invalid resolution targets roll back without reviewing the candidate", () => {
   const setup = fixture();
   try {
+    const differentType = setup.memoryRepository.create({
+      assertion: "A different same-scope memory.",
+      type: "decision",
+      scopeId: setup.scope.id,
+    });
     const otherScope = setup.memoryRepository.createScope({
       kind: "project",
       name: "Other scope",
@@ -197,6 +204,16 @@ test("invalid resolution targets roll back without reviewing the candidate", () 
       scopeId: setup.scope.id,
       evidence: [{ sourceRecordId: setup.imported.records[0]!.id }],
     });
+
+    assert.throws(
+      () =>
+        setup.service.resolveCandidate(
+          candidate.id,
+          { outcome: "reaffirm", targetMemoryId: differentType.id },
+          explicitUser(),
+        ),
+      /types must match unless an exact duplicate is reaffirmed/u,
+    );
 
     assert.throws(
       () =>

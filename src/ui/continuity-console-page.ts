@@ -90,6 +90,32 @@ aside { padding: 24px 16px; border-right: 1px solid var(--line); background: rgb
 .check input { width: auto; margin: 3px 0 0; }
 .field { display: block; margin-top: 14px; color: var(--muted); font-size: 13px; }
 .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 18px; }
+.action-tooltip { position: relative; display: inline-flex; }
+.action-tooltip-text {
+  position: absolute;
+  z-index: 20;
+  bottom: calc(100% + 8px);
+  left: 0;
+  width: max-content;
+  max-width: min(280px, calc(100vw - 40px));
+  padding: 8px 10px;
+  border: 1px solid #526252;
+  border-radius: 7px;
+  background: #0c100c;
+  color: #edf3ea;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, .4);
+  font-size: 12px;
+  line-height: 1.4;
+  opacity: 0;
+  pointer-events: none;
+  visibility: hidden;
+  transition: opacity .12s ease;
+}
+.action-tooltip:hover .action-tooltip-text,
+.action-tooltip:focus-within .action-tooltip-text {
+  opacity: 1;
+  visibility: visible;
+}
 button.action { border: 1px solid var(--line); border-radius: 8px; padding: 9px 12px; background: #2a352a; color: inherit; cursor: pointer; }
 button.action:hover { border-color: var(--accent); }
 button.action.danger { color: var(--danger); }
@@ -111,10 +137,12 @@ export const continuityConsoleJavaScript = `
     dashboard: null,
     view: "candidates",
     readyConversationIds: new Set(),
+    capturingConversationIds: new Set(),
   };
   const listPanel = document.getElementById("list-panel");
   const detailPanel = document.getElementById("detail-panel");
   const notice = document.getElementById("notice");
+  let tooltipSequence = 0;
 
   function node(tag, text, className) {
     const element = document.createElement(tag);
@@ -144,6 +172,29 @@ export const continuityConsoleJavaScript = `
     return payload;
   }
 
+  function wait(milliseconds) {
+    return new Promise((resolve) => setTimeout(resolve, milliseconds));
+  }
+
+  async function waitForCapture(conversationId, captureId) {
+    const deadline = Date.now() + 120000;
+    for (;;) {
+      const detail = await api("/api/conversations/" + encodeURIComponent(conversationId));
+      const capture = detail.turns.find((turn) => turn.id === captureId);
+      if (!capture) throw new Error("The journaled turn could not be found.");
+      if (capture.status === "captured") return capture;
+      if (capture.status === "failed") {
+        const error = new Error("The response completed, but memory capture requires recovery.");
+        error.payload = { status: "capture_failed", captureRecord: capture };
+        throw error;
+      }
+      if (Date.now() >= deadline) {
+        throw new Error("The response is visible, but memory capture is still running. Reopen the conversation after it finishes.");
+      }
+      await wait(250);
+    }
+  }
+
   function setNotice(message, error) {
     notice.textContent = message || "";
     notice.style.color = error ? "var(--danger)" : "var(--accent)";
@@ -156,6 +207,40 @@ export const continuityConsoleJavaScript = `
 
   function conversationRuntimeEnabled() {
     return Boolean(state.dashboard && state.dashboard.conversationRuntime.enabled);
+  }
+
+  function localDateTime(value) {
+    if (!value) return null;
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? null : date.toLocaleString();
+  }
+
+  function provenanceDescription(provenance, fallbackTime) {
+    const captured = localDateTime(
+      provenance && (
+        provenance.recordOccurredAt ||
+        provenance.sourceCapturedAt ||
+        provenance.sourceCreatedAt
+      ) || fallbackTime,
+    );
+    if (provenance && provenance.conversationId) {
+      const summary = state.dashboard.conversations.find(
+        (item) => item.conversation.id === provenance.conversationId,
+      );
+      const started = localDateTime(summary && summary.conversation.createdAt);
+      return (started ? "Conversation from " + started : "Continuity conversation") +
+        (captured ? " · Turn completed " + captured : "");
+    }
+    return captured ? "Captured " + captured : "Capture time unavailable";
+  }
+
+  async function openProvenanceConversation(conversationId) {
+    state.view = "conversations";
+    document.querySelectorAll(".nav").forEach((item) => item.classList.remove("active"));
+    const conversationsNav = document.querySelector('.nav[data-view="conversations"]');
+    if (conversationsNav) conversationsNav.classList.add("active");
+    await refreshDashboard();
+    await showConversation(conversationId);
   }
 
   function renderList() {
@@ -208,6 +293,8 @@ export const continuityConsoleJavaScript = `
         }
         if (state.readyConversationIds.has(conversation.id)) {
           pills.append(pill("open locally"));
+        } else if (state.capturingConversationIds.has(conversation.id)) {
+          pills.append(pill("checking memories"));
         }
         button.append(pills);
         button.addEventListener("click", () => showConversation(conversation.id));
@@ -223,6 +310,14 @@ export const continuityConsoleJavaScript = `
       const pills = node("div", undefined, "pills");
       if (candidate) {
         pills.append(pill(item.memoryClass), pill(candidate.type), pill(candidate.sensitivity));
+        const provenance = item.provenance[0] || null;
+        const sourceCount = item.provenance.length;
+        button.append(node(
+          "p",
+          provenanceDescription(provenance, candidate.createdAt) +
+            (sourceCount > 1 ? " · " + sourceCount + " sources" : ""),
+          "meta",
+        ));
         button.addEventListener("click", () => showCandidate(candidate.id));
       } else {
         pills.append(pill(profile.memoryClass), pill(memory.status), pill(memory.sensitivity));
@@ -267,7 +362,7 @@ export const continuityConsoleJavaScript = `
     setNotice("Persona-memory export downloaded.");
   }
 
-  function actionButton(label, handler, danger) {
+  function actionButton(label, handler, danger, tooltipText) {
     const button = node("button", label, "action" + (danger ? " danger" : ""));
     button.type = "button";
     button.addEventListener("click", async () => {
@@ -275,6 +370,15 @@ export const continuityConsoleJavaScript = `
       try { await handler(); } catch (error) { setNotice(error.message, true); }
       finally { button.disabled = false; }
     });
+    if (tooltipText) {
+      const wrapper = node("span", undefined, "action-tooltip");
+      const tooltip = node("span", tooltipText, "action-tooltip-text");
+      tooltip.id = "action-tooltip-" + (++tooltipSequence);
+      tooltip.setAttribute("role", "tooltip");
+      button.setAttribute("aria-describedby", tooltip.id);
+      wrapper.append(button, tooltip);
+      return wrapper;
+    }
     return button;
   }
 
@@ -551,13 +655,23 @@ export const continuityConsoleJavaScript = `
           const text = message.value.trim();
           if (!text) throw new Error("Enter a message before sending.");
           try {
-            setNotice("Generating a response and checking the completed turn for memories…");
-            await api("/api/conversations/" + encodeURIComponent(id) + "/turns", {
+            setNotice("Generating a response…");
+            const result = await api("/api/conversations/" + encodeURIComponent(id) + "/turns", {
               method: "POST",
               body: JSON.stringify({ text }),
             });
+            message.value = "";
+            state.readyConversationIds.delete(id);
+            state.capturingConversationIds.add(id);
+            await refreshDashboard();
+            await showConversation(id);
+            setNotice("Response completed. Checking the turn for memories…");
+            await waitForCapture(id, result.captureRecord.id);
+            state.capturingConversationIds.delete(id);
+            state.readyConversationIds.add(id);
             setNotice("Response completed and the turn was captured.");
           } catch (error) {
+            state.capturingConversationIds.delete(id);
             state.readyConversationIds.delete(id);
             await refreshDashboard();
             await showConversation(id);
@@ -581,6 +695,8 @@ export const continuityConsoleJavaScript = `
           await showConversation(id);
         }));
         controls.append(actions);
+      } else if (state.capturingConversationIds.has(id)) {
+        controls.append(node("p", "The response is visible. MemTextual is checking the completed turn for memories before another message can be sent.", "meta"));
       } else {
         controls.append(node("p", "Opening first reconciles authoritative host history and blocks sending if any capture requires recovery.", "meta"));
         controls.append(actionButton("Open and reconcile", async () => {
@@ -843,6 +959,16 @@ export const continuityConsoleJavaScript = `
         const card = node("div", undefined, "evidence");
         card.append(node("strong", item.evidence.role));
         card.append(node("p", item.record ? item.record.content : "Evidence record unavailable."));
+        card.append(node(
+          "p",
+          provenanceDescription(item.provenance, review.candidate.createdAt),
+          "meta",
+        ));
+        if (item.provenance && item.provenance.conversationId) {
+          card.append(actionButton("View conversation", async () => {
+            await openProvenanceConversation(item.provenance.conversationId);
+          }));
+        }
         evidenceSection.append(card);
       });
       detailPanel.append(evidenceSection);
@@ -898,32 +1024,32 @@ export const continuityConsoleJavaScript = `
       }
       actions.append(actionButton("Accept as new memory", async () => {
         await completeResolution("create");
-      }));
+      }, false, "Creates a separate active memory from this candidate."));
       actions.append(actionButton("Revise selected", async () => {
         await completeResolution("revise", selectedTarget());
-      }));
+      }, false, "Updates the selected memory with this candidate and preserves its revision history. Select an active memory first."));
       actions.append(actionButton("Reaffirm selected", async () => {
         await completeResolution("reaffirm", selectedTarget());
-      }));
+      }, false, "Keeps the selected memory unchanged and records this candidate as supporting evidence. Select an active memory first."));
       actions.append(actionButton("Contradict selected", async () => {
         const targetMemoryId = selectedTarget();
         if (!window.confirm("Mark the selected memory contradicted and create this candidate as its replacement?")) return;
         await completeResolution("contradict", targetMemoryId);
-      }, true));
+      }, true, "Creates this candidate as a new memory and marks it as contradicting the selected memory. Select an active memory first."));
       actions.append(actionButton("Supersede selected", async () => {
         const targetMemoryId = selectedTarget();
         if (!window.confirm("Mark the selected memory superseded and create this candidate as its replacement?")) return;
         await completeResolution("supersede", targetMemoryId);
-      }, true));
+      }, true, "Creates this candidate as a new memory and marks the selected memory as replaced. Select an active memory first."));
       actions.append(actionButton("Ignore candidate", async () => {
         await completeResolution("ignore");
-      }));
+      }, false, "Dismisses this candidate without treating its assertion as incorrect."));
       actions.append(actionButton("Reject", async () => {
         await api("/api/candidates/" + encodeURIComponent(id) + "/reject", { method: "POST", body: JSON.stringify({ note: note.value }) });
         setNotice("Candidate rejected.");
         clearDetail();
         await refreshDashboard();
-      }, true));
+      }, true, "Rejects this candidate so it does not become a memory."));
       reconcileSection.append(actions);
       detailPanel.append(reconcileSection);
     } catch (error) { setNotice(error.message, true); }

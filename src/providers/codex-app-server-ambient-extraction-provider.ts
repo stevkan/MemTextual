@@ -15,8 +15,13 @@ const developerInstructions = [
   "Extract only user-specific information that would be useful in future conversations with the selected persona.",
   "Do not treat assistant statements as facts about the user unless the user explicitly confirms them.",
   "Prefer an empty proposals array over speculation, duplication, or low-value conversational detail.",
+  "Classify from the user-authored evidence, not from variation in the assistant response.",
+  "Use preference for stable likes, dislikes, or interaction preferences.",
+  "Use fact for stable factual information about the user or their world, not temporary work or test state.",
+  "Use decision for a choice the user made, entity for an identified person/place/thing, instruction for a standing direction, goal for a desired outcome, and relationship for a durable connection.",
+  "Use task_context for temporary project or task state, working codes, UAT or test markers, setup details, and other information whose meaning belongs to the current work.",
   "Use durable for stable preferences, facts, goals, instructions, entities, and relationships.",
-  "Use episodic for particular experiences, events, decisions, or time-bound task context.",
+  "Use episodic for particular experiences, events, decisions, and all task_context proposals.",
   "Every proposal must cite an exact sourceRecordId supplied in the input.",
   "Evidence excerpts must be copied from the cited record rather than paraphrased.",
   "Classify sensitivity conservatively; use restricted when disclosure could create meaningful privacy or security risk.",
@@ -37,6 +42,8 @@ const outputSchema: Record<string, unknown> = {
           assertion: { type: "string", minLength: 1, maxLength: 10_000 },
           type: {
             type: "string",
+            description:
+              "Semantic category. UAT/test markers and temporary working values are task_context, not fact.",
             enum: [
               "preference",
               "fact",
@@ -49,7 +56,11 @@ const outputSchema: Record<string, unknown> = {
               "other",
             ],
           },
-          memoryClass: { type: "string", enum: ["episodic", "durable"] },
+          memoryClass: {
+            type: "string",
+            enum: ["episodic", "durable"],
+            description: "task_context must always use episodic.",
+          },
           evidence: {
             type: "array",
             minItems: 1,
@@ -114,7 +125,7 @@ export class CodexAppServerAmbientExtractionProvider
     options: CodexAppServerAmbientExtractionProviderOptions,
   ) {
     this.#model = requiredText(options.model, "model");
-    this.version = `1:model=${this.#model}`;
+    this.version = `2:model=${this.#model}`;
   }
 
   public async extract(input: AmbientExtractionInput): Promise<string> {

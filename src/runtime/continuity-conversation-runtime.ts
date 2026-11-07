@@ -173,6 +173,7 @@ export function createContinuityConversationRuntime(
         return;
       }
       closed = true;
+      await lifecycle.drain();
       await options.host.close();
     },
   };
