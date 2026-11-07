@@ -1,0 +1,89 @@
+{
+  "formatVersion": 1,
+  "operation": "validate-windows-continuity-r5-user-acceptance",
+  "completedAt": "2026-11-07T11:29:51.7423636Z",
+  "source": {
+    "branch": "feature/memtextual-continuity",
+    "commit": "8f409cb2b29ad28116c01fc689eb25c0aaf6de39",
+    "nodeVersion": "24.21.0"
+  },
+  "bundle": {
+    "applicationDirectory": "C:\\Program Files\\MemTextual Continuity Dev 0.8.0-r5",
+    "fileCount": 11850,
+    "manifestSha256": "325bf04fa5c59f9a5645fb06820ad5f4c29b62b8e51943b52e76f8367a808328",
+    "publisherFingerprint256": "9689790f89ba29860d527f93b10c73b2dbe3ace497b7162fea5bdb98d206da6e",
+    "publisherTrusted": true,
+    "verified": true
+  },
+  "automatedValidation": {
+    "tests": 328,
+    "passed": 327,
+    "failed": 0,
+    "skipped": 1,
+    "typecheckPassed": true,
+    "productionBuildPassed": true,
+    "diffCheckPassed": true,
+    "disposableAclIntegrationPassed": true,
+    "disposableAclRestoredExactly": true,
+    "disposableAclArtifactsRemoved": true
+  },
+  "upgradeValidation": {
+    "checkedTables": 40,
+    "fromMigrationVersion": 21,
+    "toMigrationVersion": 21,
+    "integrityCheck": "ok",
+    "liveDatabaseUnchanged": true,
+    "passed": true,
+    "snapshotDirectory": "memtextual-2026-11-07T11-18-47-024Z"
+  },
+  "installationAcceptance": {
+    "accepted": true,
+    "databaseIntegrity": "ok",
+    "foreignKeyViolations": 0,
+    "migrationCount": 21,
+    "managedIdentity": "MemTextualSvc",
+    "managedSchedules": [
+      "MemTextual-Backup",
+      "MemTextual-Offsite"
+    ]
+  },
+  "interactiveClient": {
+    "launchedAsNormalWindowsUser": true,
+    "administratorElevationUsedForClient": false,
+    "conversationStarted": true,
+    "responseCompleted": true,
+    "durableJournalTurnCount": 1,
+    "captureCompleted": true,
+    "reviewCandidateCreated": true,
+    "reviewCandidateSensitivity": "restricted",
+    "conversationAndTurnTimestampsDisplayed": true,
+    "sendControlRestoredAfterCapture": true,
+    "pageRemainedResponsive": true,
+    "consoleShutdownCleanly": true
+  },
+  "safeguards": {
+    "backupHealth": "healthy",
+    "backupDue": false,
+    "restoreDrillHealth": "healthy",
+    "restoreDrillDue": false,
+    "offsiteHealth": "healthy",
+    "offsiteDue": false,
+    "offsiteDestinationAvailable": true,
+    "latestOffsitePackageAvailable": true,
+    "recoveryKeyId": "recovery-key-2026-11-07-r2",
+    "credentialHealth": "valid"
+  },
+  "retainedRollbackEvidence": {
+    "r4ApplicationRetained": true,
+    "preUpgradeSnapshotRetained": true,
+    "preActivationConfigurationRetained": true
+  },
+  "limitations": [
+    "The bundle uses the private development signing identity, not production Authenticode signing.",
+    "This validation does not approve public distribution or final proprietary legal terms.",
+    "The test wording used the word token, so the sensitivity classifier conservatively labeled the candidate restricted; a normal-sensitivity classification was not asserted.",
+    "The created candidate remains pending for explicit user review.",
+    "The MSI was not rebuilt or revalidated because this acceptance exercised the signed side-by-side application bundle and host lifecycle."
+  ],
+  "passed": true
+}

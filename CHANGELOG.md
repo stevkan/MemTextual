@@ -8,6 +8,10 @@ describe only the current design and behavior.
 - Preserved inherited modify access for the installing Windows user on managed
   writable directories so the interactive Continuity client can open SQLite
   WAL sidecars created by the unattended service identity.
+- Recorded live Windows r5 acceptance evidence covering signed-bundle
+  verification, disposable upgrade preservation, normal-user conversation
+  capture, review-candidate provenance, and backup, restore-drill, and Azure
+  off-site health without claiming public-release readiness.
 - Added database snapshot access preflight for the database directory, main
   file, and existing SQLite WAL sidecars so permission mismatches fail clearly
   instead of allowing the online-backup API to restart indefinitely.
