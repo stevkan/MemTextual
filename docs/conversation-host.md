@@ -60,8 +60,9 @@ persona-behavior contract.
 Production construction requires an explicit absolute working directory. The
 adapter also supplies that directory to `thread/start` so a Continuity
 conversation does not silently inherit instructions or context from whichever
-project happened to launch it. The eventual installer must create and protect a
-dedicated non-project directory for this purpose.
+project happened to launch it. Managed Continuity setup creates a dedicated
+non-project conversation directory for this purpose, and Windows host
+provisioning can apply the configured protection boundary to that path.
 
 The adapter does not infer completion from accumulated deltas. It accepts final
 assistant content only from completed agent-message items and resolves a turn
@@ -69,9 +70,12 @@ only after a successful completed-turn notification.
 
 When bounded MemTextual context is supplied, the adapter places it in a
 separate text item with an explicit untrusted-memory-data warning and preserves
-the current user text as its own item. Continuity turns use a restricted
-read-only sandbox with no readable roots and an approval policy that never asks
-the user to authorize an action.
+the current user text as its own item. Continuity turns use the no-approval
+`memtextual-continuity` permission profile. It denies filesystem-root access,
+permits only Codex's minimal runtime paths, disables command network access,
+and never asks the user to authorize an action. On native Windows, the adapter
+requires Codex's MXC sandbox rather than widening this boundary for the legacy
+`elevated` sandbox.
 
 The current adapter does not handle approval or other server-initiated
 requests. It returns a method-not-supported error so an unexpected request
@@ -107,21 +111,31 @@ process failure, and restart.
 
 ## Current boundary
 
-The persona-bound orchestration layer now persists immutable conversation
-bindings, composes bounded context, applies explicit start-time persona
-behavior, and routes successful turns into authorized ambient capture. It
-remains a library rather than the Continuity conversational client. The local
-control console now provides a persona-bound, read-only catalog of persisted
-conversations, exact journaled turns, and unresolved capture counts, but it
-does not start, reopen, or send turns. Those controls require protected
-host-grant storage, a concrete extraction provider, and production composition.
-The provider-neutral grant contract, Windows DPAPI adapter, grantless client
-facade, and Codex App Server extraction provider are implemented but not yet
-composed into the console; coordinated deletion is also not yet implemented.
-Persisted persona-behavior editing is available in the same console. Completed turns are
-journaled before extraction, failed capture can be listed and retried, and
-missing journal entries can be reconstructed from authoritative host history
-without asking the host to generate the response again.
+The trusted Continuity runtime composition is implemented. It combines the
+Codex conversation host, bounded persona memory context, optional explicit
+persona behavior, structured extraction and sensitivity classification,
+authorized ambient capture, the durable conversation journal, protected grant
+resolution, and the grantless client facade. The Windows composition resolves
+bearer grants through the DPAPI-backed store without exposing them to the
+browser or accepting them from browser requests.
+
+The token-protected loopback client can explicitly create and revoke host
+authorizations, start conversations, reopen them through authoritative-history
+reconciliation, send turns, leave local readiness, and retry failed capture
+without generating another model response. An authoritative completed response
+is journaled and displayed before extraction, classification, candidate
+creation, and review automation finish. These steps continue in a tracked
+background capture task; another turn remains blocked until that task reaches a
+durable success or recoverable failure state.
+
+The same persona-bound interface exposes candidate provenance and review,
+persisted persona-behavior controls, exact local conversation journals,
+preview-bound external host-thread deletion, and a separate preview-bound local
+journal purge. Failed capture can be retried, and missing journal entries can
+be reconstructed idempotently from authoritative host history without asking
+the host to regenerate a response. External host deletion and active-database
+journal purge remain separate because neither operation removes retained
+backups, exports, or other external copies.
 
 OpenAI Responses API hosting, bring-your-own-key configuration,
 MemTextual-managed inference, other cloud providers, and local models remain

@@ -67,9 +67,10 @@ For each turn, the service:
 
 The Codex adapter sends memory JSON as a separate text item with an explicit
 untrusted-data warning. It does not rewrite the user's text. The adapter also
-sets a restricted read-only sandbox with no readable roots and never requests
-approvals. Unexpected server-initiated requests remain unsupported and fail
-closed.
+sets the no-approval `memtextual-continuity` permission profile. It denies
+filesystem-root access, permits only Codex's minimal runtime paths, disables
+command network access, and never requests approvals. Unexpected
+server-initiated requests remain unsupported and fail closed.
 
 `ContinuityConversationTurnAdapter` creates a chat source with separate `user`
 and `assistant` records. Context revision identifiers are metadata; retrieved

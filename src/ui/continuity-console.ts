@@ -49,10 +49,6 @@ const reviewSchema = z.discriminatedUnion("outcome", [
     .strict(),
 ]);
 
-const noteSchema = z
-  .object({ note: z.string().max(10_000).optional() })
-  .strict();
-
 const booleanValueSchema = z.object({ value: z.boolean() }).strict();
 const emptySchema = z.object({}).strict();
 const correctionSchema = z
@@ -887,19 +883,6 @@ export function createContinuityConsoleApplication(
             ),
           );
         }
-        const rejectId = routeId(url.pathname, "/reject");
-        if (rejectId !== null && url.pathname.startsWith("/api/candidates/")) {
-          const input = parseBody(noteSchema, body);
-          return jsonResponse(
-            200,
-            options.control.rejectCandidate(personaId, rejectId, {
-              actor: "user",
-              explicitUserAction: true,
-              ...(input.note === undefined ? {} : { note: input.note }),
-            }),
-          );
-        }
-
         const correctionId = routeId(url.pathname, "/correct");
         if (correctionId !== null && url.pathname.startsWith("/api/memories/")) {
           const input = parseBody(correctionSchema, body);

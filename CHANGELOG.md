@@ -5,6 +5,13 @@ describe only the current design and behavior.
 
 ## Unreleased
 
+- Removed the redundant Continuity candidate-review `Reject` button and its
+  dedicated console endpoint. `Ignore candidate` is now the single explicit
+  action for reviewing a candidate without creating or changing a memory.
+- Corrected the conversation-host documentation to describe the implemented
+  Continuity client composition, background capture lifecycle, recovery,
+  provenance, coordinated deletion controls, managed working directory, and
+  restricted Codex permission profile.
 - Added Codex App Server `model/list` discovery for Continuity. Guided setup now
   requires an explicit numbered model selection, automated setup can inspect the
   catalog with `memtextual models`, and literal model-placeholder values are

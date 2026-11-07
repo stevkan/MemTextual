@@ -22,7 +22,7 @@ represented as `null` rather than replaced or invented.
 All mutations require `actor: "user"` and `explicitUserAction: true` at the
 control boundary. This applies to:
 
-- candidate resolution and rejection;
+- candidate resolution, including explicit acceptance or ignore;
 - direct persona-memory creation and revision;
 - pinning, unpinning, protection, and unprotection;
 - archive and restore;

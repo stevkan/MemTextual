@@ -163,19 +163,6 @@ export class ContinuityControlService {
     );
   }
 
-  public rejectCandidate(
-    personaId: string,
-    candidateId: string,
-    context: ContinuityControlMutationContext = {},
-  ): MemoryCandidate {
-    this.requireExplicitUserAction(context);
-    this.requireCandidateBinding(personaId, candidateId);
-    return this.ingestion.rejectCandidate(
-      candidateId,
-      this.reviewContext(context),
-    );
-  }
-
   public createMemory(
     input: CreatePersonaMemoryInput,
     context: ContinuityControlMutationContext = {},

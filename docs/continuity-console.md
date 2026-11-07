@@ -82,7 +82,7 @@ and then the Codex host and SQLite are closed.
   identifies the originating conversation and completed-turn time and links to
   that conversation's local journal.
 - Inspect exact or semantic match suggestions for a candidate.
-- Accept, reject, or ignore a candidate, with an optional review note.
+- Accept or ignore a candidate, with an optional review note.
 - Reconcile a candidate with a selected active persona memory by revising,
   reaffirming, contradicting, or superseding it.
 - Review-action buttons show concise explanations on pointer hover and keyboard

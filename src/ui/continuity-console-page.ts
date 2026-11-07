@@ -1044,12 +1044,6 @@ export const continuityConsoleJavaScript = `
       actions.append(actionButton("Ignore candidate", async () => {
         await completeResolution("ignore");
       }, false, "Dismisses this candidate without treating its assertion as incorrect."));
-      actions.append(actionButton("Reject", async () => {
-        await api("/api/candidates/" + encodeURIComponent(id) + "/reject", { method: "POST", body: JSON.stringify({ note: note.value }) });
-        setNotice("Candidate rejected.");
-        clearDetail();
-        await refreshDashboard();
-      }, true, "Rejects this candidate so it does not become a memory."));
       reconcileSection.append(actions);
       detailPanel.append(reconcileSection);
     } catch (error) { setNotice(error.message, true); }

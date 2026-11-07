@@ -90,10 +90,8 @@ test("Continuity candidate review actions expose accessible explanations", () =>
     continuityConsoleJavaScript,
     /Dismisses this candidate without treating its assertion as incorrect\./u,
   );
-  assert.match(
-    continuityConsoleJavaScript,
-    /Rejects this candidate so it does not become a memory\./u,
-  );
+  assert.equal(continuityConsoleJavaScript.includes('actionButton("Reject"'), false);
+  assert.equal(continuityConsoleJavaScript.includes("/reject"), false);
 });
 
 function fixture() {
@@ -360,6 +358,14 @@ test("Continuity console requires its session token and persona boundary", async
     };
     assert.equal(review.evidence[0]?.record?.content, "Steve prefers concise answers.");
     assert.equal(review.evidence[0]?.provenance?.sourceTitle, "Console test");
+
+    const removedRejectAlias = await request(application, token, {
+      method: "POST",
+      url: `/api/candidates/${skylarCapture.candidates[0]!.id}/reject`,
+      headers: { "content-type": "application/json", origin },
+      body: JSON.stringify({}),
+    });
+    assert.equal(removedRejectAlias.status, 404);
 
     const crossPersona = await request(application, token, {
       method: "GET",
