@@ -15,6 +15,15 @@ an integrity-checked database, durable-data export, and manifest, and the new
 backup is verified against that manifest before it is reported as successful.
 It refuses to reuse an existing timestamp directory.
 
+Snapshot creation requires read and write access to the database directory,
+database file, and any existing SQLite `-wal` and `-shm` sidecars. SQLite uses
+those sidecars to coordinate a consistent online backup even when the logical
+operation is read-only. MemTextual preflights that access and fails immediately
+with the inaccessible path instead of allowing SQLite's backup loop to restart
+indefinitely. Scheduled Windows backups run under the managed MemTextual
+identity; manual backup or upgrade validation must use that identity, an
+elevated account, or the recorded ACLs must explicitly grant the caller access.
+
 The destination must differ from the active database directory, and the active
 database cannot be inside its backup destination. This prevents the most direct
 self-backup configuration errors, but it cannot determine whether two paths are

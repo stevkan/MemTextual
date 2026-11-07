@@ -18,6 +18,7 @@ import {
   PersonaService,
   SqliteContinuityPersonaBehaviorRepository,
   SqlitePersonaRepository,
+  assertDatabaseSnapshotWriteAccess,
   applyScheduledReplicationRetirement,
   applyGuidedRestore,
   applyBackupRetention,
@@ -46,6 +47,39 @@ import {
   verifyDatabaseAgainstManifest,
   type ReplicationDestinationAdapter,
 } from "../src/index.js";
+
+test("snapshot preflight fails clearly when a WAL sidecar is not writable", () => {
+  const directory = mkdtempSync(join(tmpdir(), "memtextual-snapshot-access-"));
+  const databasePath = join(directory, "memtextual.db");
+  writeFileSync(databasePath, "database", "utf8");
+  writeFileSync(`${databasePath}-wal`, "", "utf8");
+  writeFileSync(`${databasePath}-shm`, "shared-memory", "utf8");
+  const checked: string[] = [];
+  try {
+    assert.throws(
+      () => assertDatabaseSnapshotWriteAccess(
+        databasePath,
+        (path) => {
+          checked.push(path);
+          if (path.endsWith("-shm")) {
+            const error = new Error("access denied") as NodeJS.ErrnoException;
+            error.code = "EACCES";
+            throw error;
+          }
+        },
+      ),
+      /requires read and write access to the SQLite WAL sidecar.*managed identity or an elevated account/u,
+    );
+    assert.deepEqual(checked, [
+      directory,
+      databasePath,
+      `${databasePath}-wal`,
+      `${databasePath}-shm`,
+    ]);
+  } finally {
+    rmSync(directory, { force: true, recursive: true });
+  }
+});
 
 test("provider-neutral scheduled replication publishes, rematerializes, and detects a missing remote package", async () => {
   const fixture = setup();
@@ -432,7 +466,10 @@ test("automatic backup records failures and reports that action is required", as
     assert.equal(status.health, "failed");
     assert.equal(status.due, true);
     assert.equal(status.lastSuccessfulAt, null);
-    assert.match(status.lastFailure?.message ?? "", /open database file/u);
+    assert.match(
+      status.lastFailure?.message ?? "",
+      /requires read and write access to the database file/u,
+    );
   } finally {
     rmSync(fixture.directory, { force: true, recursive: true });
   }

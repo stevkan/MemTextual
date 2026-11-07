@@ -1,7 +1,16 @@
 import Database from "better-sqlite3";
 import { createHash } from "node:crypto";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { basename, join, resolve } from "node:path";
+import {
+  accessSync,
+  closeSync,
+  constants,
+  existsSync,
+  mkdirSync,
+  openSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
+import { basename, dirname, join, resolve } from "node:path";
 
 const DERIVED_TABLES = new Set([
   "memory_embeddings",
@@ -165,6 +174,57 @@ export function databaseSafeguardIdentity(databasePath: string): string {
     .digest("hex");
 }
 
+type SnapshotAccessKind = "directory" | "file";
+type SnapshotAccessProbe = (path: string, kind: SnapshotAccessKind) => void;
+
+function defaultSnapshotAccessProbe(
+  path: string,
+  kind: SnapshotAccessKind,
+): void {
+  if (kind === "directory") {
+    accessSync(path, constants.R_OK | constants.W_OK);
+    return;
+  }
+  const handle = openSync(path, "r+");
+  closeSync(handle);
+}
+
+export function assertDatabaseSnapshotWriteAccess(
+  databasePath: string,
+  accessProbe: SnapshotAccessProbe = defaultSnapshotAccessProbe,
+): void {
+  const resolvedDatabase = resolve(databasePath);
+  const checks = [
+    {
+      label: "database directory",
+      kind: "directory" as const,
+      path: dirname(resolvedDatabase),
+    },
+    {
+      label: "database file",
+      kind: "file" as const,
+      path: resolvedDatabase,
+    },
+    ...[`${resolvedDatabase}-wal`, `${resolvedDatabase}-shm`]
+      .filter((path) => existsSync(path))
+      .map((path) => ({
+        label: "SQLite WAL sidecar",
+        kind: "file" as const,
+        path,
+      })),
+  ];
+  for (const check of checks) {
+    try {
+      accessProbe(check.path, check.kind);
+    } catch (error) {
+      throw new Error(
+        `Database snapshot requires read and write access to the ${check.label}: ${check.path}. Run under the managed identity or an elevated account, or repair the recorded ACL before retrying.`,
+        { cause: error },
+      );
+    }
+  }
+}
+
 export async function createDatabaseSnapshot(options: {
   databasePath: string;
   outputDirectory: string;
@@ -177,6 +237,7 @@ export async function createDatabaseSnapshot(options: {
     outputDirectory,
     `memtextual-${timestampForFilename(new Date(createdAt))}`,
   );
+  assertDatabaseSnapshotWriteAccess(databasePath);
   mkdirSync(outputDirectory, { recursive: true });
   mkdirSync(snapshotDirectory);
 

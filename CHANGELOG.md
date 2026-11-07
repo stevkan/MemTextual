@@ -5,6 +5,9 @@ describe only the current design and behavior.
 
 ## Unreleased
 
+- Added database snapshot access preflight for the database directory, main
+  file, and existing SQLite WAL sidecars so permission mismatches fail clearly
+  instead of allowing the online-backup API to restart indefinitely.
 - Made an explicit off-device recovery-key ID change trigger immediate encrypted
   replication and full destination verification without changing the configured
   backup interval.

@@ -607,6 +607,7 @@ export {
   type WindowsElevatedHostValidationReport,
 } from "./services/windows-elevated-host-validation-service.js";
 export {
+  assertDatabaseSnapshotWriteAccess,
   createDatabaseSnapshot,
   databaseSafeguardIdentity,
   verifyDatabaseAgainstManifest,

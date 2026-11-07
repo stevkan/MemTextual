@@ -25,7 +25,9 @@ public updater behavior remain release work.
 ## Validate the database upgrade without changing it
 
 Stage the new bundle into its new application directory. Then run its upgrade
-validator against the active database:
+validator against the active database. Run this command in an elevated terminal
+when the installed SQLite WAL sidecars are restricted to the managed MemTextual
+identity and Administrators:
 
 ```powershell
 & "C:\Program Files\MemTextual Continuity 0.9.0\runtime\node.exe" `
