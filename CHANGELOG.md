@@ -5,6 +5,9 @@ describe only the current design and behavior.
 
 ## Unreleased
 
+- Updated Azure Identity and Zod to patched releases, removing the authorization
+  flow parameter-disclosure and oversized-collection memory-exhaustion
+  advisories from the production dependency tree.
 - Corrected cross-platform CI so Windows-dependent installation, packaging,
   path, and host-lifecycle tests remain mandatory on Windows but are explicitly
   skipped on unsupported runners. GitHub checkout and Node setup actions are
