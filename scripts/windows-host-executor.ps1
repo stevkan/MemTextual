@@ -306,6 +306,43 @@ function Read-ConversationGrant($Binding) {
   return $record
 }
 
+function ConvertTo-ReadOnlySecureString([string]$Value) {
+  $secure = [Security.SecureString]::new()
+  foreach ($character in $Value.ToCharArray()) {
+    $secure.AppendChar($character)
+  }
+  $secure.MakeReadOnly()
+  return $secure
+}
+
+function Get-FileSha256([string]$Path) {
+  $stream = [IO.File]::Open(
+    $Path,
+    [IO.FileMode]::Open,
+    [IO.FileAccess]::Read,
+    [IO.FileShare]::Read
+  )
+  $sha256 = [Security.Cryptography.SHA256]::Create()
+  try {
+    $hash = $sha256.ComputeHash($stream)
+    return ([BitConverter]::ToString($hash) -replace "-", "").ToLowerInvariant()
+  } finally {
+    $sha256.Dispose()
+    $stream.Dispose()
+  }
+}
+
+function Get-FileSystemAccessAcl([string]$Path) {
+  $item = Get-Item -LiteralPath $Path -Force
+  $sections = [Security.AccessControl.AccessControlSections]::Access -bor
+    [Security.AccessControl.AccessControlSections]::Owner -bor
+    [Security.AccessControl.AccessControlSections]::Group
+  if ($item.PSIsContainer) {
+    return [IO.Directory]::GetAccessControl($Path, $sections)
+  }
+  return [IO.File]::GetAccessControl($Path, $sections)
+}
+
 function Set-RestrictedAcl(
   [string]$Path,
   [Security.Principal.SecurityIdentifier]$ServiceSid,
@@ -315,7 +352,7 @@ function Set-RestrictedAcl(
   if ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) {
     throw "Windows protected path cannot be a reparse point: $Path."
   }
-  $acl = Get-Acl -LiteralPath $Path
+  $acl = Get-FileSystemAccessAcl $Path
   $acl.SetAccessRuleProtection($true, $false)
   foreach ($rule in @($acl.Access)) {
     [void]$acl.RemoveAccessRuleAll($rule)
@@ -353,7 +390,7 @@ function Restore-FileSystemAccessAcl(
   [string]$Path,
   [string]$Sddl
 ) {
-  $acl = Get-Acl -LiteralPath $Path
+  $acl = Get-FileSystemAccessAcl $Path
   $acl.SetSecurityDescriptorSddlForm(
     $Sddl,
     [Security.AccessControl.AccessControlSections]::Access
@@ -375,7 +412,7 @@ function Assert-FileSystemAccessAclRestored(
   [string]$ExpectedSddl
 ) {
   $expected = [Security.AccessControl.RawSecurityDescriptor]::new($ExpectedSddl)
-  $actualSddl = (Get-Acl -LiteralPath $Path).Sddl
+  $actualSddl = (Get-FileSystemAccessAcl $Path).Sddl
   $actual = [Security.AccessControl.RawSecurityDescriptor]::new($actualSddl)
   $autoInherited = [int][Security.AccessControl.ControlFlags]::DiscretionaryAclAutoInherited
   $expectedControl = ([int]$expected.ControlFlags) -band (-bnot $autoInherited)
@@ -420,7 +457,7 @@ function Grant-ServiceAcl(
   if ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) {
     throw "Windows protected path cannot be a reparse point: $Path."
   }
-  $acl = Get-Acl -LiteralPath $Path
+  $acl = Get-FileSystemAccessAcl $Path
   $inheritance = if ($item.PSIsContainer) {
     [Security.AccessControl.InheritanceFlags]::ContainerInherit -bor [Security.AccessControl.InheritanceFlags]::ObjectInherit
   } else {
@@ -527,7 +564,7 @@ function Get-ManagedSchedule([string]$Id) {
     (Test-Path -LiteralPath $manifestPath -PathType Leaf)
   ) {
     $expectedHash = ([string]$task.Description).Substring($taskMarker.Length)
-    $actualHash = (Get-FileHash -LiteralPath $manifestPath -Algorithm SHA256).Hash.ToLowerInvariant()
+    $actualHash = Get-FileSha256 $manifestPath
     if ($expectedHash -eq $actualHash) {
       try {
         $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
@@ -813,12 +850,16 @@ try {
       $passwordText = [Convert]::ToBase64String($random) + "!Aa1"
       $batchLogonRightGranted = $false
       [Array]::Clear($random, 0, $random.Length)
-      $securePassword = ConvertTo-SecureString $passwordText -AsPlainText -Force
+      $securePassword = ConvertTo-ReadOnlySecureString $passwordText
       $description = "$identityMarker - $purpose"
       if ($description.Length -gt $maximumIdentityDescriptionLength) {
         $description = $description.Substring(0, $maximumIdentityDescriptionLength)
       }
-      $createdIdentity = New-LocalUser -Name $identityName -Password $securePassword -AccountNeverExpires -PasswordNeverExpires -UserMayNotChangePassword -Description $description
+      try {
+        $createdIdentity = New-LocalUser -Name $identityName -Password $securePassword -AccountNeverExpires -PasswordNeverExpires -UserMayNotChangePassword -Description $description
+      } finally {
+        $securePassword.Dispose()
+      }
       try {
         Set-BatchLogonRight $createdIdentity.SID $false
         $batchLogonRightGranted = $true
@@ -932,7 +973,7 @@ try {
         [IO.File]::WriteAllText($manifestPath, ($manifest | ConvertTo-Json -Depth 12), [Text.UTF8Encoding]::new($false))
         $createdPaths.Add($manifestPath)
         Set-RestrictedAcl $manifestPath $serviceSid ([Security.AccessControl.FileSystemRights]::Read)
-        $manifestHash = (Get-FileHash -LiteralPath $manifestPath -Algorithm SHA256).Hash.ToLowerInvariant()
+        $manifestHash = Get-FileSha256 $manifestPath
         $invocation = Get-TaskInvocation $scheduleId $statePath
         $taskAction = New-ScheduledTaskAction -Execute $invocation.executable -Argument $invocation.arguments -WorkingDirectory $statePath
         $trigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) -RepetitionInterval (New-TimeSpan -Minutes ([int]$definition.intervalMinutes))
@@ -1028,7 +1069,7 @@ try {
           access = [string]$entry.access
           mode = [string]$entry.mode
           path = $path
-          sddl = (Get-Acl -LiteralPath $path).Sddl
+          sddl = (Get-FileSystemAccessAcl $path).Sddl
         })
       }
       $aclManifest = [ordered]@{

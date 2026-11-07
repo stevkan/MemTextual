@@ -5,6 +5,11 @@ describe only the current design and behavior.
 
 ## Unreleased
 
+- Fixed elevated Windows host installation on systems where Windows PowerShell
+  cannot load `Microsoft.PowerShell.Security` because of duplicate type data.
+  The privileged executor now uses the underlying .NET hashing, secure-string,
+  and file access-control APIs without requesting audit-policy privileges or
+  depending on the general PowerShell utility and security modules.
 - Removed the redundant Continuity candidate-review `Reject` button and its
   dedicated console endpoint. `Ignore candidate` is now the single explicit
   action for reviewing a candidate without creating or changing a memory.

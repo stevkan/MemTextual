@@ -80,6 +80,8 @@ success. See
 The bridge invokes 64-bit Windows PowerShell 5.1 with profiles disabled and a
 bounded execution timeout. PowerShell receives at most 1 MiB of JSON and may
 return at most 1 MiB on either output stream. The executor uses only Windows
-local-account, ACL, DPAPI, and Scheduled Tasks facilities. macOS and Linux
-packages will require separate host executors behind the same TypeScript
-contracts.
+local-account, ACL, DPAPI, and Scheduled Tasks facilities. File hashing, ACL,
+and secure-string operations use the underlying .NET APIs and do not depend on
+loading the general PowerShell utility or security modules or reading
+audit-policy ACL sections. macOS and Linux packages will require separate host
+executors behind the same TypeScript contracts.

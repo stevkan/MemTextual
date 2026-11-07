@@ -156,7 +156,15 @@ describe("Windows PowerShell host operations", () => {
     assert.match(source, /Assert-FileSystemAccessAclRestored/u);
     assert.match(source, /Directory\]::SetAccessControl/u);
     assert.match(source, /File\]::SetAccessControl/u);
+    assert.match(source, /Directory\]::GetAccessControl/u);
+    assert.match(source, /File\]::GetAccessControl/u);
+    assert.match(source, /ConvertTo-ReadOnlySecureString/u);
+    assert.match(source, /Get-FileSha256/u);
+    assert.match(source, /Security\.Cryptography\.SHA256\]::Create/u);
     assert.doesNotMatch(source, /Set-Acl/u);
+    assert.doesNotMatch(source, /Get-Acl/u);
+    assert.doesNotMatch(source, /Get-FileHash/u);
+    assert.doesNotMatch(source, /ConvertTo-SecureString/u);
     assert.doesNotMatch(source, /RepetitionDuration/u);
     assert.doesNotMatch(source, /TimeSpan\]::MaxValue/u);
     assert.match(source, /\$accountName = "\$env:COMPUTERNAME\\\$identityName"/u);
