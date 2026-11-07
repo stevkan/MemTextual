@@ -5,6 +5,10 @@ describe only the current design and behavior.
 
 ## Unreleased
 
+- Corrected cross-platform CI so Windows-dependent installation, packaging,
+  path, and host-lifecycle tests remain mandatory on Windows but are explicitly
+  skipped on unsupported runners. GitHub checkout and Node setup actions are
+  now pinned to immutable current releases that run on Node 24.
 - Fixed elevated Windows host installation on systems where Windows PowerShell
   cannot load `Microsoft.PowerShell.Security` because of duplicate type data.
   The privileged executor now uses the underlying .NET hashing, secure-string,

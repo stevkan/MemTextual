@@ -87,7 +87,10 @@ test("Developer installation profile rejects unknown properties", () => {
   );
 });
 
-test("Developer setup initializes, snapshots, remembers, and safely reuses paths", async () => {
+test(
+  "Developer setup initializes, snapshots, remembers, and safely reuses paths",
+  { skip: process.platform !== "win32" },
+  async () => {
   const root = mkdtempSync(join(tmpdir(), "memtextual-developer-installation-"));
   try {
     const applicationDirectory = createBuiltApplication(root);
@@ -151,9 +154,13 @@ test("Developer setup initializes, snapshots, remembers, and safely reuses paths
   } finally {
     rmSync(root, { force: true, recursive: true });
   }
-});
+  },
+);
 
-test("unified Developer setup remembers paths and makes status path-free", async () => {
+test(
+  "unified Developer setup remembers paths and makes status path-free",
+  { skip: process.platform !== "win32" },
+  async () => {
   const root = mkdtempSync(join(tmpdir(), "memtextual-developer-cli-"));
   try {
     const applicationDirectory = createBuiltApplication(root);
@@ -176,7 +183,8 @@ test("unified Developer setup remembers paths and makes status path-free", async
   } finally {
     rmSync(root, { force: true, recursive: true });
   }
-});
+  },
+);
 
 test("Developer source CLI accepts npm's additional argument separator", async () => {
   const root = mkdtempSync(join(tmpdir(), "memtextual-developer-separator-"));

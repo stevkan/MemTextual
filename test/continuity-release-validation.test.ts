@@ -109,7 +109,10 @@ describe("Continuity release-candidate validation", () => {
     );
   });
 
-  it("exercises the non-privileged lifecycle on synthetic disposable data", async () => {
+  it(
+    "exercises the non-privileged lifecycle on synthetic disposable data",
+    { skip: process.platform !== "win32" },
+    async () => {
     const root = mkdtempSync(join(tmpdir(), "memtextual-release-validation-"));
     const source = join(root, "source");
     const output = join(root, "candidate-output");
@@ -164,7 +167,8 @@ describe("Continuity release-candidate validation", () => {
         retryDelay: 100,
       });
     }
-  });
+    },
+  );
 
   it("refuses to reuse an existing workspace", async () => {
     const root = mkdtempSync(join(tmpdir(), "memtextual-release-existing-"));

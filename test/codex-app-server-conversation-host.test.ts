@@ -182,7 +182,10 @@ test("isolates a new Codex conversation from inherited tool providers", async ()
   await host.close();
 });
 
-test("isolates a resumed Codex conversation from inherited tool providers", async () => {
+test(
+  "isolates a resumed Codex conversation from inherited tool providers",
+  { skip: process.platform !== "win32" },
+  async () => {
   const server = new FakeAppServerProcess(standardHandler, ["memtextual"]);
   const host = new CodexAppServerConversationHost({
     processFactory: () => server,
@@ -208,7 +211,8 @@ test("isolates a resumed Codex conversation from inherited tool providers", asyn
     cwd: "C:\\memtextual-continuity",
   });
   await host.close();
-});
+  },
+);
 
 test("explains out-of-band memory capture for a neutral conversation", async () => {
   const server = new FakeAppServerProcess(standardHandler);

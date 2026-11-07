@@ -57,7 +57,10 @@ function createDeploymentFiles(root: string): void {
 }
 
 describe("Windows Continuity deployment", () => {
-  it("creates a fixed bundled-runtime layout and backup schedule", () => {
+  it(
+    "creates a fixed bundled-runtime layout and backup schedule",
+    { skip: process.platform !== "win32" },
+    () => {
     const root = mkdtempSync(join(tmpdir(), "memtextual-windows-layout-"));
     try {
       createDeploymentFiles(root);
@@ -83,9 +86,13 @@ describe("Windows Continuity deployment", () => {
     } finally {
       rmSync(root, { force: true, recursive: true });
     }
-  });
+    },
+  );
 
-  it("adds local offsite scheduling without storing the key value", () => {
+  it(
+    "adds local offsite scheduling without storing the key value",
+    { skip: process.platform !== "win32" },
+    () => {
     const root = mkdtempSync(join(tmpdir(), "memtextual-windows-offsite-"));
     try {
       createDeploymentFiles(root);
@@ -140,9 +147,13 @@ describe("Windows Continuity deployment", () => {
     } finally {
       rmSync(root, { force: true, recursive: true });
     }
-  });
+    },
+  );
 
-  it("binds matching Azure destination and certificate references", () => {
+  it(
+    "binds matching Azure destination and certificate references",
+    { skip: process.platform !== "win32" },
+    () => {
     const root = mkdtempSync(join(tmpdir(), "memtextual-windows-azure-"));
     try {
       createDeploymentFiles(root);
@@ -213,7 +224,8 @@ describe("Windows Continuity deployment", () => {
     } finally {
       rmSync(root, { force: true, recursive: true });
     }
-  });
+    },
+  );
 
   it("rejects unknown and secret-bearing deployment properties", () => {
     const configuration = baseConfiguration("C:\\MemTextualTest");

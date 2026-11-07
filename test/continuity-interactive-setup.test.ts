@@ -94,7 +94,10 @@ test("interactive setup uses the managed backup default and omits blank optional
   });
 });
 
-test("interactive CLI creates one saved installation and will not reconfigure it", async () => {
+test(
+  "interactive CLI creates one saved installation and will not reconfigure it",
+  { skip: process.platform !== "win32" },
+  async () => {
   const directory = mkdtempSync(join(tmpdir(), "memtextual-interactive-"));
   try {
     const first = await runInteractiveSetup([
@@ -131,4 +134,5 @@ test("interactive CLI creates one saved installation and will not reconfigure it
   } finally {
     rmSync(directory, { force: true, recursive: true });
   }
-});
+  },
+);

@@ -186,7 +186,10 @@ describe("Windows elevated host validation", () => {
     );
   });
 
-  it("installs, validates, and removes only synthetic host resources", async () => {
+  it(
+    "installs, validates, and removes only synthetic host resources",
+    { skip: process.platform !== "win32" },
+    async () => {
     const root = mkdtempSync(join(tmpdir(), "memtextual-elevated-host-"));
     const source = join(root, "source");
     const output = join(root, "output");
@@ -287,5 +290,6 @@ describe("Windows elevated host validation", () => {
         retryDelay: 100,
       });
     }
-  });
+    },
+  );
 });

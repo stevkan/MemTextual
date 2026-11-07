@@ -86,7 +86,10 @@ test("Continuity installation profile rejects unknown properties", () => {
   );
 });
 
-test("unified setup rejects extraction-model placeholder text", async () => {
+test(
+  "unified setup rejects extraction-model placeholder text",
+  { skip: process.platform !== "win32" },
+  async () => {
   const result = await runCli([
     "setup",
     "--user-name", "Test User",
@@ -95,9 +98,13 @@ test("unified setup rejects extraction-model placeholder text", async () => {
   ]);
   assert.equal(result.code, 1);
   assert.match(result.stderr, /actual model identifier/u);
-});
+  },
+);
 
-test("unified setup remembers paths and makes status path-free", async () => {
+test(
+  "unified setup remembers paths and makes status path-free",
+  { skip: process.platform !== "win32" },
+  async () => {
   const directory = mkdtempSync(join(tmpdir(), "memtextual-installation-"));
   try {
     const setup = await runCli([
@@ -146,4 +153,5 @@ test("unified setup remembers paths and makes status path-free", async () => {
   } finally {
     rmSync(directory, { force: true, recursive: true });
   }
-});
+  },
+);

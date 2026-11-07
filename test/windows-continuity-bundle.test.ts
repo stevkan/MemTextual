@@ -135,7 +135,10 @@ function createMinimalSource(source: string): void {
 }
 
 describe("Windows Continuity bundle", () => {
-  it("creates, verifies, confirms, and stages a signed bundle", async () => {
+  it(
+    "creates, verifies, confirms, and stages a signed bundle",
+    { skip: process.platform !== "win32" },
+    async () => {
     const root = mkdtempSync(join(tmpdir(), "memtextual-windows-bundle-"));
     const source = join(root, "source");
     const output = join(root, "output");
@@ -323,7 +326,8 @@ describe("Windows Continuity bundle", () => {
     } finally {
       rmSync(root, { force: true, recursive: true });
     }
-  });
+    },
+  );
 
   it("requires complete command-specific CLI inputs", () => {
     assert.deepEqual(

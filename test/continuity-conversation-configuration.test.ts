@@ -79,7 +79,10 @@ function createFixture(): {
 }
 
 describe("Continuity conversation configuration", () => {
-  it("parses strict secret-free configuration", () => {
+  it(
+    "parses strict secret-free configuration",
+    { skip: process.platform !== "win32" },
+    () => {
     const fixture = createFixture();
     try {
       const loaded = loadContinuityConversationConfiguration(
@@ -98,7 +101,8 @@ describe("Continuity conversation configuration", () => {
     } finally {
       rmSync(fixture.directory, { force: true, recursive: true });
     }
-  });
+    },
+  );
 
   it("rejects unsupported properties, adapters, and relative paths", () => {
     const base = {

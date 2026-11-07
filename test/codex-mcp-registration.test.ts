@@ -112,7 +112,10 @@ test("Codex MCP inventory accepts other transports and rejects malformed entries
   );
 });
 
-test("Codex desktop command discovery is deterministic and refuses ambiguity", () => {
+test(
+  "Codex desktop command discovery is deterministic and refuses ambiguity",
+  { skip: process.platform !== "win32" },
+  () => {
   const root = mkdtempSync(join(tmpdir(), "memtextual-codex-discovery-"));
   try {
     const first = join(root, "OpenAI", "Codex", "bin", "build-a", "codex.exe");
@@ -139,9 +142,13 @@ test("Codex desktop command discovery is deterministic and refuses ambiguity", (
   } finally {
     rmSync(root, { force: true, recursive: true });
   }
-});
+  },
+);
 
-test("Codex command resolution prefers an explicit command and then PATH", () => {
+test(
+  "Codex command resolution prefers an explicit command and then PATH",
+  { skip: process.platform !== "win32" },
+  () => {
   const root = mkdtempSync(join(tmpdir(), "memtextual-codex-path-"));
   try {
     const executable = join(root, "codex.exe");
@@ -164,4 +171,5 @@ test("Codex command resolution prefers an explicit command and then PATH", () =>
   } finally {
     rmSync(root, { force: true, recursive: true });
   }
-});
+  },
+);
