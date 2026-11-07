@@ -476,8 +476,16 @@ function Grant-ServiceAcl(
 
 function Get-ManagedIdentity([string]$IdentityName) {
   Assert-SafeIdentifier $IdentityName "Windows identity name" 20
-  $user = Get-LocalUser -Name $IdentityName -ErrorAction SilentlyContinue
+  try {
+    $user = Get-LocalUser -Name $IdentityName -ErrorAction SilentlyContinue
+  } catch {
+    throw "Windows identity inspection could not access local account state. Rerun from an elevated terminal."
+  }
   if ($null -eq $user) {
+    $passwordPath = Get-IdentityPasswordPath $IdentityName
+    if (Test-Path -LiteralPath $passwordPath -PathType Leaf) {
+      throw "Windows identity inspection cannot report the identity as absent while managed identity state exists. Rerun from an elevated terminal or investigate orphaned host state."
+    }
     return [pscustomobject]@{
       identityName = $IdentityName
       available = $false
@@ -547,8 +555,16 @@ function Get-TaskInvocation([string]$Id, [string]$StatePath) {
 
 function Get-ManagedSchedule([string]$Id) {
   Assert-SafeIdentifier $Id "Windows schedule identifier"
-  $task = Get-ScheduledTask -TaskPath $taskPath -TaskName $Id -ErrorAction SilentlyContinue
+  $manifestPath = Get-ScheduleManifestPath $Id
+  try {
+    $task = Get-ScheduledTask -TaskPath $taskPath -TaskName $Id -ErrorAction SilentlyContinue
+  } catch {
+    throw "Windows schedule inspection could not access Task Scheduler state. Rerun from an elevated terminal."
+  }
   if ($null -eq $task) {
+    if (Test-Path -LiteralPath $manifestPath -PathType Leaf) {
+      throw "Windows schedule inspection cannot report the schedule as absent while managed schedule state exists. Rerun from an elevated terminal or investigate orphaned host state."
+    }
     return [pscustomobject]@{
       scheduleId = $Id
       installed = $false
@@ -556,7 +572,6 @@ function Get-ManagedSchedule([string]$Id) {
       managedByMemTextual = $false
     }
   }
-  $manifestPath = Get-ScheduleManifestPath $Id
   $managed = $false
   $definition = $null
   if (

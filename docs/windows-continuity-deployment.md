@@ -113,6 +113,11 @@ Run preview without elevation if the host permits task inspection:
 memtextual-windows-host install-preview --config "C:\ProgramData\MemTextual Continuity\deployment.json"
 ```
 
+Inspection fails closed when a protected MemTextual identity or schedule state
+record exists but Windows does not make the corresponding host resource visible
+to the current process. Rerun the unchanged preview from an elevated terminal;
+do not interpret a restricted inspection as proof that the resource is absent.
+
 Review the returned identity, paths, schedules, and confirmation. For offsite
 replication, put the canonical-base64 32-byte recovery key in the deployment's
 named environment variable in the elevated process. Then open an elevated

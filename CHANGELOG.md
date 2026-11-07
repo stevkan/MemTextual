@@ -5,6 +5,9 @@ describe only the current design and behavior.
 
 ## Unreleased
 
+- Made Windows host inspection fail closed when protected MemTextual state exists
+  but a non-elevated process cannot confirm the corresponding local identity or
+  scheduled task, preventing restricted access from being reported as absence.
 - Updated Azure Identity and Zod to patched releases, removing the authorization
   flow parameter-disclosure and oversized-collection memory-exhaustion
   advisories from the production dependency tree.
