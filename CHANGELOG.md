@@ -5,6 +5,15 @@ describe only the current design and behavior.
 
 ## Unreleased
 
+- Made an explicit off-device recovery-key ID change trigger immediate encrypted
+  replication and full destination verification without changing the configured
+  backup interval.
+- Added explicit recovery-key generation and secret-free validation commands,
+  including Windows secure-prompt paste guidance.
+- Added preview-bound legacy off-device package retirement that requires a
+  newer verified package under a different key ID, verifies the exact remote
+  inventory before deletion, preserves normal rollback boundaries, and writes
+  append-only intent and completion receipts.
 - Made Windows host inspection fail closed when protected MemTextual state exists
   but a non-elevated process cannot confirm the corresponding local identity or
   scheduled task, preventing restricted access from being reported as absence.

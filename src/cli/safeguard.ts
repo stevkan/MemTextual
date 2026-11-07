@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
 import {
@@ -36,12 +36,17 @@ import {
   getScheduledReplicationStatus,
   runScheduledReplicationIfDue,
 } from "../safeguards/scheduled-replication.js";
+import {
+  applyScheduledReplicationRetirement,
+  previewScheduledReplicationRetirement,
+} from "../safeguards/scheduled-replication-retirement.js";
 import { createAuthorizedAzureBlobReplicationAdapter } from "../safeguards/azure-blob-authorized-adapter.js";
 import {
   AzureCertificateCredentialProvider,
   loadAzureCertificateCredentialConfiguration,
 } from "../credentials/azure-certificate-credential.js";
 import {
+  createConfiguredReplicationDestinationAdapter,
   loadReplicationDestinationConfiguration,
   type ReplicationDestinationConfiguration,
 } from "../safeguards/replication-destination-config.js";
@@ -62,6 +67,10 @@ function usage(): string {
     "  memtextual-safeguard offsite-export --database PATH --source DIRECTORY --destination DIRECTORY --snapshot DIRECTORY --key-env NAME --key-id ID",
     "  memtextual-safeguard offsite-run-if-due --database PATH --source DIRECTORY (--adapter local-directory --destination DIRECTORY | --destination-config PATH [--credential-config PATH]) --interval-hours HOURS --key-env NAME --key-id ID",
     "  memtextual-safeguard offsite-status --database PATH --source DIRECTORY (--adapter local-directory --destination DIRECTORY | --destination-config PATH [--credential-config PATH]) --interval-hours HOURS",
+    "  memtextual-safeguard offsite-retire-preview --database PATH --source DIRECTORY (--adapter local-directory --destination DIRECTORY | --destination-config PATH [--credential-config PATH]) --interval-hours HOURS --legacy-package NAME",
+    "  memtextual-safeguard offsite-retire-apply --database PATH --source DIRECTORY (--adapter local-directory --destination DIRECTORY | --destination-config PATH [--credential-config PATH]) --interval-hours HOURS --legacy-package NAME --confirm TOKEN",
+    "  memtextual-safeguard recovery-key-generate --key-id ID",
+    "  memtextual-safeguard recovery-key-validate --key-env NAME --key-id ID",
     "  memtextual-safeguard azure-credential-status --credential-config PATH",
     "  memtextual-safeguard offsite-verify --package DIRECTORY --key-env NAME",
     "  memtextual-safeguard offsite-import --database PATH --package DIRECTORY --destination DIRECTORY --key-env NAME",
@@ -179,8 +188,66 @@ function encryptionKey(arguments_: string[]): Buffer {
   return key;
 }
 
+function recoveryKeyId(arguments_: string[]): string {
+  const keyId = optionValue(arguments_, "--key-id").trim();
+  if (!/^[A-Za-z0-9._-]{1,64}$/u.test(keyId)) {
+    throw new Error(
+      "--key-id must use 1-64 letters, numbers, periods, underscores, or hyphens.",
+    );
+  }
+  return keyId;
+}
+
+async function configuredReplicationAdapter(
+  destination: ReplicationDestinationConfiguration,
+  arguments_: string[],
+) {
+  if (destination.adapterId === "local-directory") {
+    return createConfiguredReplicationDestinationAdapter(destination);
+  }
+  return (
+    await createAuthorizedAzureBlobReplicationAdapter(
+      destination,
+      azureCredentialProvider(arguments_),
+    )
+  ).adapter;
+}
+
 async function main(arguments_: string[]): Promise<void> {
   const command = arguments_[0];
+  if (command === "recovery-key-generate") {
+    const keyId = recoveryKeyId(arguments_);
+    const key = randomBytes(32);
+    try {
+      console.log(JSON.stringify({
+        byteLength: key.byteLength,
+        canonicalBase64: key.toString("base64"),
+        keyId,
+      }, null, 2));
+      console.error(
+        "Store this recovery key in a secure password manager. MemTextual will not display it again.",
+      );
+    } finally {
+      key.fill(0);
+    }
+    return;
+  }
+
+  if (command === "recovery-key-validate") {
+    const keyId = recoveryKeyId(arguments_);
+    const key = encryptionKey(arguments_);
+    try {
+      console.log(JSON.stringify({
+        byteLength: key.byteLength,
+        canonicalBase64: true,
+        keyId,
+        valid: true,
+      }, null, 2));
+    } finally {
+      key.fill(0);
+    }
+    return;
+  }
   if (command === "snapshot") {
     const databasePath = resolve(optionValue(arguments_, "--database"));
     const outputDirectory = resolve(optionValue(arguments_, "--output"));
@@ -421,6 +488,26 @@ async function main(arguments_: string[]): Promise<void> {
           };
         })();
     console.log(JSON.stringify(status, null, 2));
+    return;
+  }
+
+  if (command === "offsite-retire-preview" || command === "offsite-retire-apply") {
+    const destination = replicationDestination(arguments_);
+    const adapter = await configuredReplicationAdapter(destination, arguments_);
+    const common = {
+      adapter,
+      databasePath: resolve(optionValue(arguments_, "--database")),
+      intervalHours: numberOption(arguments_, "--interval-hours"),
+      legacyPackageName: optionValue(arguments_, "--legacy-package"),
+      sourceBackupDirectory: resolve(optionValue(arguments_, "--source")),
+    };
+    const result = command === "offsite-retire-preview"
+      ? await previewScheduledReplicationRetirement(common)
+      : await applyScheduledReplicationRetirement({
+          ...common,
+          confirmation: optionValue(arguments_, "--confirm"),
+        });
+    console.log(JSON.stringify(result, null, 2));
     return;
   }
 

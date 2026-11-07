@@ -18,6 +18,7 @@ import {
   PersonaService,
   SqliteContinuityPersonaBehaviorRepository,
   SqlitePersonaRepository,
+  applyScheduledReplicationRetirement,
   applyGuidedRestore,
   applyBackupRetention,
   createLocalDirectoryReplicationAdapter,
@@ -34,6 +35,7 @@ import {
   openMemTextualDatabase,
   previewGuidedRestore,
   previewBackupRetention,
+  previewScheduledReplicationRetirement,
   parseReplicationDestinationConfiguration,
   publishReplicationPackage,
   runAutomaticBackupIfDue,
@@ -51,6 +53,7 @@ test("provider-neutral scheduled replication publishes, rematerializes, and dete
   const remoteDirectory = join(fixture.directory, "remote");
   mkdirSync(remoteDirectory);
   const key = randomBytes(32);
+  const rotatedKey = randomBytes(32);
   try {
     await createDatabaseSnapshot({
       databasePath: fixture.databasePath,
@@ -77,7 +80,35 @@ test("provider-neutral scheduled replication publishes, rematerializes, and dete
     assert.equal(result.verification?.passed, true);
     assert.equal(result.status.adapterId, "test-remote");
 
-    const packageName = result.publication?.packageName;
+    const originalPackageName = result.publication?.packageName;
+    assert.ok(originalPackageName);
+    const rotation = await runScheduledReplicationIfDue({
+      adapter,
+      databasePath: fixture.databasePath,
+      intervalHours: 24,
+      keyId: "test-key-r2",
+      masterKey: rotatedKey,
+      now: new Date("2026-10-14T12:02:00.000Z"),
+      sourceBackupDirectory: backupDirectory,
+    });
+    assert.equal(rotation.outcome, "replicated");
+    assert.equal(rotation.status.lastKeyId, "test-key-r2");
+    assert.equal(rotation.status.lastPackageAvailable, true);
+    assert.equal(rotation.verification?.passed, true);
+    assert.notEqual(rotation.publication?.packageName, originalPackageName);
+
+    const early = await runScheduledReplicationIfDue({
+      adapter,
+      databasePath: fixture.databasePath,
+      intervalHours: 24,
+      keyId: "test-key-r2",
+      masterKey: rotatedKey,
+      now: new Date("2026-10-14T12:03:00.000Z"),
+      sourceBackupDirectory: backupDirectory,
+    });
+    assert.equal(early.outcome, "not_due");
+
+    const packageName = rotation.publication?.packageName;
     assert.ok(packageName);
     rmSync(join(remoteDirectory, packageName, "database.enc"));
     const status = await getScheduledReplicationStatus({
@@ -92,6 +123,119 @@ test("provider-neutral scheduled replication publishes, rematerializes, and dete
     assert.equal(status.lastPackageAvailable, false);
   } finally {
     key.fill(0);
+    rotatedKey.fill(0);
+    rmSync(fixture.directory, { force: true, recursive: true });
+  }
+});
+
+test("scheduled replication retirement requires an exact fresh confirmation and preserves the verified replacement", async () => {
+  const fixture = setup();
+  const backupDirectory = join(fixture.directory, "backups");
+  const remoteDirectory = join(fixture.directory, "remote");
+  mkdirSync(remoteDirectory);
+  const key = randomBytes(32);
+  const rotatedKey = randomBytes(32);
+  try {
+    await createDatabaseSnapshot({
+      databasePath: fixture.databasePath,
+      outputDirectory: backupDirectory,
+      now: new Date("2026-10-14T12:00:00.000Z"),
+    });
+    const adapter = createLocalDirectoryReplicationAdapter(remoteDirectory);
+    const first = await runScheduledReplicationIfDue({
+      adapter,
+      databasePath: fixture.databasePath,
+      intervalHours: 24,
+      keyId: "test-key-r1",
+      masterKey: key,
+      now: new Date("2026-10-14T12:01:00.000Z"),
+      sourceBackupDirectory: backupDirectory,
+    });
+    const replacement = await runScheduledReplicationIfDue({
+      adapter,
+      databasePath: fixture.databasePath,
+      intervalHours: 24,
+      keyId: "test-key-r2",
+      masterKey: rotatedKey,
+      now: new Date("2026-10-14T12:02:00.000Z"),
+      sourceBackupDirectory: backupDirectory,
+    });
+    const legacyPackageName = first.publication?.packageName ?? "";
+    const replacementPackageName = replacement.publication?.packageName ?? "";
+    const options = {
+      adapter,
+      databasePath: fixture.databasePath,
+      intervalHours: 24,
+      legacyPackageName,
+      now: new Date("2026-10-14T12:03:00.000Z"),
+      sourceBackupDirectory: backupDirectory,
+    };
+    const preview = await previewScheduledReplicationRetirement(options);
+    const destinationConfigurationPath = join(
+      fixture.directory,
+      "retirement-destination.json",
+    );
+    writeFileSync(
+      destinationConfigurationPath,
+      JSON.stringify({
+        adapterId: "local-directory",
+        destinationDirectory: remoteDirectory,
+        formatVersion: 1,
+      }),
+      "utf8",
+    );
+    const cliPreview = spawnSync(
+      process.execPath,
+      [
+        "--import",
+        "tsx",
+        resolve("src", "cli", "safeguard.ts"),
+        "offsite-retire-preview",
+        "--database",
+        fixture.databasePath,
+        "--source",
+        backupDirectory,
+        "--destination-config",
+        destinationConfigurationPath,
+        "--interval-hours",
+        "24",
+        "--legacy-package",
+        legacyPackageName,
+      ],
+      { cwd: resolve("."), encoding: "utf8" },
+    );
+    assert.equal(cliPreview.status, 0, cliPreview.stderr);
+    assert.equal(
+      (JSON.parse(cliPreview.stdout) as { confirmation: string }).confirmation,
+      preview.confirmation,
+    );
+    assert.match(
+      preview.confirmation,
+      /^RETIRE-OFFSITE-PACKAGE-[A-F0-9]{20}$/u,
+    );
+    assert.equal(preview.legacy.keyId, "test-key-r1");
+    assert.equal(preview.replacement.keyId, "test-key-r2");
+
+    await assert.rejects(
+      applyScheduledReplicationRetirement({
+        ...options,
+        confirmation: "RETIRE-OFFSITE-PACKAGE-WRONG",
+      }),
+      /confirmation is missing, incorrect, or stale/u,
+    );
+    assert.equal(existsSync(join(remoteDirectory, legacyPackageName)), true);
+
+    const result = await applyScheduledReplicationRetirement({
+      ...options,
+      confirmation: preview.confirmation,
+    });
+    assert.equal(existsSync(join(remoteDirectory, legacyPackageName)), false);
+    assert.equal(existsSync(join(remoteDirectory, replacementPackageName)), true);
+    assert.equal(existsSync(result.receiptPath), true);
+    assert.match(readFileSync(result.receiptPath, "utf8"), /"completedAt"/u);
+  } finally {
+    key.fill(0);
+    rotatedKey.fill(0);
     rmSync(fixture.directory, { force: true, recursive: true });
   }
 });
@@ -1514,6 +1658,61 @@ test("safeguard CLI selects a configured replication destination", () => {
     rmSync(directory, { force: true, recursive: true });
     rmSync(destinationDirectory, { force: true, recursive: true });
   }
+});
+
+test("safeguard CLI generates and validates a canonical recovery key without echoing it during validation", () => {
+  const generated = spawnSync(
+    process.execPath,
+    [
+      "--import",
+      "tsx",
+      resolve("src", "cli", "safeguard.ts"),
+      "recovery-key-generate",
+      "--key-id",
+      "recovery-key-test-r2",
+    ],
+    { cwd: resolve("."), encoding: "utf8" },
+  );
+  assert.equal(generated.status, 0, generated.stderr);
+  const output = JSON.parse(generated.stdout) as {
+    byteLength: number;
+    canonicalBase64: string;
+    keyId: string;
+  };
+  assert.equal(output.byteLength, 32);
+  assert.match(output.canonicalBase64, /^[A-Za-z0-9+/]{43}=$/u);
+  assert.equal(output.keyId, "recovery-key-test-r2");
+  assert.match(generated.stderr, /secure password manager/u);
+
+  const validated = spawnSync(
+    process.execPath,
+    [
+      "--import",
+      "tsx",
+      resolve("src", "cli", "safeguard.ts"),
+      "recovery-key-validate",
+      "--key-env",
+      "MEMTEXTUAL_TEST_RECOVERY_KEY",
+      "--key-id",
+      "recovery-key-test-r2",
+    ],
+    {
+      cwd: resolve("."),
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        MEMTEXTUAL_TEST_RECOVERY_KEY: output.canonicalBase64,
+      },
+    },
+  );
+  assert.equal(validated.status, 0, validated.stderr);
+  assert.equal(validated.stdout.includes(output.canonicalBase64), false);
+  assert.deepEqual(JSON.parse(validated.stdout), {
+    byteLength: 32,
+    canonicalBase64: true,
+    keyId: "recovery-key-test-r2",
+    valid: true,
+  });
 });
 
 test("off-device replication reads version 1 state as local-directory state", async () => {

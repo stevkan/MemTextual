@@ -700,6 +700,7 @@ export {
   type ReplicationDestinationPublishRequest,
   type ReplicationDestinationPublishResult,
   type ReplicationDestinationReceipt,
+  type ReplicationDestinationRetireRequest,
 } from "./safeguards/replication-destination.js";
 export {
   createAzureBlobReplicationAdapter,
@@ -711,15 +712,25 @@ export {
 } from "./safeguards/azure-blob-authorized-adapter.js";
 export {
   getScheduledReplicationStatus,
+  getScheduledReplicationHistory,
   runScheduledReplicationIfDue,
   scheduledReplicationStateFormatVersion,
   type ScheduledReplicationHealth,
+  type ScheduledReplicationHistoryEntry,
   type ScheduledReplicationRunOptions,
   type ScheduledReplicationRunResult,
   type ScheduledReplicationState,
   type ScheduledReplicationStatus,
   type ScheduledReplicationStatusOptions,
 } from "./safeguards/scheduled-replication.js";
+export {
+  applyScheduledReplicationRetirement,
+  previewScheduledReplicationRetirement,
+  type ScheduledReplicationRetirementOptions,
+  type ScheduledReplicationRetirementPackage,
+  type ScheduledReplicationRetirementPreview,
+  type ScheduledReplicationRetirementResult,
+} from "./safeguards/scheduled-replication-retirement.js";
 export {
   AzureCertificateCredentialProvider,
   azureCertificateCredentialConfigFormatVersion,

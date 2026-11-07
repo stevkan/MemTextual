@@ -17,6 +17,7 @@ import {
 
 interface StoredBlob {
   body: Buffer;
+  etag: string;
   metadata: Record<string, string>;
 }
 
@@ -32,7 +33,17 @@ class FakeAzureBlobContainer {
 
   getBlockBlobClient(blobName: string) {
     return {
-      deleteIfExists: async () => ({ succeeded: this.blobs.delete(blobName) }),
+      deleteIfExists: async (options?: { conditions?: { ifMatch?: string } }) => {
+        const stored = this.blobs.get(blobName);
+        if (
+          stored !== undefined &&
+          options?.conditions?.ifMatch !== undefined &&
+          options.conditions.ifMatch !== stored.etag
+        ) {
+          throw new Error("ConditionNotMet");
+        }
+        return { succeeded: this.blobs.delete(blobName) };
+      },
       download: async () => {
         const stored = this.blobs.get(blobName);
         if (stored === undefined) {
@@ -70,11 +81,30 @@ class FakeAzureBlobContainer {
         }
         this.blobs.set(blobName, {
           body: readFileSync(path),
+          etag: `etag-${this.blobs.size + 1}`,
           metadata: { ...options.metadata },
         });
         return {};
       },
     };
+  }
+
+  async *listBlobsFlat(options?: { prefix?: string }) {
+    const prefix = options?.prefix ?? "";
+    for (const [name, stored] of [...this.blobs.entries()].sort(([left], [right]) =>
+      left.localeCompare(right),
+    )) {
+      if (name.startsWith(prefix)) {
+        yield {
+          metadata: { ...stored.metadata },
+          name,
+          properties: {
+            contentLength: stored.body.byteLength,
+            etag: stored.etag,
+          },
+        };
+      }
+    }
   }
 
   async exists(): Promise<boolean> {
@@ -164,6 +194,85 @@ describe("Azure Blob replication destination", () => {
     }
   });
 
+  it("retires only an exact package inventory with matching immutable evidence", async () => {
+    const sourceDirectory = mkdtempSync(join(tmpdir(), "memtextual-azure-retire-"));
+    const container = new FakeAzureBlobContainer();
+    const database = Buffer.from("encrypted database");
+    const manifest = Buffer.from("encrypted package manifest");
+    writeFileSync(join(sourceDirectory, "database.enc"), database);
+    writeFileSync(join(sourceDirectory, "replication-manifest.json"), manifest);
+    const packageId = "00000000-0000-4000-8000-000000000011";
+    const packageName = "offsite-2026-10-14-retire";
+    try {
+      const adapter = createAzureBlobReplicationAdapter({
+        containerClient: container.asContainerClient(),
+        prefix: "continuity/backups",
+      });
+      const publication = await adapter.publishPackage({
+        artifacts: [
+          artifact("database.enc", database),
+          artifact("replication-manifest.json", manifest),
+        ],
+        packageId,
+        packageName,
+        sourceDirectory,
+      });
+      assert.notEqual(adapter.retirePackage, undefined);
+
+      container.blobs.set(
+        `continuity/backups/${packageName}/unexpected.enc`,
+        { body: Buffer.from("unexpected"), etag: "etag-unexpected", metadata: {} },
+      );
+      assert.equal(
+        await adapter.packageMatchesExactly!({
+          artifacts: publication.artifacts,
+          packageId,
+          packageName,
+        }),
+        false,
+      );
+      await assert.rejects(
+        adapter.retirePackage!({
+          artifacts: publication.artifacts,
+          packageId,
+          packageName,
+        }),
+        /inventory or evidence changed/u,
+      );
+      assert.equal(container.blobs.size, 3);
+
+      container.blobs.delete(
+        `continuity/backups/${packageName}/unexpected.enc`,
+      );
+      container.tamperDownloads = true;
+      assert.equal(
+        await adapter.packageMatchesExactly!({
+          artifacts: publication.artifacts,
+          packageId,
+          packageName,
+        }),
+        false,
+      );
+      container.tamperDownloads = false;
+      assert.equal(
+        await adapter.packageMatchesExactly!({
+          artifacts: publication.artifacts,
+          packageId,
+          packageName,
+        }),
+        true,
+      );
+      await adapter.retirePackage!({
+        artifacts: publication.artifacts,
+        packageId,
+        packageName,
+      });
+      assert.equal(container.blobs.size, 0);
+    } finally {
+      rmSync(sourceDirectory, { force: true, recursive: true });
+    }
+  });
+
   it("rolls back every uploaded blob when downloaded bytes do not match", async () => {
     const sourceDirectory = mkdtempSync(join(tmpdir(), "memtextual-azure-tamper-"));
     const container = new FakeAzureBlobContainer();
@@ -214,6 +323,7 @@ describe("Azure Blob replication destination", () => {
     writeFileSync(join(sourceDirectory, "database.enc"), database);
     container.blobs.set("offsite-existing/database.enc", {
       body: Buffer.from("existing"),
+      etag: "etag-existing",
       metadata: {},
     });
     try {

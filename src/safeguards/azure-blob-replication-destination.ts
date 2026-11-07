@@ -248,6 +248,127 @@ export function createAzureBlobReplicationAdapter(
       await removeBlobNames(blobNames);
       publishedArtifacts.delete(directPackageName);
     },
+    async packageMatchesExactly(request) {
+      try {
+        const packageName = directName(request.packageName, "Package name");
+        if (
+          !/^offsite-[A-Za-z0-9._-]+$/u.test(packageName) ||
+          !/^[a-f0-9-]{36}$/u.test(request.packageId)
+        ) return false;
+        const packagePrefix = `${prefix}${packageName}/`;
+        const expected = new Map(
+          request.artifacts.map((artifact) => [artifact.filename, artifact]),
+        );
+        if (expected.size === 0 || expected.size !== request.artifacts.length) {
+          return false;
+        }
+        const discovered = new Set<string>();
+        for await (const blob of options.containerClient.listBlobsFlat({
+          prefix: packagePrefix,
+        })) {
+          const filename = blob.name.slice(packagePrefix.length);
+          const artifact = expected.get(filename);
+          if (
+            artifact === undefined ||
+            filename.includes("/") ||
+            blob.properties.contentLength !== artifact.bytes ||
+            blob.metadata?.memtextualartifact !== artifact.filename ||
+            blob.metadata?.memtextualpackageid !== request.packageId ||
+            blob.metadata?.memtextualsha256 !== artifact.sha256
+          ) return false;
+          discovered.add(filename);
+        }
+        const inventoryMatches = (
+          discovered.size === expected.size &&
+          [...expected.keys()].every((filename) => discovered.has(filename))
+        );
+        if (!inventoryMatches) return false;
+        for (const artifact of expected.values()) {
+          const download = await options.containerClient
+            .getBlockBlobClient(`${packagePrefix}${artifact.filename}`)
+            .download();
+          if (!sameArtifact(artifact, await measureDownload(download.readableStreamBody))) {
+            return false;
+          }
+        }
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    async retirePackage(request) {
+      const packageName = directName(request.packageName, "Package name");
+      if (!/^offsite-[A-Za-z0-9._-]+$/u.test(packageName)) {
+        throw new Error("Azure Blob package name is invalid.");
+      }
+      if (!/^[a-f0-9-]{36}$/u.test(request.packageId)) {
+        throw new Error("Azure Blob package id is invalid.");
+      }
+      const packagePrefix = `${prefix}${packageName}/`;
+      const expected = new Map(
+        request.artifacts.map((artifact) => [artifact.filename, artifact]),
+      );
+      if (expected.size === 0 || expected.size !== request.artifacts.length) {
+        throw new Error("Azure Blob retirement artifact evidence is invalid.");
+      }
+      const discovered: Array<{ blobName: string; etag: string }> = [];
+      for await (const blob of options.containerClient.listBlobsFlat({
+        prefix: packagePrefix,
+      })) {
+        const filename = blob.name.slice(packagePrefix.length);
+        const artifact = expected.get(filename);
+        if (
+          artifact === undefined ||
+          filename.includes("/") ||
+          blob.properties.contentLength !== artifact.bytes ||
+          blob.metadata?.memtextualartifact !== artifact.filename ||
+          blob.metadata?.memtextualpackageid !== request.packageId ||
+          blob.metadata?.memtextualsha256 !== artifact.sha256 ||
+          typeof blob.properties.etag !== "string" ||
+          blob.properties.etag.length === 0
+        ) {
+          throw new Error(
+            "Azure Blob retirement refused because the package inventory or evidence changed.",
+          );
+        }
+        discovered.push({ blobName: blob.name, etag: blob.properties.etag });
+      }
+      if (
+        discovered.length !== expected.size ||
+        [...expected.keys()].some(
+          (filename) => !discovered.some(
+            ({ blobName }) => blobName === `${packagePrefix}${filename}`,
+          ),
+        )
+      ) {
+        throw new Error(
+          "Azure Blob retirement refused because the package inventory is incomplete.",
+        );
+      }
+      const failures: string[] = [];
+      for (const { blobName, etag } of [...discovered].reverse()) {
+        try {
+          await options.containerClient.getBlockBlobClient(blobName).deleteIfExists({
+            conditions: { ifMatch: etag },
+            deleteSnapshots: "include",
+          });
+        } catch (error) {
+          failures.push(
+            `${blobName}: ${error instanceof Error ? error.message : "unknown deletion failure"}`,
+          );
+        }
+      }
+      if (failures.length > 0) {
+        throw new Error(
+          `Azure Blob retirement failed because inspected blob versions changed or could not be removed: ${failures.join("; ")}.`,
+        );
+      }
+      for await (const _blob of options.containerClient.listBlobsFlat({
+        prefix: packagePrefix,
+      })) {
+        throw new Error("Azure Blob retirement could not verify package removal.");
+      }
+    },
     async packageExists(request) {
       const packageName = directName(request.packageName, "Package name");
       for (const artifact of request.artifacts) {

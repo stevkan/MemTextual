@@ -38,6 +38,11 @@ export interface ReplicationDestinationPackageRequest {
   packageName: string;
 }
 
+export interface ReplicationDestinationRetireRequest
+  extends ReplicationDestinationPackageRequest {
+  packageId: string;
+}
+
 export interface ReplicationDestinationMaterializeRequest
   extends ReplicationDestinationPackageRequest {
   destinationDirectory: string;
@@ -56,6 +61,12 @@ export interface ReplicationDestinationAdapter {
     request: ReplicationDestinationPublishRequest,
   ): Promise<ReplicationDestinationPublishResult>;
   removePackage(input: { packageName: string }): Promise<void>;
+  packageMatchesExactly?(
+    request: ReplicationDestinationRetireRequest,
+  ): Promise<boolean>;
+  retirePackage?(
+    request: ReplicationDestinationRetireRequest,
+  ): Promise<void>;
   destinationAvailable?(): Promise<boolean>;
   packageExists?(
     request: ReplicationDestinationPackageRequest,
@@ -558,6 +569,78 @@ export function createLocalDirectoryReplicationAdapter(
         throw new Error("Unsafe replication rollback target.");
       }
       rmSync(targetDirectory, { force: true, recursive: true });
+    },
+    async retirePackage(request) {
+      const directPackageName = directName(request.packageName, "Package name");
+      if (!/^[a-f0-9-]{36}$/u.test(request.packageId)) {
+        throw new Error("Replication retirement package id is invalid.");
+      }
+      const targetDirectory = join(destination, directPackageName);
+      const relativeTarget = relative(destination, targetDirectory);
+      if (
+        relativeTarget.startsWith("..") ||
+        isAbsolute(relativeTarget) ||
+        basename(targetDirectory) !== directPackageName
+      ) {
+        throw new Error("Unsafe replication retirement target.");
+      }
+      requireDirectDirectory(targetDirectory, "Published replication package");
+      const expected = [...request.artifacts].sort((left, right) =>
+        left.filename.localeCompare(right.filename),
+      );
+      const filenames = readdirSync(targetDirectory).sort();
+      if (
+        filenames.length !== expected.length ||
+        filenames.some((filename, index) => filename !== expected[index]?.filename)
+      ) {
+        throw new Error(
+          "Replication retirement refused because the package inventory changed.",
+        );
+      }
+      for (const artifact of expected) {
+        const filename = directName(artifact.filename, "Artifact filename");
+        const measured = await measureFile(join(targetDirectory, filename));
+        if (
+          measured.bytes !== artifact.bytes ||
+          measured.sha256 !== artifact.sha256
+        ) {
+          throw new Error(
+            `Replication retirement refused because artifact evidence changed: ${filename}.`,
+          );
+        }
+      }
+      rmSync(targetDirectory, { force: false, recursive: true });
+      if (existsSync(targetDirectory)) {
+        throw new Error("Replication retirement could not verify package removal.");
+      }
+    },
+    async packageMatchesExactly(request) {
+      try {
+        const directPackageName = directName(request.packageName, "Package name");
+        if (!/^[a-f0-9-]{36}$/u.test(request.packageId)) return false;
+        const targetDirectory = join(destination, directPackageName);
+        requireDirectDirectory(targetDirectory, "Published replication package");
+        const expected = [...request.artifacts].sort((left, right) =>
+          left.filename.localeCompare(right.filename),
+        );
+        const filenames = readdirSync(targetDirectory).sort();
+        if (
+          filenames.length !== expected.length ||
+          filenames.some((filename, index) => filename !== expected[index]?.filename)
+        ) return false;
+        for (const artifact of expected) {
+          const measured = await measureFile(
+            join(targetDirectory, directName(artifact.filename, "Artifact filename")),
+          );
+          if (
+            measured.bytes !== artifact.bytes ||
+            measured.sha256 !== artifact.sha256
+          ) return false;
+        }
+        return true;
+      } catch {
+        return false;
+      }
     },
     async packageExists(request) {
       const packageName = directName(request.packageName, "Package name");

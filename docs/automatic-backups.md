@@ -126,12 +126,15 @@ direct, non-link directory; MemTextual will not recreate a missing mount point
 and accidentally place an intended off-device copy on local storage.
 
 The key must be exactly 32 random bytes encoded as canonical base64 in a named
-environment variable. `--key-env` passes only that variable's name. The key
-value is never accepted as a command-line argument, written into the package,
-included in output, or stored by MemTextual. `--key-id` is a non-secret label
-used to identify which externally retained key is required for recovery.
+environment variable. `--key-env` passes only that variable's name. Except for
+the explicitly requested one-time `recovery-key-generate` output, the key value
+is never accepted as a command-line argument, included in output, written into
+the package, or stored by MemTextual. `--key-id` is a non-secret label used to
+identify which externally retained key is required for recovery.
 
 ```powershell
+npm run safeguard -- recovery-key-generate -- --key-id recovery-key-2026-r2
+npm run safeguard -- recovery-key-validate -- --key-env MEMTEXTUAL_OFFSITE_KEY --key-id recovery-key-2026-r2
 npm run safeguard -- offsite-export -- --database .\data\memtextual.db --source D:\MemTextualBackups --destination E:\MemTextualOffsite --snapshot memtextual-2026-10-12T12-00-00-000Z --key-env MEMTEXTUAL_OFFSITE_KEY --key-id recovery-key-2026
 npm run safeguard -- offsite-run-if-due -- --database .\data\memtextual.db --source D:\MemTextualBackups --adapter local-directory --destination E:\MemTextualOffsite --interval-hours 24 --key-env MEMTEXTUAL_OFFSITE_KEY --key-id recovery-key-2026
 npm run safeguard -- offsite-status -- --database .\data\memtextual.db --source D:\MemTextualBackups --adapter local-directory --destination E:\MemTextualOffsite --interval-hours 24
@@ -141,6 +144,14 @@ npm run safeguard -- offsite-status -- --database .\data\memtextual.db --source 
 npm run safeguard -- offsite-verify -- --package E:\MemTextualOffsite\OFFSITE_PACKAGE_DIRECTORY --key-env MEMTEXTUAL_OFFSITE_KEY
 npm run safeguard -- offsite-import -- --database .\data\memtextual.db --package E:\MemTextualOffsite\OFFSITE_PACKAGE_DIRECTORY --destination D:\MemTextualBackups --key-env MEMTEXTUAL_OFFSITE_KEY
 ```
+
+`recovery-key-generate` displays a new key once; copy it immediately into a
+secure password manager before using it. `recovery-key-validate` reports only
+the key label, length, and validation result, never the key itself. When a
+Windows PowerShell secure prompt is used to set the environment variable,
+paste with Ctrl+Shift+V, Shift+Insert, or right-click. Some secure prompts treat
+Ctrl+V as a control character rather than paste; validation will reject that
+value instead of allowing a malformed key to proceed.
 
 For scheduler-managed configuration, put the adapter and absolute destination
 in the versioned, secret-free JSON format documented in
@@ -173,6 +184,26 @@ encrypted-package verification before recording success. It does not create a
 new local snapshot, so automatic local backup should run independently at the
 user's chosen cadence. A newer corrupt, incomplete, or otherwise protected
 recovery point fails the run instead of silently replicating an older one.
+Supplying a valid key ID different from the last successful package also makes
+the run immediately due, allowing a replacement package to be created and
+verified without shortening the configured replication interval.
+
+After the replacement package has been independently created and verified,
+retire an obsolete package through a fresh preview and exact confirmation:
+
+```powershell
+npm run safeguard -- offsite-retire-preview -- --database .\data\memtextual.db --source D:\MemTextualBackups --destination-config C:\ProgramData\MemTextual\azure-destination.json --credential-config C:\ProgramData\MemTextual\azure-credential.json --interval-hours 24 --legacy-package OFFSITE_LEGACY_PACKAGE
+npm run safeguard -- offsite-retire-apply -- --database .\data\memtextual.db --source D:\MemTextualBackups --destination-config C:\ProgramData\MemTextual\azure-destination.json --credential-config C:\ProgramData\MemTextual\azure-credential.json --interval-hours 24 --legacy-package OFFSITE_LEGACY_PACKAGE --confirm RETIRE-OFFSITE-PACKAGE-TOKEN
+```
+
+The preview requires append-only evidence for both packages, a newer available
+replacement protected by a different key ID, and no unresolved replication
+failure. Apply re-runs the preview under the replication lock, verifies the
+exact recorded artifact inventory before deletion, refuses to retire the
+current package, verifies that the replacement remains available, and writes
+append-only intent and completion receipts. Normal publication rollback remains
+limited to a package created by that adapter instance and is not reused as a
+general deletion path.
 
 Scheduled replication builds the encrypted package in disposable staging and
 publishes it through the provider-neutral destination contract. Both the local
