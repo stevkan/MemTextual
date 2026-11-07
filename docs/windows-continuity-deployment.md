@@ -38,6 +38,12 @@ receive additive access for the dedicated account; their existing user access
 is not removed. The Azure certificate PEM is explicitly restrictive because it
 contains a private key. Every changed ACL is still recorded for exact removal.
 
+Writable directories also receive an inheritable modify grant for the Windows
+user who performs the elevated host installation. The interactive Continuity
+client opens the same SQLite database used by the dedicated backup identity, so
+WAL and shared-memory sidecars created by either identity must remain writable
+by the other. Host removal restores the exact ACL recorded before installation.
+
 Mutable content is separate:
 
 ```text

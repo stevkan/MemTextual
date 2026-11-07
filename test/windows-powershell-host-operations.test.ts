@@ -158,6 +158,12 @@ describe("Windows PowerShell host operations", () => {
     assert.match(source, /File\]::SetAccessControl/u);
     assert.match(source, /Directory\]::GetAccessControl/u);
     assert.match(source, /File\]::GetAccessControl/u);
+    assert.match(source, /PreserveInteractiveUserAccess/u);
+    assert.match(source, /WindowsIdentity\]::GetCurrent\(\)\.User/u);
+    assert.match(
+      source,
+      /Grant-ServiceAcl \$path \$serviceSid \$rights \(\[string\]\$entry\.access -eq "modify"\)/u,
+    );
     assert.match(source, /ConvertTo-ReadOnlySecureString/u);
     assert.match(source, /Get-FileSha256/u);
     assert.match(source, /Security\.Cryptography\.SHA256\]::Create/u);

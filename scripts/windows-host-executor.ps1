@@ -451,7 +451,8 @@ function Set-CurrentUserRestrictedFileAcl([string]$Path) {
 function Grant-ServiceAcl(
   [string]$Path,
   [Security.Principal.SecurityIdentifier]$ServiceSid,
-  [Security.AccessControl.FileSystemRights]$ServiceRights
+  [Security.AccessControl.FileSystemRights]$ServiceRights,
+  [bool]$PreserveInteractiveUserAccess
 ) {
   $item = Get-Item -LiteralPath $Path -Force
   if ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) {
@@ -471,6 +472,17 @@ function Grant-ServiceAcl(
     [Security.AccessControl.AccessControlType]::Allow
   )
   $acl.SetAccessRule($rule)
+  if ($PreserveInteractiveUserAccess) {
+    $currentUserSid = [Security.Principal.WindowsIdentity]::GetCurrent().User
+    $interactiveRule = [Security.AccessControl.FileSystemAccessRule]::new(
+      $currentUserSid,
+      $ServiceRights,
+      $inheritance,
+      [Security.AccessControl.PropagationFlags]::None,
+      [Security.AccessControl.AccessControlType]::Allow
+    )
+    $acl.SetAccessRule($interactiveRule)
+  }
   Set-FileSystemAccessAcl $Path $acl
 }
 
@@ -1060,7 +1072,7 @@ try {
             throw "Windows protected path access is invalid."
           }
           if ([string]$entry.mode -eq "grant") {
-            Grant-ServiceAcl $path $serviceSid $rights
+            Grant-ServiceAcl $path $serviceSid $rights ([string]$entry.access -eq "modify")
           } elseif ([string]$entry.mode -eq "restrict") {
             Set-RestrictedAcl $path $serviceSid $rights
           } else {
@@ -1105,7 +1117,7 @@ try {
             throw "Windows protected path access is invalid."
           }
           if ([string]$entry.mode -eq "grant") {
-            Grant-ServiceAcl $path $serviceSid $rights
+            Grant-ServiceAcl $path $serviceSid $rights ([string]$entry.access -eq "modify")
           } elseif ([string]$entry.mode -eq "restrict") {
             Set-RestrictedAcl $path $serviceSid $rights
           } else {

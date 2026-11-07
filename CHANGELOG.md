@@ -5,6 +5,9 @@ describe only the current design and behavior.
 
 ## Unreleased
 
+- Preserved inherited modify access for the installing Windows user on managed
+  writable directories so the interactive Continuity client can open SQLite
+  WAL sidecars created by the unattended service identity.
 - Added database snapshot access preflight for the database directory, main
   file, and existing SQLite WAL sidecars so permission mismatches fail clearly
   instead of allowing the online-backup API to restart indefinitely.
