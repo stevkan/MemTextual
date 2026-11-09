@@ -49,6 +49,14 @@ export interface CreatePersonaInput {
   relationshipMetadata?: PersonaMetadata;
 }
 
+export interface UpdatePersonaInput {
+  id: string;
+  expectedUpdatedAt: string;
+  name?: string;
+  description?: string | null;
+  relationshipName?: string;
+}
+
 export interface PersonaContext {
   persona: Persona;
   relationship: PersonaRelationship;

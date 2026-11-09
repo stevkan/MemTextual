@@ -8,6 +8,7 @@ import type {
   PersonaContext,
   PersonaMetadata,
   PersonaRelationship,
+  UpdatePersonaInput,
 } from "../domain/persona.js";
 import type { PersonaRepository } from "./persona-repository.js";
 
@@ -58,6 +59,16 @@ function optionalText(value: string | undefined): string | null {
   }
   const normalized = value.trim();
   return normalized.length === 0 ? null : normalized;
+}
+
+function updateTimestamp(...currentValues: string[]): string {
+  const currentMilliseconds = currentValues.map((value) => Date.parse(value));
+  if (currentMilliseconds.some((value) => !Number.isFinite(value))) {
+    throw new Error("Stored persona timestamps are invalid.");
+  }
+  return new Date(
+    Math.max(Date.now(), Math.max(...currentMilliseconds) + 1),
+  ).toISOString();
 }
 
 function metadataJson(metadata: PersonaMetadata | undefined): string {
@@ -246,6 +257,74 @@ export class SqlitePersonaRepository implements PersonaRepository {
     });
     create();
     return this.requirePersonaContext(personaId);
+  }
+
+  public updatePersona(input: UpdatePersonaInput): PersonaContext {
+    const expectedUpdatedAt = requiredText(
+      input.expectedUpdatedAt,
+      "The expected persona update timestamp",
+    );
+    if (
+      input.name === undefined &&
+      input.description === undefined &&
+      input.relationshipName === undefined
+    ) {
+      throw new Error("At least one persona field must be supplied.");
+    }
+
+    const update = this.database.transaction(() => {
+      const current = this.requirePersonaContext(input.id);
+      if (current.persona.updatedAt !== expectedUpdatedAt) {
+        throw new Error(`Persona ${input.id} changed after it was read.`);
+      }
+
+      const name =
+        input.name === undefined
+          ? current.persona.name
+          : requiredText(input.name, "A persona name");
+      const description =
+        input.description === undefined
+          ? current.persona.description
+          : input.description === null
+            ? null
+            : requiredText(input.description, "A persona description");
+      const relationshipName =
+        input.relationshipName === undefined
+          ? current.relationship.name
+          : requiredText(input.relationshipName, "A relationship name");
+      const updatedAt = updateTimestamp(
+        current.persona.updatedAt,
+        current.relationship.updatedAt,
+      );
+
+      const personaUpdate = this.database
+        .prepare(
+          `UPDATE continuity_personas
+           SET name = ?, description = ?, updated_at = ?
+           WHERE id = ? AND updated_at = ?`,
+        )
+        .run(name, description, updatedAt, input.id, expectedUpdatedAt);
+      if (personaUpdate.changes !== 1) {
+        throw new Error(`Persona ${input.id} changed after it was read.`);
+      }
+
+      this.database
+        .prepare(
+          `UPDATE continuity_relationships
+           SET name = ?, updated_at = ?
+           WHERE id = ?`,
+        )
+        .run(relationshipName, updatedAt, current.relationship.id);
+      this.database
+        .prepare("UPDATE scopes SET name = ?, updated_at = ? WHERE id = ?")
+        .run(`${name} (persona)`, updatedAt, current.persona.scopeId);
+      this.database
+        .prepare("UPDATE scopes SET name = ?, updated_at = ? WHERE id = ?")
+        .run(relationshipName, updatedAt, current.relationship.scopeId);
+    });
+
+    update();
+    return this.requirePersonaContext(input.id);
   }
 
   public getPersonaContext(id: string): PersonaContext | null {

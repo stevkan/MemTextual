@@ -329,6 +329,7 @@ export type {
   PersonaContext,
   PersonaMetadata,
   PersonaRelationship,
+  UpdatePersonaInput,
 } from "./domain/persona.js";
 export {
   sourceKinds,
@@ -406,6 +407,31 @@ export {
   mcpServerVersion,
   mcpToolCatalog,
 } from "./mcp/server.js";
+export {
+  continuityCandidateSummarySchema,
+  continuityMcpContractVersion,
+  continuityMcpExcludedOperations,
+  continuityMcpServerInstructions,
+  continuityMcpServerName,
+  continuityMcpToolCatalog,
+  continuityPersonaBehaviorSchema,
+  continuityPersonaMemorySummarySchema,
+  continuityPersonaSummarySchema,
+  type ContinuityMcpToolContract,
+  type ContinuityToolAnnotations,
+  type ContinuityToolAuthorization,
+} from "./mcp/continuity-contract.js";
+export {
+  createContinuityMcpServer,
+  ExplicitContinuityMcpUserActionRequiredError,
+  type ContinuityExplicitMemorySensitivityAssessment,
+  type ContinuityExplicitMemorySensitivityAssessor,
+  type ContinuityExplicitMemorySensitivityInput,
+  type ContinuityMcpAuthorizationResolver,
+  type ContinuityMcpInvocationAuthorization,
+  type ContinuityMcpServerCallContext,
+  type ContinuityMcpServerDependencies,
+} from "./mcp/continuity-server.js";
 export type { MemoryRepository } from "./repositories/memory-repository.js";
 export type { ContinuityMemoryRepository } from "./repositories/continuity-memory-repository.js";
 export type { ContinuityEmbeddingRepository } from "./repositories/continuity-embedding-repository.js";
@@ -570,6 +596,12 @@ export {
   ReviewAutomationService,
 } from "./services/review-automation-service.js";
 export { PersonaService } from "./services/persona-service.js";
+export {
+  ContinuityAuthenticatedPersonaService,
+  type ContinuityAuthenticatedPrincipal,
+  type CreateAuthenticatedPersonaInput,
+  type UpdateAuthenticatedPersonaInput,
+} from "./services/continuity-authenticated-persona-service.js";
 export {
   ContinuityOnboardingService,
   type ContinuityOnboardingInput,

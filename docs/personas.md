@@ -30,8 +30,15 @@ ownership, and their bound scope identities are immutable.
 
 - `createUser`, `getUser`, and `listUsers`;
 - `createPersona`, which also creates its one relationship context;
+- `updatePersona`, which optimistically updates mutable persona and relationship
+  labels while preserving ownership, scope identities, and hierarchy;
 - `getPersonaContext`; and
 - `listPersonas` for one user.
+
+`ContinuityAuthenticatedPersonaService` derives ownership from a trusted
+authenticated principal. Its profile, list, get, create, and update operations
+never accept a caller-selected user or scope ID, and cross-user persona IDs fail
+with the same not-found-style result as missing personas.
 
 User, persona, relationship, and scope creation is one transaction. A duplicate
 persona name or other constraint failure rolls back every new row, including
@@ -114,7 +121,10 @@ The current package establishes identities, isolated scope topology, explicit
 episodic-versus-durable classification, persona-aware lexical and optional
 hybrid retrieval, safeguarded first-run user and persona onboarding, and a local
 Continuity control console with persona-behavior editing. Persona management is
-available through the local onboarding CLI but is not exposed through MCP.
-Behavior profiles, hybrid retrieval, ranking configuration, and emotional
-annotation are also not exposed through MCP; authenticated distribution remains
-a later phase.
+currently available through the local onboarding CLI but is not yet exposed
+through a Continuity-specific ordinary ChatGPT tool surface. Adding that surface
+for explicit persona creation, listing, selection, management, and persona-bound
+memory actions is required active work, not deferred expansion. Behavior
+profiles, hybrid retrieval, ranking configuration, and emotional annotation are
+also not currently exposed through MCP; the ChatGPT surface must expose only
+actions whose authorization and persona boundaries can be preserved.

@@ -109,6 +109,120 @@ test("duplicate persona creation rolls back its scopes", () => {
   }
 });
 
+test("persona updates preserve ownership and scopes with optimistic concurrency", () => {
+  const setup = fixture();
+  try {
+    const user = setup.service.createUser({ displayName: "Steve" });
+    const created = setup.service.createPersona({
+      userId: user.id,
+      name: "Skylar",
+      description: "Initial description",
+      relationshipName: "Initial relationship",
+    });
+    const originalScopeRows = setup.database
+      .prepare(
+        `SELECT id, scope_kind, external_key, parent_scope_id
+         FROM scopes
+         WHERE id IN (?, ?)
+         ORDER BY id`,
+      )
+      .all(created.persona.scopeId, created.relationship.scopeId);
+
+    const updated = setup.service.updatePersona({
+      id: created.persona.id,
+      expectedUpdatedAt: created.persona.updatedAt,
+      name: "Skylar Prime",
+      description: "Updated description",
+      relationshipName: "Trusted companion",
+    });
+
+    assert.equal(updated.persona.name, "Skylar Prime");
+    assert.equal(updated.persona.description, "Updated description");
+    assert.equal(updated.relationship.name, "Trusted companion");
+    assert.equal(updated.persona.userId, user.id);
+    assert.equal(updated.persona.scopeId, created.persona.scopeId);
+    assert.equal(updated.relationship.scopeId, created.relationship.scopeId);
+    assert.ok(updated.persona.updatedAt > created.persona.updatedAt);
+    assert.equal(updated.relationship.updatedAt, updated.persona.updatedAt);
+    assert.deepEqual(
+      setup.database
+        .prepare(
+          `SELECT id, scope_kind, external_key, parent_scope_id
+           FROM scopes
+           WHERE id IN (?, ?)
+           ORDER BY id`,
+        )
+        .all(created.persona.scopeId, created.relationship.scopeId),
+      originalScopeRows,
+    );
+    const scopeNames = setup.database
+      .prepare("SELECT id, name FROM scopes WHERE id IN (?, ?)")
+      .all(created.persona.scopeId, created.relationship.scopeId) as Array<{
+      id: string;
+      name: string;
+    }>;
+    assert.equal(
+      scopeNames.find(({ id }) => id === created.persona.scopeId)?.name,
+      "Skylar Prime (persona)",
+    );
+    assert.equal(
+      scopeNames.find(({ id }) => id === created.relationship.scopeId)?.name,
+      "Trusted companion",
+    );
+
+    assert.throws(
+      () =>
+        setup.service.updatePersona({
+          id: created.persona.id,
+          expectedUpdatedAt: created.persona.updatedAt,
+          description: null,
+        }),
+      /changed after it was read/u,
+    );
+    assert.equal(
+      setup.service.getPersonaContext(created.persona.id)?.persona.description,
+      "Updated description",
+    );
+  } finally {
+    setup.database.close();
+  }
+});
+
+test("persona update validation and duplicate names roll back every change", () => {
+  const setup = fixture();
+  try {
+    const user = setup.service.createUser({ displayName: "Steve" });
+    const skylar = setup.service.createPersona({ userId: user.id, name: "Skylar" });
+    setup.service.createPersona({ userId: user.id, name: "Advisor" });
+
+    assert.throws(
+      () =>
+        setup.service.updatePersona({
+          id: skylar.persona.id,
+          expectedUpdatedAt: skylar.persona.updatedAt,
+        }),
+      /At least one persona field/u,
+    );
+    assert.throws(
+      () =>
+        setup.service.updatePersona({
+          id: skylar.persona.id,
+          expectedUpdatedAt: skylar.persona.updatedAt,
+          name: "advisor",
+          relationshipName: "Should roll back",
+        }),
+      /UNIQUE constraint failed/u,
+    );
+
+    const unchanged = setup.service.getPersonaContext(skylar.persona.id);
+    assert.equal(unchanged?.persona.name, "Skylar");
+    assert.equal(unchanged?.relationship.name, "Relationship with Skylar");
+    assert.equal(unchanged?.persona.updatedAt, skylar.persona.updatedAt);
+  } finally {
+    setup.database.close();
+  }
+});
+
 test("database invariants reject malformed persona scope ownership", () => {
   const setup = fixture();
   try {

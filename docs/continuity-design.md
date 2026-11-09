@@ -18,6 +18,12 @@ data model; they are not independent or incompatible memory systems.
   ambient candidate extraction, conservative review policies, and a graphical
   control surface.
 
+Continuity has two first-class interaction surfaces. Its ordinary ChatGPT tool
+integration provides explicit persona management, persona-bound memory capture,
+retrieval, and supported control actions. Its included client adds authorized
+completed-turn journaling and passive capture attempts for users who want them;
+the client is not the primary or exclusive Continuity ingestion surface.
+
 A user may create multiple personas. Each persona receives a separate scope and
 relationship context. Cross-persona recall is denied by default and requires an
 explicit user-controlled shared scope.
@@ -33,16 +39,18 @@ explicit user-controlled shared scope.
    sensitive-data handling, and temporal relevance. Ambient capture produces
    reviewable candidates unless a user-configured policy permits acceptance.
 4. **User control:** graphical review, evidence and revision history, correction,
-   rejection, protection, forgetting, export, and deletion controls.
+   rejection, protection, forgetting, export, and deletion controls, plus an
+   ordinary ChatGPT Continuity tool surface for explicit persona management and
+   persona-bound memory capture, retrieval, and supported lifecycle actions.
 5. **Retrieval quality:** optional provider-neutral embeddings, persona-aware
    ranking, temporal and emotional relevance, and bounded context composition.
 6. **Operational resilience:** automatic backups, integrity monitoring,
    retention and recovery controls, and optional encrypted off-device
    redundancy for everyday use.
 7. **Distribution:** proprietary-first licensing, authenticated streamable HTTP,
-   explicit ChatGPT MCP/plugin integration, installers, and separately packaged
-   Developer and Continuity editions. Opening selected components later remains
-   an explicit owner decision rather than a release prerequisite.
+   installers, and separately packaged Developer and Continuity editions.
+   Opening selected components later remains an explicit owner decision rather
+   than a release prerequisite.
 8. **Expansion:** legacy adapters, administration, and a public REST interface.
 
 ## Platform delivery strategy
@@ -123,11 +131,24 @@ As of October 15, 2026, OpenAI's official ChatGPT desktop, web, and mobile
 clients expose no supported outbound conversation-turn API or webhook through
 which MemTextual could passively receive every completed turn. Ordinary ChatGPT
 passive capture is therefore an unavailable external-platform capability, not
-deferred MemTextual work. ChatGPT MCP/plugin integration may support explicit or
-model-selected tool calls, but it must not be described as passive or complete
-turn capture. Browser scraping, desktop interception, and other unsupported
-observation mechanisms are outside the product design. This boundary should be
-reassessed only if OpenAI documents a suitable authorized event interface.
+deferred MemTextual work. This limitation does not make the Continuity client
+the primary interface. An ordinary ChatGPT Continuity integration is required
+to create, list, select, and manage personas and to perform explicit,
+persona-bound memory capture, retrieval, and supported control actions through
+user-requested or model-selected tool calls. That integration must clearly state
+that it cannot observe unsubmitted turns or guarantee passive capture. Browser
+scraping, desktop interception, and other unsupported observation mechanisms
+are outside the product design. This boundary should be reassessed only if
+OpenAI documents a suitable authorized event interface.
+
+The versioned persona tool contract and its separate Continuity MCP server are
+now implemented as a library boundary. The server derives ownership from a
+trusted principal, enforces an injected explicit-user-action decision for every
+write, requires server-side sensitivity assessment for direct memory creation,
+and does not register any Continuity tool in the Developer MCP server. It is not
+yet exposed through an executable or network endpoint. Authenticated ChatGPT
+transport, principal construction, registration, and interoperability
+validation remain the next active interface work.
 
 ## Distribution ownership
 

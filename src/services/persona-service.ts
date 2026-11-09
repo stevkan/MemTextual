@@ -3,6 +3,7 @@ import type {
   CreateContinuityUserInput,
   CreatePersonaInput,
   PersonaContext,
+  UpdatePersonaInput,
 } from "../domain/persona.js";
 import type { PersonaRepository } from "../repositories/persona-repository.js";
 
@@ -23,6 +24,10 @@ export class PersonaService {
 
   public createPersona(input: CreatePersonaInput): PersonaContext {
     return this.repository.createPersona(input);
+  }
+
+  public updatePersona(input: UpdatePersonaInput): PersonaContext {
+    return this.repository.updatePersona(input);
   }
 
   public getPersonaContext(id: string): PersonaContext | null {

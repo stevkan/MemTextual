@@ -63,6 +63,13 @@ The personal edition is designed for ongoing conversations with one or more
 user-created AI personas. It combines persona-bound memory, conversation
 capture, review controls, backups, and recovery safeguards.
 
+Ordinary ChatGPT is intended to be a first-class Continuity interface for
+explicit persona creation and management and for explicit, persona-bound memory
+capture and retrieval. That tool surface is required pre-release work and is not
+yet implemented. The included Continuity client is an additional option for
+users who want authorized completed-turn journaling and passive capture attempts;
+it is not intended to be Continuity's primary or exclusive ingestion point.
+
 Continuity currently uses Codex App Server as its initial conversation host. Its
 provider-neutral `ConversationHost` boundary allows other supported hosts to be
 added later without redefining the memory system.
@@ -125,6 +132,10 @@ See [Privacy and deletion](docs/privacy.md) and
   Sandbox environments.
 - Production signing, final legal terms, public-release validation, and
   distribution-compliance work are deferred.
+- The separate ordinary-ChatGPT Continuity persona-management and
+  explicit-memory MCP server is implemented as a library boundary; its
+  authenticated ChatGPT transport and registration remain active pre-release
+  work.
 - Ordinary ChatGPT does not guarantee passive capture; the included Continuity
   client provides completed-turn capture attempts through an authorized
   conversation-host adapter.

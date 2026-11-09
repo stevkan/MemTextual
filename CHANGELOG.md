@@ -5,6 +5,20 @@ describe only the current design and behavior.
 
 ## Unreleased
 
+- Added a separate Continuity MCP server that registers the complete versioned
+  ordinary-ChatGPT persona contract without exposing or modifying the Developer
+  MCP surface. The server derives ownership from an injected authenticated
+  principal, rejects cross-user access, requires trusted explicit-user-action
+  authorization for writes, and requires server-side sensitivity assessment
+  whose result cannot be lowered by a caller hint. Network transport and
+  ChatGPT registration remain intentionally unimplemented.
+- Defined the versioned ordinary-ChatGPT Continuity tool contract for explicit
+  persona management, persona-bound memory operations, and candidate review.
+  The contract rejects caller-selected ownership scopes and distinguishes
+  explicit tool calls from passive capture.
+- Added optimistic persona and relationship-detail updates that preserve scope
+  ownership and hierarchy, plus a trusted-principal persona service that derives
+  the Continuity user internally and denies cross-user persona access.
 - Preserved inherited modify access for the installing Windows user on managed
   writable directories so the interactive Continuity client can open SQLite
   WAL sidecars created by the unattended service identity.

@@ -44,6 +44,8 @@ The system provides:
 - explicitly authorized recoverable deletion and confirmed memory purge;
 - dependency-aware source-series deletion, restoration, and confirmed purge;
 - multi-persona identity and relationship scopes with enforced ownership;
+- optimistic mutable persona updates and authenticated-user persona access that
+  never accepts caller-selected user or scope identities;
 - explicit episodic and durable persona-memory classes;
 - persona-aware retrieval with default-deny cross-persona isolation;
 - provider-neutral ambient extraction into persona-bound review candidates;
@@ -93,6 +95,7 @@ docs/windows-authenticode.md Format-neutral Windows installer signing boundary
 docs/windows-msi.md          Per-machine Windows MSI build contract
 docs/continuity-control.md Persona-scoped review and lifecycle control contract
 docs/continuity-console.md Local graphical review and memory-inspection console
+docs/continuity-chatgpt-tools.md Ordinary ChatGPT Continuity tool contract
 docs/continuity-setup.md   Safeguarded first-run user and persona onboarding
 docs/context-composition.md Bounded persona-memory context payload contract
 docs/automatic-backups.md  Opt-in everyday backup orchestration and health
@@ -312,17 +315,37 @@ Unknown adapters and properties fail closed. The older `--destination`-only
 form remains a local-directory compatibility shorthand and never selects a
 cloud provider.
 
+## Required pre-release Continuity interface work
+
+Ordinary ChatGPT must be a first-class explicit Continuity interface rather than
+an incidental or secondary integration. The separate Continuity MCP server now
+implements the versioned, persona-bound tool contract for persona management,
+explicit memory operations, and candidate review. It resolves user ownership
+and relationship scopes internally, enforces an injected explicit-user-action
+boundary for writes, and does not expose the Developer tool surface. It also
+discloses that ordinary ChatGPT cannot provide passive completed-turn capture.
+The included Continuity client remains the optional surface that adds authorized
+turn journaling and a capture attempt for every completed turn conducted through
+it. Authenticated ChatGPT transport, identity construction, registration, and
+interoperability validation remain required active work and are not deferred.
+
 ## Deliberately deferred
 
-Trusted host-project-to-MemTextual-project-scope mapping, additional vendor
-extractor and host-event clients, vendor-specific legacy-export adapters,
+Trusted host-project-to-MemTextual-project-scope mapping, an explicit
+conversation-to-project memory-promotion workflow, additional vendor extractor
+and host-event clients, vendor-specific legacy-export adapters,
 graphical source-series privacy workflows, standalone-source deletion,
-additional cloud destination adapters, resumable imports, streamable HTTP,
-REST API, admin UI, concrete vendor embedding provider, concrete host capture
+additional cloud destination adapters, resumable imports, general-purpose
+streamable HTTP and REST APIs, admin UI, concrete vendor embedding provider,
+concrete host capture
 integrations, production signing and production-signed release validation,
 additional secure credential-store providers, a combined Developer/Continuity
-launcher, final proprietary legal terms, third-party dependency license/notice
-inventory and bundle integration, and public-release validation remain open.
+launcher, maximum practical installation and first-run simplification for both
+Developer and Continuity, a comprehensive review and consolidation of all
+Markdown documentation under `docs`, an end-to-end performance and usability
+review of permanent memory deletion, final proprietary legal terms, third-party
+dependency license/notice inventory and bundle integration, and public-release
+validation remain open.
 All remain deferred while MemTextual is in private, single-user functional
 evaluation. The distribution-specific items must be completed before any public
 distribution. The combined launcher is considered only after both editions are
@@ -331,14 +354,46 @@ edition-appropriate delivery mechanisms, and lifecycle-validated. It may
 offer Developer, Continuity, or both, but must preserve their separate
 components, privileges, configuration, privacy expectations, and update paths.
 
+Installation and first-run simplification should reduce required commands,
+repeated path entry, configuration-file creation, connection steps, and routine
+launch actions to the minimum practical set for each edition. It may use guided
+setup, safe automatic discovery, remembered profiles, edition-appropriate
+defaults, and one-action launch paths, but must preserve explicit user choices
+and preview or confirmation gates where security, privacy, data protection, or
+privileged system changes require them.
+
+The documentation review should inventory every Markdown file under `docs`,
+remove obsolete or duplicated material, consolidate files where that improves
+navigation, and reduce the overall document count where practical. The resulting
+structure should clearly separate user-facing setup and usage guidance from
+developer, architecture, validation, and release references. User-facing content
+should favor plain language, task-oriented organization, clear navigation, and
+only the technical detail needed to complete the task safely.
+
+The permanent-memory-deletion review should measure each stage of the complete
+user-visible workflow, including confirmation and process-start overhead,
+database transition and purge work, receipt creation, and final verification.
+It should identify why purging one memory can take approximately two minutes,
+set a reasonable performance target, and simplify or optimize the workflow
+without weakening explicit authorization, recoverable-delete staging,
+eligibility checks, audit receipts, or post-purge verification.
+
 Project-to-scope mapping must use a stable project identity supplied by an
 authorized host, not a project display name inferred from conversation text.
 Until a host supplies that identity and MemTextual implements an explicit
 mapping workflow, ChatGPT Project instructions may name a scope ID as a
 convenience but are not guaranteed automatic scope selection.
 
+Conversation-to-project promotion must treat the broader project scope as an
+access-boundary change rather than silently reclassifying a memory. A future
+workflow should identify a potentially project-wide memory, explain the reason
+for promotion, require explicit user approval or a user-configured policy,
+preserve its source and revision provenance, and archive, link, or otherwise
+reconcile the conversation-scoped version so promotion does not create
+unexplained duplicates.
+
 Ordinary ChatGPT passive capture is not on this deferred roadmap. OpenAI's
 official ChatGPT clients currently provide no supported outbound completed-turn
 interface for third-party capture, so MemTextual cannot implement that behavior
 unless the platform boundary changes. Explicit or model-selected ChatGPT
-MCP/plugin calls remain a different, supported integration category.
+Continuity tool calls remain a separate, required implementation category.
