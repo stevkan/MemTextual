@@ -145,9 +145,13 @@ The versioned persona tool contract and its separate Continuity MCP server are
 now implemented as a library boundary. The server derives ownership from a
 trusted principal, enforces an injected explicit-user-action decision for every
 write, requires server-side sensitivity assessment for direct memory creation,
-and does not register any Continuity tool in the Developer MCP server. It is not
-yet exposed through an executable or network endpoint. Authenticated ChatGPT
-transport, principal construction, registration, and interoperability
+and does not register any Continuity tool in the Developer MCP server. A
+provider-neutral authenticated Streamable HTTP handler now publishes OAuth
+discovery, verifies bearer-token expiry and resource audience, advertises
+separate read and write scopes, and injects trusted principal and explicit-write
+policy decisions. It is not yet exposed through an executable or network
+endpoint. Concrete identity-provider binding, durable subject-to-user mapping,
+hosting or private-tunnel selection, ChatGPT registration, and interoperability
 validation remain the next active interface work.
 
 ## Distribution ownership

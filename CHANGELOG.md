@@ -5,13 +5,21 @@ describe only the current design and behavior.
 
 ## Unreleased
 
+- Added a provider-neutral authenticated Streamable HTTP boundary for the
+  Continuity MCP server. It serves OAuth discovery metadata, rejects missing,
+  expired, and wrong-audience bearer tokens, advertises separate read and write
+  scopes, binds requests to a trusted Continuity principal, and keeps explicit
+  write authorization as a separate fail-closed policy decision. No identity
+  provider, public listener, or ChatGPT registration is selected or enabled.
+- Updated the Continuity profile tool to OpenAI's standard top-level profile
+  shape and added per-tool OAuth security metadata and scope challenges.
 - Added a separate Continuity MCP server that registers the complete versioned
   ordinary-ChatGPT persona contract without exposing or modifying the Developer
   MCP surface. The server derives ownership from an injected authenticated
   principal, rejects cross-user access, requires trusted explicit-user-action
   authorization for writes, and requires server-side sensitivity assessment
-  whose result cannot be lowered by a caller hint. Network transport and
-  ChatGPT registration remain intentionally unimplemented.
+  whose result cannot be lowered by a caller hint. Concrete identity-provider
+  binding, hosting, and ChatGPT registration remain intentionally unimplemented.
 - Defined the versioned ordinary-ChatGPT Continuity tool contract for explicit
   persona management, persona-bound memory operations, and candidate review.
   The contract rejects caller-selected ownership scopes and distinguishes

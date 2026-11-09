@@ -2,8 +2,10 @@ import * as z from "zod/v4";
 import { personaMemoryClasses } from "../domain/continuity-memory.js";
 import { memoryStatuses, memoryTypes } from "../domain/memory.js";
 
-export const continuityMcpContractVersion = 1;
+export const continuityMcpContractVersion = 2;
 export const continuityMcpServerName = "memtextual-continuity";
+export const continuityMcpReadScope = "continuity.read";
+export const continuityMcpWriteScope = "continuity.write";
 
 export const continuityMcpServerInstructions =
   "MemTextual Continuity manages private, persona-bound memory. Ordinary ChatGPT provides explicit tool calls only; never claim passive capture. Resolve the intended persona with persona_list or persona_get before a persona-bound action. Use persona_memory_remember only when the user explicitly asks to remember, save, or store information. Never request or infer user, relationship, or scope IDs; the server resolves those boundaries.";
@@ -17,7 +19,7 @@ export interface ContinuityToolAnnotations {
   readOnlyHint: boolean;
   idempotentHint: boolean;
   openWorldHint: false;
-  destructiveHint?: boolean;
+  destructiveHint: boolean;
 }
 
 export interface ContinuityMcpToolContract {
@@ -25,6 +27,7 @@ export interface ContinuityMcpToolContract {
   title: string;
   description: string;
   authorization: ContinuityToolAuthorization;
+  requiredScopes: readonly [string, ...string[]];
   inputSchema: z.ZodType;
   outputSchema: z.ZodType;
   annotations: ContinuityToolAnnotations;
@@ -35,12 +38,14 @@ const readOnlyAnnotations = {
   readOnlyHint: true,
   idempotentHint: true,
   openWorldHint: false,
+  destructiveHint: false,
 } as const;
 
 const writeAnnotations = {
   readOnlyHint: false,
   idempotentHint: false,
   openWorldHint: false,
+  destructiveHint: false,
 } as const;
 
 const destructiveWriteAnnotations = {
@@ -56,6 +61,17 @@ const nonemptyTextSchema = z.string().trim().min(1);
 const sensitivitySchema = z.enum(["normal", "sensitive", "restricted"]);
 const retrievalPolicySchema = z.enum(["include", "exclude", "manual"]);
 const candidateStatusSchema = z.enum(["pending", "accepted", "rejected"]);
+const readScopes = [continuityMcpReadScope] as const;
+const writeScopes = [continuityMcpWriteScope] as const;
+
+export const continuityProfileSchema = z
+  .object({
+    id: nonemptyTextSchema,
+    name: z.string().optional(),
+    email: z.string().optional(),
+    nickname: z.string().optional(),
+  })
+  .strict();
 
 export const continuityPersonaSummarySchema = z
   .object({
@@ -154,19 +170,11 @@ export const continuityMcpToolCatalog = [
     name: "continuity_profile",
     title: "Get the connected Continuity profile",
     description:
-      "Use this to identify the authenticated Continuity user and explain the ordinary-ChatGPT capture boundary before working with personas or memories.",
+      "Return the stable Continuity profile represented by the authenticated connection so ChatGPT can identify and distinguish connected accounts.",
     authorization: "authenticated_read",
+    requiredScopes: readScopes,
     inputSchema: emptyInputSchema,
-    outputSchema: z
-      .object({
-        user: z
-          .object({ id: z.uuid(), displayName: nonemptyTextSchema })
-          .strict(),
-        personaCount: z.number().int().nonnegative(),
-        passiveCaptureAvailable: z.literal(false),
-        captureMode: z.literal("explicit_tool_calls_only"),
-      })
-      .strict(),
+    outputSchema: continuityProfileSchema,
     annotations: readOnlyAnnotations,
     openaiProfile: true,
   },
@@ -176,6 +184,7 @@ export const continuityMcpToolCatalog = [
     description:
       "Use this when the user wants to see their personas or when a persona name must be resolved before another action.",
     authorization: "authenticated_read",
+    requiredScopes: readScopes,
     inputSchema: emptyInputSchema,
     outputSchema: z.object({ personas: z.array(continuityPersonaSummarySchema) }).strict(),
     annotations: readOnlyAnnotations,
@@ -186,6 +195,7 @@ export const continuityMcpToolCatalog = [
     description:
       "Use this to inspect one persona owned by the authenticated Continuity user.",
     authorization: "authenticated_read",
+    requiredScopes: readScopes,
     inputSchema: z.object({ personaId: personaIdSchema }).strict(),
     outputSchema: personaResultSchema,
     annotations: readOnlyAnnotations,
@@ -196,6 +206,7 @@ export const continuityMcpToolCatalog = [
     description:
       "Use this only when the user explicitly asks to create a new Continuity persona. User and scope identities are resolved by the server.",
     authorization: "explicit_user_write",
+    requiredScopes: writeScopes,
     inputSchema: z
       .object({
         name: nonemptyTextSchema,
@@ -212,6 +223,7 @@ export const continuityMcpToolCatalog = [
     description:
       "Use this only when the user explicitly asks to change mutable persona or relationship details. Ownership and scope identities never change.",
     authorization: "explicit_user_write",
+    requiredScopes: writeScopes,
     inputSchema: personaUpdateInputSchema,
     outputSchema: personaResultSchema,
     annotations: writeAnnotations,
@@ -222,6 +234,7 @@ export const continuityMcpToolCatalog = [
     description:
       "Use this to inspect the current user-authored behavior instructions for one Continuity persona.",
     authorization: "authenticated_read",
+    requiredScopes: readScopes,
     inputSchema: z.object({ personaId: personaIdSchema }).strict(),
     outputSchema: z
       .object({ behavior: continuityPersonaBehaviorSchema.nullable() })
@@ -234,6 +247,7 @@ export const continuityMcpToolCatalog = [
     description:
       "Use this only when the user explicitly asks to create, change, enable, or disable a persona's behavior instructions.",
     authorization: "explicit_user_write",
+    requiredScopes: writeScopes,
     inputSchema: z
       .object({
         personaId: personaIdSchema,
@@ -252,6 +266,7 @@ export const continuityMcpToolCatalog = [
     description:
       "Use this only when the user explicitly asks MemTextual to remember, save, or store the supplied information for one persona. Never use it for implicit capture.",
     authorization: "explicit_user_write",
+    requiredScopes: writeScopes,
     inputSchema: z
       .object({
         personaId: personaIdSchema,
@@ -273,6 +288,7 @@ export const continuityMcpToolCatalog = [
     description:
       "Use this to retrieve relevant active memories for one persona without accepting caller-selected scopes or sensitivity expansion.",
     authorization: "authenticated_read",
+    requiredScopes: readScopes,
     inputSchema: z
       .object({
         personaId: personaIdSchema,
@@ -292,6 +308,7 @@ export const continuityMcpToolCatalog = [
     description:
       "Use this when the user wants to inspect memories belonging to one persona.",
     authorization: "authenticated_read",
+    requiredScopes: readScopes,
     inputSchema: z
       .object({
         personaId: personaIdSchema,
@@ -309,6 +326,7 @@ export const continuityMcpToolCatalog = [
     description:
       "Use this to inspect one memory and its current revision for the specified persona.",
     authorization: "authenticated_read",
+    requiredScopes: readScopes,
     inputSchema: personaMemoryIdInputSchema,
     outputSchema: memoryResultSchema,
     annotations: readOnlyAnnotations,
@@ -319,6 +337,7 @@ export const continuityMcpToolCatalog = [
     description:
       "Use this only when the user explicitly asks to correct or update an existing memory for the same persona.",
     authorization: "explicit_user_write",
+    requiredScopes: writeScopes,
     inputSchema: z
       .object({
         personaId: personaIdSchema,
@@ -336,6 +355,7 @@ export const continuityMcpToolCatalog = [
     description:
       "Use this only when the user explicitly asks to remove an active memory from normal retrieval while keeping it recoverable.",
     authorization: "explicit_user_destructive_write",
+    requiredScopes: writeScopes,
     inputSchema: personaMemoryIdInputSchema,
     outputSchema: memoryResultSchema,
     annotations: destructiveWriteAnnotations,
@@ -346,6 +366,7 @@ export const continuityMcpToolCatalog = [
     description:
       "Use this only when the user explicitly asks to return an archived memory to active retrieval.",
     authorization: "explicit_user_write",
+    requiredScopes: writeScopes,
     inputSchema: personaMemoryIdInputSchema,
     outputSchema: memoryResultSchema,
     annotations: writeAnnotations,
@@ -356,6 +377,7 @@ export const continuityMcpToolCatalog = [
     description:
       "Use this when the user wants to inspect review candidates associated with one persona.",
     authorization: "authenticated_read",
+    requiredScopes: readScopes,
     inputSchema: z
       .object({
         personaId: personaIdSchema,
@@ -374,6 +396,7 @@ export const continuityMcpToolCatalog = [
     description:
       "Use this to inspect one candidate and its review evidence for the specified persona.",
     authorization: "authenticated_read",
+    requiredScopes: readScopes,
     inputSchema: personaCandidateIdInputSchema,
     outputSchema: candidateResultSchema,
     annotations: readOnlyAnnotations,
@@ -384,6 +407,7 @@ export const continuityMcpToolCatalog = [
     description:
       "Use this only when the user explicitly asks to accept a pending candidate as a new memory for the same persona.",
     authorization: "explicit_user_write",
+    requiredScopes: writeScopes,
     inputSchema: z
       .object({
         personaId: personaIdSchema,
@@ -400,6 +424,7 @@ export const continuityMcpToolCatalog = [
     description:
       "Use this only when the user explicitly asks to resolve a pending candidate without creating or changing a memory.",
     authorization: "explicit_user_destructive_write",
+    requiredScopes: writeScopes,
     inputSchema: z
       .object({
         personaId: personaIdSchema,

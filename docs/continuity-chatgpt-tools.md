@@ -1,9 +1,10 @@
 # Continuity ordinary ChatGPT tool contract
 
-Status: required pre-release contract and server handlers implemented; the
-authenticated ChatGPT transport is not yet implemented.
+Status: required pre-release contract, server handlers, and provider-neutral
+authenticated HTTP boundary implemented; concrete identity-provider binding,
+hosting, ChatGPT registration, and interoperability validation remain.
 
-Contract version: 1.
+Contract version: 2.
 
 ## Purpose
 
@@ -18,6 +19,9 @@ authorized completed-turn journaling and capture attempts.
 ## Boundary rules
 
 - Every request is bound to the authenticated Continuity user.
+- Read tools require `continuity.read`; write tools require `continuity.write`.
+- The HTTP boundary rejects missing, expired, or wrong-audience bearer tokens
+  before MCP request handling.
 - Persona tools return only personas owned by that user.
 - Persona-bound tools accept a persona ID but never a user, relationship, or
   scope ID from the caller.
@@ -29,14 +33,14 @@ authorized completed-turn journaling and capture attempts.
   save, or store information. It is not an ambient extraction entry point.
 - A caller-requested sensitivity may only increase protection. Server-side
   assessment remains authoritative and must fail closed when missing.
-- Mutating tools require an explicit-user-action boundary. Tool registration is
-  blocked until the implementation can preserve that boundary.
+- Mutating tools require a separate trusted explicit-user-action decision;
+  OAuth authentication or scope alone does not satisfy that boundary.
 
 ## Required initial tools
 
 | Tool | Purpose | Authorization |
 |---|---|---|
-| `continuity_profile` | Identify the connected user and disclose the explicit-only ChatGPT capture mode | Authenticated read |
+| `continuity_profile` | Return the connected user's standard ChatGPT profile identity | Authenticated read |
 | `persona_list` | List the connected user's personas and resolve names to stable IDs | Authenticated read |
 | `persona_get` | Inspect one owned persona | Authenticated read |
 | `persona_create` | Create a persona and its relationship scope hierarchy | Explicit user write |
@@ -91,10 +95,19 @@ The server accepts identity and explicit-user-action state only through an
 injected trusted authorization resolver. It verifies persona ownership before
 every persona-bound operation and requires a server-side sensitivity assessor
 for direct memory creation. A requested sensitivity can raise protection but
-cannot lower the assessed value.
+cannot lower the assessed value. The profile tool returns OpenAI's standard
+top-level profile shape and is marked with `openai/profile` metadata.
 
-The server is currently a library boundary only. No executable, package entry,
-ordinary-ChatGPT registration, or network transport has been added. Activation
-still requires an authenticated transport that constructs the trusted
-principal and explicit-user-action state, followed by transport-level security
-and interoperability validation.
+`src/mcp/continuity-http.ts` adds a provider-neutral Streamable HTTP boundary.
+It publishes OAuth discovery metadata, verifies bearer-token expiry and
+resource audience, advertises per-tool OAuth scopes, resolves the trusted
+Continuity principal, and requires a separate injected policy for explicit
+write authorization. It does not implement an authorization server, select an
+identity provider, start a listener, or expose a public endpoint.
+
+Activation still requires a concrete OAuth 2.1 identity provider, durable
+subject-to-user binding, hosting or an approved private tunnel, ordinary
+ChatGPT registration, and live interoperability validation. OpenAI recommends
+using an established identity provider instead of building a new authorization
+server; ChatGPT's MCP authentication uses authorization code with PKCE.
+[OpenAI authentication documentation](https://developers.openai.com/plugins/build/auth)

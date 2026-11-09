@@ -326,8 +326,12 @@ boundary for writes, and does not expose the Developer tool surface. It also
 discloses that ordinary ChatGPT cannot provide passive completed-turn capture.
 The included Continuity client remains the optional surface that adds authorized
 turn journaling and a capture attempt for every completed turn conducted through
-it. Authenticated ChatGPT transport, identity construction, registration, and
-interoperability validation remain required active work and are not deferred.
+it. The provider-neutral authenticated Streamable HTTP handler publishes OAuth
+discovery, verifies bearer-token expiry and audience, enforces per-tool read or
+write scopes, and resolves a trusted principal without selecting an identity
+provider. Concrete identity-provider binding, durable subject-to-user mapping,
+hosting or private-tunnel selection, ChatGPT registration, and interoperability
+validation remain required active work and are not deferred.
 
 ## Deliberately deferred
 

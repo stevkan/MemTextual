@@ -1,4 +1,8 @@
-import { McpServer } from "@modelcontextprotocol/server";
+import {
+  McpServer,
+  requireScopes,
+  type AuthInfo,
+} from "@modelcontextprotocol/server";
 import * as z from "zod/v4";
 import type { PersonaMemory, PersonaMemoryClass } from "../domain/continuity-memory.js";
 import type { MemoryCandidate } from "../domain/ingestion.js";
@@ -18,22 +22,25 @@ import {
   continuityMcpServerName,
   continuityMcpToolCatalog,
   type ContinuityMcpToolContract,
+  type ContinuityToolAuthorization,
 } from "./continuity-contract.js";
 
 export interface ContinuityMcpInvocationAuthorization {
   principal: ContinuityAuthenticatedPrincipal;
+  scopes: readonly string[];
   explicitUserAction: boolean;
 }
 
 export interface ContinuityMcpServerCallContext {
   http?: {
-    authInfo?: unknown;
+    authInfo?: AuthInfo;
   };
 }
 
 export interface ContinuityMcpAuthorizationResolver {
   resolve(
     context: ContinuityMcpServerCallContext,
+    authorization: ContinuityToolAuthorization,
   ):
     | ContinuityMcpInvocationAuthorization
     | Promise<ContinuityMcpInvocationAuthorization>;
@@ -75,6 +82,18 @@ export class ExplicitContinuityMcpUserActionRequiredError extends Error {
   public constructor() {
     super("This Continuity operation requires an explicit user action.");
     this.name = "ExplicitContinuityMcpUserActionRequiredError";
+  }
+}
+
+export class ContinuityMcpInsufficientScopeError extends Error {
+  public readonly missingScopes: readonly string[];
+
+  public constructor(missingScopes: readonly string[]) {
+    super(
+      `Continuity authorization is missing required scope${missingScopes.length === 1 ? "" : "s"}: ${missingScopes.join(", ")}.`,
+    );
+    this.name = "ContinuityMcpInsufficientScopeError";
+    this.missingScopes = missingScopes;
   }
 }
 
@@ -140,10 +159,17 @@ async function runTool(operation: () => ToolOutput | Promise<ToolOutput>) {
   }
 }
 
-function requireExplicitUserAction(
+function requireToolAuthorization(
   tool: ContinuityMcpToolContract,
   authorization: ContinuityMcpInvocationAuthorization,
 ): void {
+  const grantedScopes = new Set(authorization.scopes);
+  const missingScopes = tool.requiredScopes.filter(
+    (scope) => !grantedScopes.has(scope),
+  );
+  if (missingScopes.length > 0) {
+    throw new ContinuityMcpInsufficientScopeError(missingScopes);
+  }
   if (
     tool.authorization !== "authenticated_read" &&
     authorization.explicitUserAction !== true
@@ -268,19 +294,19 @@ async function executeTool(
   dependencies: ContinuityMcpServerDependencies,
 ): Promise<ToolOutput> {
   const input = tool.inputSchema.parse(rawInput) as ToolInput;
-  const authorization = await dependencies.authorization.resolve(callContext);
-  requireExplicitUserAction(tool, authorization);
+  const authorization = await dependencies.authorization.resolve(
+    callContext,
+    tool.authorization,
+  );
+  requireToolAuthorization(tool, authorization);
   const { principal } = authorization;
 
   switch (tool.name) {
     case "continuity_profile": {
       const user = dependencies.personas.getProfile(principal);
-      const personaCount = dependencies.personas.listPersonas(principal).length;
       return {
-        user: { id: user.id, displayName: user.displayName },
-        personaCount,
-        passiveCaptureAvailable: false,
-        captureMode: "explicit_tool_calls_only",
+        id: user.id,
+        name: user.displayName,
       };
     }
     case "persona_list":
@@ -589,6 +615,7 @@ export function createContinuityMcpServer(
   );
 
   for (const tool of continuityMcpToolCatalog) {
+    const [firstScope, ...additionalScopes] = tool.requiredScopes;
     server.registerTool(
       tool.name,
       {
@@ -597,6 +624,18 @@ export function createContinuityMcpServer(
         inputSchema: tool.inputSchema,
         outputSchema: tool.outputSchema,
         annotations: tool.annotations,
+        scopeChallenge: requireScopes(firstScope, ...additionalScopes),
+        _meta: {
+          securitySchemes: [
+            {
+              type: "oauth2",
+              scopes: [...tool.requiredScopes],
+            },
+          ],
+          ...("openaiProfile" in tool && tool.openaiProfile === true
+            ? { "openai/profile": true }
+            : {}),
+        },
       },
       async (input: unknown, context: ContinuityMcpServerCallContext) =>
         runTool(() => executeTool(tool, input, context, dependencies)),

@@ -18,7 +18,9 @@ import {
   SqliteIngestionRepository,
   SqliteMemoryRepository,
   SqlitePersonaRepository,
+  continuityMcpReadScope,
   continuityMcpToolCatalog,
+  continuityMcpWriteScope,
   createContinuityMcpServer,
   openMemTextualDatabase,
   type AmbientMemoryExtractor,
@@ -63,6 +65,7 @@ async function fixture() {
   };
   let authorization: ContinuityMcpInvocationAuthorization = {
     principal,
+    scopes: [continuityMcpReadScope, continuityMcpWriteScope],
     explicitUserAction: false,
   };
   const server = createContinuityMcpServer({
@@ -158,11 +161,26 @@ test("Continuity MCP server exposes only the contracted persona surface", async 
       arguments: {},
     });
     assert.deepEqual(structuredResult(profileCall), {
-      user: { id: setup.principal.continuityUserId, displayName: "Steve" },
-      personaCount: 1,
-      passiveCaptureAvailable: false,
-      captureMode: "explicit_tool_calls_only",
+      id: setup.principal.continuityUserId,
+      name: "Steve",
     });
+
+    const profileTool = tools.tools.find(
+      ({ name }) => name === "continuity_profile",
+    );
+    assert.equal(profileTool?._meta?.["openai/profile"], true);
+    for (const listedTool of tools.tools) {
+      assert.deepEqual(listedTool._meta?.["securitySchemes"], [
+        {
+          type: "oauth2",
+          scopes: [
+            listedTool.annotations?.readOnlyHint
+              ? continuityMcpReadScope
+              : continuityMcpWriteScope,
+          ],
+        },
+      ]);
+    }
   } finally {
     await closeFixture(setup);
   }
@@ -181,6 +199,20 @@ test("Continuity MCP writes require trusted explicit-user authorization", async 
 
     setup.setAuthorization({
       principal: setup.principal,
+      scopes: [continuityMcpReadScope],
+      explicitUserAction: true,
+    });
+    const insufficientScope = await setup.client.callTool({
+      name: "persona_create",
+      arguments: { name: "Skylar" },
+    });
+    assert.equal(insufficientScope.isError, true);
+    assert.match(JSON.stringify(insufficientScope.content), /continuity\.write/u);
+    assert.equal(setup.personas.listPersonas(setup.principal).length, 0);
+
+    setup.setAuthorization({
+      principal: setup.principal,
+      scopes: [continuityMcpReadScope, continuityMcpWriteScope],
       explicitUserAction: true,
     });
     const createdCall = await setup.client.callTool({
@@ -269,6 +301,7 @@ test("Continuity MCP memory tools preserve persona boundaries and lifecycle", as
     const skylar = setup.personas.createPersona(setup.principal, { name: "Skylar" });
     setup.setAuthorization({
       principal: setup.principal,
+      scopes: [continuityMcpReadScope, continuityMcpWriteScope],
       explicitUserAction: true,
     });
     const rememberedCall = await setup.client.callTool({
@@ -397,6 +430,7 @@ test("Continuity MCP candidate review is persona-bound and explicit", async () =
 
     setup.setAuthorization({
       principal: setup.principal,
+      scopes: [continuityMcpReadScope, continuityMcpWriteScope],
       explicitUserAction: true,
     });
     const acceptedCall = await setup.client.callTool({

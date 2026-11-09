@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  continuityMcpReadScope,
   continuityMcpExcludedOperations,
   continuityMcpServerInstructions,
   continuityMcpToolCatalog,
+  continuityMcpWriteScope,
 } from "../src/index.js";
 
 const forbiddenCallerFields = new Set([
@@ -49,9 +51,16 @@ test("Continuity ChatGPT contract has stable unique tools and safety metadata", 
       tool.annotations.readOnlyHint,
       tool.authorization === "authenticated_read",
     );
-    if (tool.authorization === "explicit_user_destructive_write") {
-      assert.equal(tool.annotations.destructiveHint, true);
-    }
+    assert.equal(
+      tool.annotations.destructiveHint,
+      tool.authorization === "explicit_user_destructive_write",
+    );
+    assert.deepEqual(
+      tool.requiredScopes,
+      tool.authorization === "authenticated_read"
+        ? [continuityMcpReadScope]
+        : [continuityMcpWriteScope],
+    );
   }
 });
 

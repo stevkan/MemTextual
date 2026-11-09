@@ -411,9 +411,11 @@ export {
   continuityCandidateSummarySchema,
   continuityMcpContractVersion,
   continuityMcpExcludedOperations,
+  continuityMcpReadScope,
   continuityMcpServerInstructions,
   continuityMcpServerName,
   continuityMcpToolCatalog,
+  continuityMcpWriteScope,
   continuityPersonaBehaviorSchema,
   continuityPersonaMemorySummarySchema,
   continuityPersonaSummarySchema,
@@ -423,6 +425,7 @@ export {
 } from "./mcp/continuity-contract.js";
 export {
   createContinuityMcpServer,
+  ContinuityMcpInsufficientScopeError,
   ExplicitContinuityMcpUserActionRequiredError,
   type ContinuityExplicitMemorySensitivityAssessment,
   type ContinuityExplicitMemorySensitivityAssessor,
@@ -432,6 +435,14 @@ export {
   type ContinuityMcpServerCallContext,
   type ContinuityMcpServerDependencies,
 } from "./mcp/continuity-server.js";
+export {
+  createContinuityMcpHttpApplication,
+  type ContinuityMcpExplicitUserActionInput,
+  type ContinuityMcpExplicitUserActionPolicy,
+  type ContinuityMcpHttpApplication,
+  type ContinuityMcpHttpApplicationOptions,
+  type ContinuityMcpHttpPrincipalResolver,
+} from "./mcp/continuity-http.js";
 export type { MemoryRepository } from "./repositories/memory-repository.js";
 export type { ContinuityMemoryRepository } from "./repositories/continuity-memory-repository.js";
 export type { ContinuityEmbeddingRepository } from "./repositories/continuity-embedding-repository.js";
