@@ -18,6 +18,9 @@
     "memtextual-continuity-upgrade": "dist/src/cli/continuity-upgrade.js",
     "memtextual-continuity-release": "dist/src/cli/continuity-release-validation.js",
     "memtextual-continuity": "dist/src/cli/continuity-console.js",
+    "memtextual-continuity-identity": "dist/src/cli/continuity-identity.js",
+    "memtextual-continuity-remote": "dist/src/cli/continuity-remote.js",
+    "memtextual-continuity-tunnel": "dist/src/cli/continuity-tunnel.js",
     "memtextual-windows-host": "dist/src/cli/windows-host.js",
     "memtextual-windows-host-validation": "dist/src/cli/windows-elevated-host-validation.js",
     "memtextual-windows-bundle": "dist/src/cli/windows-bundle.js",
@@ -41,6 +44,9 @@
     "safeguard": "tsx src/cli/safeguard.ts",
     "privacy": "tsx src/cli/privacy.ts",
     "continuity": "tsx src/cli/continuity-console.ts",
+    "continuity-identity": "tsx src/cli/continuity-identity.ts",
+    "continuity-remote": "tsx src/cli/continuity-remote.ts",
+    "continuity-tunnel": "tsx src/cli/continuity-tunnel.ts",
     "windows-host": "tsx src/cli/windows-host.ts",
     "windows-host-validation": "tsx src/cli/windows-elevated-host-validation.ts",
     "windows-bundle": "tsx src/cli/windows-bundle.ts",
@@ -54,6 +60,7 @@
     "@azure/storage-blob": "12.34.0",
     "@modelcontextprotocol/server": "^2.3.1",
     "better-sqlite3": "13.0.3",
+    "jose": "6.2.12",
     "zod": "^4.6.7"
   },
   "devDependencies": {

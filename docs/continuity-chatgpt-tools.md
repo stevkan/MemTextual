@@ -1,8 +1,9 @@
 # Continuity ordinary ChatGPT tool contract
 
 Status: required pre-release contract, server handlers, and provider-neutral
-authenticated HTTP boundary implemented; concrete identity-provider binding,
-hosting, ChatGPT registration, and interoperability validation remain.
+authenticated HTTP boundary implemented; concrete identity-provider
+integration, token verification, hosting, ChatGPT registration, and
+interoperability validation remain.
 
 Contract version: 2.
 
@@ -83,6 +84,13 @@ These exclusions keep irreversible privacy actions and local-host administration
 inside explicitly confirming local interfaces until a separate remote-safe
 contract is approved.
 
+Archive is the recommended ordinary-ChatGPT action when a user wants a memory
+removed from active retrieval. It is reversible and does not erase stored data.
+If the user asks for recoverable deletion or permanent purge, ChatGPT must
+explain that the action is available in the local Continuity client and must not
+present archive as deletion. The client retains the existing preview and exact
+confirmation boundaries for irreversible purge.
+
 ## Implementation status
 
 The catalog in `src/mcp/continuity-contract.ts` is descriptive and versioned.
@@ -105,9 +113,55 @@ Continuity principal, and requires a separate injected policy for explicit
 write authorization. It does not implement an authorization server, select an
 identity provider, start a listener, or expose a public endpoint.
 
-Activation still requires a concrete OAuth 2.1 identity provider, durable
-subject-to-user binding, hosting or an approved private tunnel, ordinary
-ChatGPT registration, and live interoperability validation. OpenAI recommends
-using an established identity provider instead of building a new authorization
-server; ChatGPT's MCP authentication uses authorization code with PKCE.
+The private-UAT write policy trusts only explicitly configured OAuth client
+IDs, requires the verified `continuity.write` scope, and accepts writes only on
+an exact MCP `POST` resource. This policy relies on the trusted ChatGPT client
+to obtain the user's built-in write confirmation; OAuth does not prove an
+individual per-call confirmation to MemTextual. Unknown clients, read-only
+tokens, other resources, and non-POST requests remain denied. Permanently
+destructive privacy operations remain absent from the remote tool contract.
+
+The remote deployment configuration is a strict, secret-free JSON document.
+It records the exact Auth0 HTTPS issuer, exact public HTTPS origin, fixed local
+loopback port, and an explicit write mode. `deny` keeps the remote tool surface
+read-only. `trusted_oauth_client` requires one or more exact OAuth client IDs;
+unknown properties, embedded client secrets, non-HTTPS origins, unstable port
+zero, duplicate client IDs, and an empty trust list are rejected. The MCP
+resource is derived as `/mcp` under the configured public origin rather than
+being independently configurable.
+
+`memtextual-continuity-remote` is the dedicated private-UAT executable. It
+loads the saved Continuity installation profile for the existing database,
+migrations, working directory, and configured Codex extraction model; validates
+live Auth0 discovery; and starts the authenticated MCP application only on the
+configured IPv4 loopback port. It prints the local tunnel target and public MCP
+resource but does not start, configure, or authenticate Cloudflare Tunnel.
+
+`memtextual-continuity-tunnel create` writes a new Cloudflare named-tunnel
+configuration without overwriting an existing file. The generated ingress maps
+only the configured public hostname to the fixed `127.0.0.1` Continuity port and
+ends with an HTTP 404 fallback. Tunnel creation, DNS routing, authentication,
+credential-file protection, service installation, and process startup remain
+explicit Cloudflare administration steps.
+
+Before an Auth0 account can resolve Continuity data, the local
+`memtextual-continuity-identity` command requires a preview followed by the
+exact current confirmation. It binds the verified Auth0 issuer and subject to
+the existing user from the saved installation profile. Preview output contains
+only the issuer and a subject-derived hash; the raw subject is neither echoed
+nor stored, and an identity cannot be reassigned to another user.
+
+`ContinuityIdentityBindingService` and `ContinuityBoundMcpPrincipalResolver`
+provide the durable subject-to-user boundary. They store only the exact issuer
+and a SHA-256 key derived from the verified issuer and opaque subject; the raw
+subject and bearer token are not persisted. Bindings cannot be reassigned or
+deleted, and explicit revocation permanently blocks resolution.
+
+Private-UAT activation now uses the implemented Auth0 verifier and Cloudflare
+named-tunnel configuration boundary. It still requires user-owned Auth0 tenant
+and API settings, a user-created Cloudflare tunnel and DNS route, exact local
+configuration, identity binding, ordinary ChatGPT registration, and live
+interoperability validation. OpenAI recommends using an established identity
+provider instead of building a new authorization server; ChatGPT's MCP
+authentication uses authorization code with PKCE.
 [OpenAI authentication documentation](https://developers.openai.com/plugins/build/auth)

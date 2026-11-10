@@ -8,13 +8,16 @@ import { resolve } from "node:path";
 import test from "node:test";
 import {
   ContinuityAuthenticatedPersonaService,
+  ContinuityBoundMcpPrincipalResolver,
   ContinuityControlService,
+  ContinuityIdentityBindingService,
   ContinuityMemoryService,
   ContinuityPersonaBehaviorService,
   IngestionService,
   MemoryService,
   PersonaService,
   SqliteContinuityControlRepository,
+  SqliteContinuityIdentityBindingRepository,
   SqliteContinuityMemoryRepository,
   SqliteContinuityPersonaBehaviorRepository,
   SqliteIngestionRepository,
@@ -53,10 +56,19 @@ async function fixture() {
   );
   const personas = new ContinuityAuthenticatedPersonaService(personaService);
   const user = personaService.createUser({ displayName: "Steve" });
-  const principal = {
-    authenticationSubject: "oauth:steve",
-    continuityUserId: user.id,
+  const verifiedIdentity = {
+    issuer: issuerUrl,
+    subject: "opaque-steve-subject",
   };
+  const bindings = new ContinuityIdentityBindingService(
+    new SqliteContinuityIdentityBindingRepository(database),
+    personaService,
+  );
+  bindings.bind(verifiedIdentity, user.id, {
+    actor: "user",
+    explicitUserAction: true,
+  });
+  const principal = bindings.resolve(verifiedIdentity);
   let explicitUserAction = false;
   const observedTokens: string[] = [];
 
@@ -87,16 +99,20 @@ async function fixture() {
             token === "wrong-audience-token"
               ? new URL("https://other.example.test/mcp")
               : resourceServerUrl,
-          extra: { subject: "oauth:steve" },
+          extra: verifiedIdentity,
         };
       },
     },
-    principalResolver: {
-      resolve(authInfo) {
-        assert.equal(authInfo.extra?.["subject"], principal.authenticationSubject);
-        return principal;
+    principalResolver: new ContinuityBoundMcpPrincipalResolver(bindings, {
+      extract(authInfo) {
+        const issuer = authInfo.extra?.["issuer"];
+        const subject = authInfo.extra?.["subject"];
+        if (typeof issuer !== "string" || typeof subject !== "string") {
+          throw new Error("Verified identity claims are unavailable.");
+        }
+        return { issuer, subject };
       },
-    },
+    }),
     explicitUserActionPolicy: {
       authorize: () => explicitUserAction,
     },

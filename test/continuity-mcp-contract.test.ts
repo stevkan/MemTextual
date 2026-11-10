@@ -108,6 +108,9 @@ test("Continuity ChatGPT contract states explicit-only capture and exclusions", 
   assert.match(continuityMcpServerInstructions, /explicit tool calls only/iu);
   assert.match(continuityMcpServerInstructions, /never claim passive capture/iu);
   assert.match(continuityMcpServerInstructions, /explicitly asks to remember/iu);
+  assert.match(continuityMcpServerInstructions, /archive is reversible/iu);
+  assert.match(continuityMcpServerInstructions, /local Continuity client/iu);
+  assert.match(continuityMcpServerInstructions, /never imply data was erased/iu);
   assert.ok(continuityMcpServerInstructions.length <= 512);
 
   assert.deepEqual(continuityMcpExcludedOperations, [

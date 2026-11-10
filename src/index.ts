@@ -331,6 +331,12 @@ export type {
   PersonaRelationship,
   UpdatePersonaInput,
 } from "./domain/persona.js";
+export type {
+  ContinuityIdentityBinding,
+  ContinuityIdentityBindingMutationContext,
+  ContinuityIdentityBindingStatus,
+  ContinuityVerifiedIdentity,
+} from "./domain/continuity-identity.js";
 export {
   sourceKinds,
   sourceRecordKinds,
@@ -443,6 +449,22 @@ export {
   type ContinuityMcpHttpApplicationOptions,
   type ContinuityMcpHttpPrincipalResolver,
 } from "./mcp/continuity-http.js";
+export {
+  TrustedOAuthClientExplicitActionPolicy,
+  type TrustedOAuthClientExplicitActionPolicyOptions,
+} from "./mcp/trusted-oauth-client-explicit-action-policy.js";
+export {
+  continuityRemoteConfigurationFormatVersion,
+  continuityRemoteResourceServerUrl,
+  loadContinuityRemoteConfiguration,
+  parseContinuityRemoteConfiguration,
+  type ContinuityRemoteConfiguration,
+  type ContinuityRemoteWriteAuthorization,
+} from "./configuration/continuity-remote-configuration.js";
+export {
+  renderContinuityCloudflareTunnelConfiguration,
+  writeContinuityCloudflareTunnelConfiguration,
+} from "./configuration/cloudflare-tunnel-configuration.js";
 export type { MemoryRepository } from "./repositories/memory-repository.js";
 export type { ContinuityMemoryRepository } from "./repositories/continuity-memory-repository.js";
 export type { ContinuityEmbeddingRepository } from "./repositories/continuity-embedding-repository.js";
@@ -450,6 +472,10 @@ export type { ContinuityRankingRepository } from "./repositories/continuity-rank
 export type { ContinuityEmotionRepository } from "./repositories/continuity-emotion-repository.js";
 export type { IngestionRepository } from "./repositories/ingestion-repository.js";
 export type { PersonaRepository } from "./repositories/persona-repository.js";
+export type {
+  ContinuityIdentityBindingRepository,
+  CreateContinuityIdentityBindingRecordInput,
+} from "./repositories/continuity-identity-binding-repository.js";
 export type { ContinuityConversationRepository } from "./repositories/continuity-conversation-repository.js";
 export type {
   ContinuityConversationJournalPrivacyRepository,
@@ -473,6 +499,9 @@ export { SqliteContinuityRankingRepository } from "./repositories/sqlite-continu
 export { SqliteContinuityEmotionRepository } from "./repositories/sqlite-continuity-emotion-repository.js";
 export { SqliteMemoryRepository } from "./repositories/sqlite-memory-repository.js";
 export { SqlitePersonaRepository } from "./repositories/sqlite-persona-repository.js";
+export {
+  SqliteContinuityIdentityBindingRepository,
+} from "./repositories/sqlite-continuity-identity-binding-repository.js";
 export { SqliteReviewPolicyRepository } from "./repositories/sqlite-review-policy-repository.js";
 export { SqliteHostEventRepository } from "./repositories/sqlite-host-event-repository.js";
 export { SqliteContinuityConversationRepository } from "./repositories/sqlite-continuity-conversation-repository.js";
@@ -574,6 +603,13 @@ export {
   codexSensitivityReasonCodes,
   type CodexAppServerSensitivityClassifierOptions,
 } from "./providers/codex-app-server-sensitivity-classifier.js";
+export { CodexAppServerExplicitSensitivityAssessor } from "./providers/codex-app-server-explicit-sensitivity-assessor.js";
+export {
+  startContinuityRemoteRuntime,
+  type ContinuityRemoteRuntime,
+  type ContinuityRemoteSensitivityRunner,
+  type StartContinuityRemoteRuntimeOptions,
+} from "./runtime/continuity-remote-runtime.js";
 export {
   StructuredAmbientMemoryExtractor,
   type StructuredAmbientExtractorOptions,
@@ -613,6 +649,30 @@ export {
   type CreateAuthenticatedPersonaInput,
   type UpdateAuthenticatedPersonaInput,
 } from "./services/continuity-authenticated-persona-service.js";
+export {
+  ContinuityIdentityBindingService,
+  ExplicitContinuityIdentityBindingActionRequiredError,
+  continuityIdentityHash,
+  type ContinuityIdentityBindingPreview,
+} from "./services/continuity-identity-binding-service.js";
+export {
+  ContinuityBoundMcpPrincipalResolver,
+  type ContinuityVerifiedIdentityExtractor,
+} from "./mcp/continuity-bound-principal-resolver.js";
+export {
+  Auth0AccessTokenVerifier,
+  Auth0VerifiedIdentityExtractor,
+  type Auth0AccessTokenVerifierOptions,
+} from "./mcp/auth0-access-token-verifier.js";
+export {
+  loadAuth0OAuthMetadata,
+  type LoadAuth0OAuthMetadataOptions,
+} from "./mcp/auth0-oauth-metadata.js";
+export {
+  startContinuityNodeHttpListener,
+  type ContinuityNodeHttpListener,
+  type ContinuityNodeHttpListenerOptions,
+} from "./mcp/continuity-node-http-listener.js";
 export {
   ContinuityOnboardingService,
   type ContinuityOnboardingInput,

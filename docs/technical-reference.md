@@ -329,9 +329,14 @@ turn journaling and a capture attempt for every completed turn conducted through
 it. The provider-neutral authenticated Streamable HTTP handler publishes OAuth
 discovery, verifies bearer-token expiry and audience, enforces per-tool read or
 write scopes, and resolves a trusted principal without selecting an identity
-provider. Concrete identity-provider binding, durable subject-to-user mapping,
-hosting or private-tunnel selection, ChatGPT registration, and interoperability
-validation remain required active work and are not deferred.
+provider. The durable identity-binding service stores an issuer and a SHA-256
+key derived from the verified issuer and opaque subject, prevents reassignment,
+and supports explicit one-way revocation without persisting raw subjects or
+bearer tokens. The private-UAT runtime adds Auth0 discovery and token
+verification, explicit Codex sensitivity assessment, a fixed loopback listener,
+preview-bound identity mapping, and a create-once Cloudflare named-tunnel
+configuration. User-owned Auth0 and Cloudflare setup, ordinary ChatGPT
+registration, and live interoperability validation remain active work.
 
 ## Deliberately deferred
 

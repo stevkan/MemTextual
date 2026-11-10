@@ -61,7 +61,7 @@ describe("Continuity installation acceptance", () => {
       });
       assert.equal(data.databaseIntegrity, "ok");
       assert.equal(data.foreignKeyViolations, 0);
-      assert.equal(data.migrationCount, 21);
+      assert.equal(data.migrationCount, 22);
       assert.equal(data.persona.name, "Skylar");
 
       assert.deepEqual(verifyContinuityHostAcceptance(hostPreview()), {

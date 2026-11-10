@@ -83,7 +83,7 @@ describe("Continuity upgrade validation", () => {
       });
       assert.equal(result.report.passed, true);
       assert.equal(result.report.fromMigrationVersion, 20);
-      assert.equal(result.report.toMigrationVersion, 21);
+      assert.equal(result.report.toMigrationVersion, 22);
       assert.equal(result.report.liveDatabaseUnchanged, true);
       assert.equal(
         readdirSync(setup.backupDirectory).some((name) =>

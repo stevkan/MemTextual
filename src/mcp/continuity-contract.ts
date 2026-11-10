@@ -2,13 +2,13 @@ import * as z from "zod/v4";
 import { personaMemoryClasses } from "../domain/continuity-memory.js";
 import { memoryStatuses, memoryTypes } from "../domain/memory.js";
 
-export const continuityMcpContractVersion = 2;
+export const continuityMcpContractVersion = 3;
 export const continuityMcpServerName = "memtextual-continuity";
 export const continuityMcpReadScope = "continuity.read";
 export const continuityMcpWriteScope = "continuity.write";
 
 export const continuityMcpServerInstructions =
-  "MemTextual Continuity manages private, persona-bound memory. Ordinary ChatGPT provides explicit tool calls only; never claim passive capture. Resolve the intended persona with persona_list or persona_get before a persona-bound action. Use persona_memory_remember only when the user explicitly asks to remember, save, or store information. Never request or infer user, relationship, or scope IDs; the server resolves those boundaries.";
+  "MemTextual Continuity manages private, persona-bound memory. Ordinary ChatGPT provides explicit tool calls only; never claim passive capture. Resolve the intended persona with persona_list or persona_get. Use persona_memory_remember only when the user explicitly asks to remember, save, or store. Never request or infer ownership IDs. Archive is reversible removal from retrieval, not deletion. For delete or purge, direct the user to the local Continuity client; never imply data was erased.";
 
 export type ContinuityToolAuthorization =
   | "authenticated_read"

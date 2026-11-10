@@ -149,10 +149,16 @@ and does not register any Continuity tool in the Developer MCP server. A
 provider-neutral authenticated Streamable HTTP handler now publishes OAuth
 discovery, verifies bearer-token expiry and resource audience, advertises
 separate read and write scopes, and injects trusted principal and explicit-write
-policy decisions. It is not yet exposed through an executable or network
-endpoint. Concrete identity-provider binding, durable subject-to-user mapping,
-hosting or private-tunnel selection, ChatGPT registration, and interoperability
-validation remain the next active interface work.
+policy decisions. Durable identity mapping now hashes the verified issuer and
+opaque subject, binds the resulting key to one Continuity user, prevents
+reassignment, and supports explicit one-way revocation without storing the raw
+subject or bearer token. The private-UAT executable now composes that boundary
+with Auth0 discovery and token verification, a bounded Codex sensitivity
+assessor, a fixed IPv4-loopback listener, preview-bound identity mapping, and a
+create-once Cloudflare named-tunnel configuration. Activation still requires
+the user-owned Auth0 and Cloudflare resources, exact local configuration,
+ordinary ChatGPT registration, and live interoperability validation. MemTextual
+does not create cloud accounts, manage tunnel credentials, or start cloudflared.
 
 ## Distribution ownership
 

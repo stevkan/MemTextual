@@ -5,6 +5,47 @@ describe only the current design and behavior.
 
 ## Unreleased
 
+- Added a create-once Cloudflare named-tunnel configuration generator for
+  private UAT. It maps exactly one configured public hostname to the fixed IPv4
+  loopback endpoint and terminates all unmatched ingress with HTTP 404 without
+  managing Cloudflare credentials or processes.
+- Updated the ordinary-ChatGPT contract to distinguish reversible archive from
+  deletion. Remote requests to delete or purge are directed to the local
+  Continuity client, and the integration must never imply that archive erased
+  stored data.
+- Added preview-bound Auth0 identity binding. Preview output contains only the
+  issuer and subject-derived hash, never the raw subject, and apply requires the
+  exact current confirmation before the identity can be bound.
+- Added the `memtextual-continuity-remote` private-UAT executable. It reuses the
+  saved installation and conversation configuration, validates Auth0 discovery,
+  starts only on configured IPv4 loopback, and reports the separate tunnel
+  target without managing Cloudflare credentials or tunnel state.
+- Added the private-UAT Continuity remote runtime composition. It reuses the
+  existing database and persona services, Auth0 identity bindings, explicit
+  sensitivity assessment, trusted-client write policy, and loopback listener,
+  with coordinated startup cleanup and shutdown.
+- Added fail-closed Auth0 discovery loading that requires the exact configured
+  issuer, same-origin HTTPS authorization and token endpoints, authorization
+  code flow, and PKCE S256 before the remote listener can start.
+- Added a bounded Codex App Server sensitivity assessor for explicit remote
+  memory creation. It isolates untrusted memory text from developer
+  instructions, omits identity and persona data, validates structured output,
+  and never lowers a user-declared sensitivity.
+- Added a strict, secret-free Continuity remote configuration for private UAT.
+  It binds the Auth0 issuer, public HTTPS origin, fixed loopback port, and
+  explicit deny-or-trusted-client write mode while deriving the sole MCP
+  resource at `/mcp` and rejecting embedded secrets or ambiguous settings.
+- Added an explicit private-UAT write policy for the Continuity HTTP boundary.
+  It accepts only configured OAuth client IDs with the verified
+  `continuity.write` scope on the exact MCP POST resource and denies unknown
+  clients, read-only tokens, other resources, and non-POST requests. The policy
+  documents that ChatGPT confirmation is trusted host behavior rather than a
+  per-call OAuth attestation.
+- Added durable Continuity identity binding for authenticated MCP requests.
+  Verified issuer and subject pairs resolve to one local Continuity user through
+  a SHA-256 identity key; raw subjects and bearer tokens are not persisted.
+  Bindings require explicit user action, cannot be reassigned or deleted, and
+  support explicit one-way revocation.
 - Added a provider-neutral authenticated Streamable HTTP boundary for the
   Continuity MCP server. It serves OAuth discovery metadata, rejects missing,
   expired, and wrong-audience bearer tokens, advertises separate read and write
@@ -18,8 +59,9 @@ describe only the current design and behavior.
   MCP surface. The server derives ownership from an injected authenticated
   principal, rejects cross-user access, requires trusted explicit-user-action
   authorization for writes, and requires server-side sensitivity assessment
-  whose result cannot be lowered by a caller hint. Concrete identity-provider
-  binding, hosting, and ChatGPT registration remain intentionally unimplemented.
+  whose result cannot be lowered by a caller hint. Provider selection and
+  deployment were initially kept separate; the private-UAT Auth0 and Cloudflare
+  composition is recorded by the later entries above.
 - Defined the versioned ordinary-ChatGPT Continuity tool contract for explicit
   persona management, persona-bound memory operations, and candidate review.
   The contract rejects caller-selected ownership scopes and distinguishes

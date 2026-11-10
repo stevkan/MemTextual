@@ -66,9 +66,11 @@ capture, review controls, backups, and recovery safeguards.
 Ordinary ChatGPT is intended to be a first-class Continuity interface for
 explicit persona creation and management and for explicit, persona-bound memory
 capture and retrieval. That tool surface is required pre-release work and is not
-yet connected to ChatGPT. Its versioned tools and provider-neutral authenticated
-HTTP boundary are implemented, while identity-provider binding, registration,
-and live interoperability validation remain. The included Continuity client is an additional option for
+yet connected to ChatGPT. Its versioned tools, Auth0-protected private-UAT
+runtime, durable identity binding, loopback listener, and Cloudflare named-tunnel
+configuration boundary are implemented. User-owned Auth0 and Cloudflare setup,
+registration, and live interoperability validation remain. The included
+Continuity client is an additional option for
 users who want authorized completed-turn journaling and passive capture attempts;
 it is not intended to be Continuity's primary or exclusive ingestion point.
 
@@ -136,8 +138,9 @@ See [Privacy and deletion](docs/privacy.md) and
   distribution-compliance work are deferred.
 - The separate ordinary-ChatGPT Continuity persona-management and
   explicit-memory MCP server and provider-neutral authenticated HTTP boundary
-  are implemented as library components; concrete identity-provider binding,
-  hosting, ChatGPT registration, and interoperability validation remain active
+  are implemented as library components, including durable subject-to-user
+  mapping; concrete identity-provider and token-verifier integration, hosting,
+  ChatGPT registration, and interoperability validation remain active
   pre-release work.
 - Ordinary ChatGPT does not guarantee passive capture; the included Continuity
   client provides completed-turn capture attempts through an authorized

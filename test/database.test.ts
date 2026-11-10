@@ -79,7 +79,7 @@ test("migration and seed preserve schema integrity", () => {
     const violations = database.prepare("PRAGMA foreign_key_check").all();
 
     assert.equal(memoryCount.count, 10);
-    assert.equal(migrationCount.count, 21);
+    assert.equal(migrationCount.count, 22);
     assert.deepEqual(violations, []);
     assert.throws(
       () =>

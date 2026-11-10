@@ -80,6 +80,12 @@ its `continuity_relationships` row owns a namespace child of the persona scope.
 Triggers enforce this topology and make bound ownership and scope identities
 immutable. Different personas never share a relationship scope by default.
 
+`continuity_identity_bindings` maps a verified OAuth issuer and opaque subject
+to one local Continuity user without storing the raw subject. The application
+stores an issuer plus a SHA-256 identity key, prevents reassignment or deletion,
+and supports one-way revocation. Binding and revocation require explicit user
+action; bearer tokens and provider credentials are never stored in this table.
+
 `continuity_memory_profiles` classifies a core memory as `episodic` or
 `durable` and binds it to one user, persona, and relationship. This class is
 orthogonal to `memory_type`: it describes persistence semantics rather than the
@@ -298,6 +304,12 @@ service retains the conversation binding and confirmed host-deletion record
 while removing the owned active-database turn, event, source, record, and
 candidate rows. A purged conversation cannot accept new capture rows.
 
+Migration 022 adds `continuity_identity_bindings`. Each row stores the exact
+verified issuer, a unique SHA-256 identity key derived from issuer and opaque
+subject, and the bound local Continuity user. The raw subject is not stored.
+Ownership fields are immutable, rows cannot be deleted, and the only permitted
+status transition is a one-way active-to-revoked change.
+
 ## SQLite-enforced invariants
 
 - Enum-like values and confidence ranges are checked.
@@ -313,6 +325,8 @@ candidate rows. A purged conversation cannot accept new capture rows.
   retry attempts must advance the attempt count through a pending state.
 - Conversation-journal purge receipts are immutable and undeletable; turn
   captures cannot be deleted without a matching receipt.
+- Continuity identity bindings cannot be reassigned or deleted, and revocation
+  cannot be reversed.
 - Emotional profile revisions are sequential, immutable, persona-bound, and
   restricted to a retained current memory revision.
 - Source-series identities and version numbers are unique, and source-version

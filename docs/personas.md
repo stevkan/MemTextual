@@ -40,6 +40,13 @@ authenticated principal. Its profile, list, get, create, and update operations
 never accept a caller-selected user or scope ID, and cross-user persona IDs fail
 with the same not-found-style result as missing personas.
 
+`ContinuityIdentityBindingService` establishes the durable authentication
+boundary used to construct that principal. It hashes the exact verified
+`(issuer, subject)` pair, binds the resulting identity key to one local user,
+and refuses reassignment. The raw subject and bearer token are not persisted.
+Binding and one-way revocation require explicit user action. A revoked identity
+cannot resolve a principal or be silently rebound.
+
 User, persona, relationship, and scope creation is one transaction. A duplicate
 persona name or other constraint failure rolls back every new row, including
 the provisional scopes. Persona names are unique per user without regard to
